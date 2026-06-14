@@ -484,11 +484,12 @@
 <nav>
   <div class="logo">Ian<span>&</span>Matías <span style="font-size:1.1rem">🎮</span></div>
   <ul class="nav-links">
-    <li><a href="#" class="active">Inicio</a></li>
-    <li><a href="#">Arcade</a></li>
-    <li><a href="#">Puzzles</a></li>
-    <li><a href="#">Carreras</a></li>
-    <li><a href="#">2 Jugadores</a></li>
+    <li><a href="#" class="active" onclick="navFilter('all',this);return false">Inicio</a></li>
+    <li><a href="#" onclick="navFilter('arcade',this);return false">Arcade</a></li>
+    <li><a href="#" onclick="navFilter('puzzle',this);return false">Puzzles</a></li>
+    <li><a href="#" onclick="navFilter('racing',this);return false">Carreras</a></li>
+    <li><a href="#" onclick="navFilter('multi',this);return false">2 Jugadores</a></li>
+    <li><a href="#" onclick="navFilter('edu',this);return false">Educativo</a></li>
   </ul>
   <div class="nav-right">
     <input class="search-box" type="text" placeholder="🔍 Buscar juego…" id="searchInput" oninput="filterGames(this.value)">
@@ -1047,6 +1048,20 @@ function filterCategory(cat, btn) {
   document.getElementById('gameCount').textContent = count + ' juegos';
 }
 
+// Enlaces de la barra superior: filtran igual que los botones de categoría
+function navFilter(cat, link) {
+  // marcar el enlace activo
+  document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+  if (link) link.classList.add('active');
+  // activar la "pastilla" de categoría correspondiente y filtrar
+  const pill = document.querySelector('.cat-pill.' + (cat === 'all' ? 'all' : cat));
+  if (pill) filterCategory(cat, pill);
+  // desplazar hasta la sección de juegos
+  const sec = document.getElementById('gamesSection');
+  if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+  if (typeof SFX !== 'undefined') SFX.click();
+}
+
 function filterGames(val) {
   const v = val.toLowerCase();
   const cards = document.querySelectorAll('.game-card');
@@ -1261,6 +1276,10 @@ function updatePlayerProfile(id, name, emoji) {
   if (emoji) _playerData[id].emoji = emoji;
   savePlayerData();
 }
+// Datos de los 2 jugadores locales (para Pong, Tres en Raya, Duelo) — usan perfiles p1 y p2
+function localP1() { return PLAYERS['p1']; }
+function localP2() { return PLAYERS['p2']; }
+
 loadPlayer();
 
 // ══════════════════════════════════════════════════════════
@@ -2108,16 +2127,17 @@ function buildRacing(container) {
 // ═══════════════════════════════════════════
 function buildPong(container) {
   const W=Math.min(400,window.innerWidth-60), H=Math.round(W*0.6);
+  const j1=localP1(), j2=localP2();
   container.innerHTML = `
     <div class="game-container">
       <div style="padding:12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-weight:800;color:var(--puzzle)">J1 (W/S): <span id="p1score">0</span></span>
+        <span style="font-weight:800;color:var(--puzzle)">${j1.emoji} ${j1.name} (W/S): <span id="p1score">0</span></span>
         <button onclick="window.pongReset()" style="background:#7C3AED;border:none;color:white;padding:6px 14px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">Reiniciar</button>
-        <span style="font-weight:800;color:var(--secondary)"><span id="p2score">0</span> :J2 (↑/↓)</span>
+        <span style="font-weight:800;color:var(--secondary)"><span id="p2score">0</span> :${j2.emoji} ${j2.name} (↑/↓)</span>
       </div>
       <div class="game-canvas-wrap" style="min-height:${H}px"><canvas id="pongGame" width="${W}" height="${H}"></canvas></div>
     </div>
-    <div class="game-instructions"><strong>J1:</strong> W/S &nbsp;|&nbsp; <strong>J2:</strong> ↑/↓ · ¡Primero en 7 gana!</div>`;
+    <div class="game-instructions"><strong>${j1.emoji} ${j1.name}:</strong> W/S &nbsp;|&nbsp; <strong>${j2.emoji} ${j2.name}:</strong> ↑/↓ · ¡Primero en 7 gana!</div>`;
   const canvas=document.getElementById('pongGame');
   const ctx=canvas.getContext('2d');
   const PH=60,PW=10,BR=8;
@@ -2140,7 +2160,7 @@ function buildPong(container) {
     if(ball.x+BR>p2.x&&ball.y>p2.y&&ball.y<p2.y+PH&&ball.vx>0){ ball.vx=-Math.abs(ball.vx)*1.05; ball.vy=((ball.y-(p2.y+PH/2))/(PH/2))*5; }
     if(ball.x<0){ s2++; setText('p2score',s2); ball={x:W/2,y:H/2,vx:-3,vy:Math.random()*4-2}; }
     if(ball.x>W){ s1++; setText('p1score',s1); ball={x:W/2,y:H/2,vx:3,vy:Math.random()*4-2}; }
-    if(s1>=7||s2>=7){ awardBadge('first_win'); celebrate(); showToast(s1>=7?'🎉 ¡Jugador 1 gana!':'🎉 ¡Jugador 2 gana!'); reset(); return; }
+    if(s1>=7||s2>=7){ awardBadge('first_win'); celebrate(); showToast(s1>=7?('🎉 ¡'+j1.name+' gana!'):('🎉 ¡'+j2.name+' gana!')); reset(); return; }
     draw();
     animId=registerAnimation(requestAnimationFrame(loop));
   }
@@ -2193,25 +2213,26 @@ function buildPong(container) {
 //  GAME 8: TIC-TAC-TOE
 // ═══════════════════════════════════════════
 function buildTicTacToe(container) {
+  const j1=localP1(), j2=localP2();
   container.innerHTML = `
     <div class="game-container" style="background:#0a0a14;padding:20px">
       <div style="text-align:center;margin-bottom:16px">
-        <div id="tttStatus" style="font-family:Fredoka One,cursive;font-size:1.3rem;color:var(--accent);margin-bottom:12px">Turno de ⭕ Jugador 1</div>
+        <div id="tttStatus" style="font-family:Fredoka One,cursive;font-size:1.3rem;color:var(--accent);margin-bottom:12px">Turno de ⭕ ${j1.name}</div>
         <div style="display:flex;gap:20px;justify-content:center;font-weight:800;margin-bottom:16px">
-          <span style="color:var(--puzzle)">⭕ J1: <span id="tttS1">0</span></span>
+          <span style="color:var(--puzzle)">${j1.emoji}⭕ ${j1.name}: <span id="tttS1">0</span></span>
           <span style="color:#fff">🤝 <span id="tttSD">0</span></span>
-          <span style="color:var(--secondary)">❌ J2: <span id="tttS2">0</span></span>
+          <span style="color:var(--secondary)">${j2.emoji}❌ ${j2.name}: <span id="tttS2">0</span></span>
         </div>
         <div id="tttBoard" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto"></div>
         <button onclick="window.tttReset()" style="margin-top:16px;background:#7C3AED;border:none;color:white;padding:10px 28px;border-radius:20px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem">🔄 Nueva partida</button>
       </div>
     </div>
-    <div class="game-instructions"><strong>⭕ vs ❌</strong> — J1 es ⭕, J2 es ❌ · ¡3 en raya gana!</div>`;
+    <div class="game-instructions"><strong>${j1.emoji} ${j1.name} (⭕) vs ${j2.emoji} ${j2.name} (❌)</strong> · ¡3 en raya gana!</div>`;
   let board=Array(9).fill(null), current='O', s1=0, s2=0, sd=0, over=false;
   const WIN=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
   function reset(){
     board=Array(9).fill(null); current='O'; over=false;
-    setText('tttStatus','Turno de ⭕ Jugador 1');
+    setText('tttStatus','Turno de ⭕ '+j1.name);
     render();
   }
   function render(){
@@ -2231,14 +2252,15 @@ function buildTicTacToe(container) {
     render();
     if(win){
       over=true; const sym=current==='O'?'⭕':'❌';
+      const ganador=current==='O'?j1.name:j2.name;
       awardBadge('first_win'); if(current==='O'){s1++;setText('tttS1',s1);} else {s2++;setText('tttS2',s2);}
-      setText('tttStatus',`¡${sym} Gana! 🎉`);
-      celebrate(); showToast(`🎉 ${current==='O'?'Jugador 1':'Jugador 2'} gana!`);
+      setText('tttStatus',`¡${sym} ${ganador} Gana! 🎉`);
+      celebrate(); showToast(`🎉 ${ganador} gana!`);
     } else if(board.every(v=>v)){
       over=true; sd++; setText('tttSD',sd); setText('tttStatus','🤝 ¡Empate!'); showToast('🤝 ¡Empate!');
     } else {
       current=current==='O'?'X':'O';
-      setText('tttStatus',`Turno de ${current==='O'?'⭕ Jugador 1':'❌ Jugador 2'}`);
+      setText('tttStatus',`Turno de ${current==='O'?'⭕ '+j1.name:'❌ '+j2.name}`);
     }
   }
   window.tttReset = reset;
@@ -2597,21 +2619,22 @@ function buildQuiz(container) {
 //  GAME 15: DUELO DE REFLEJOS (2 jugadores)
 // ═══════════════════════════════════════════
 function buildReaction(container) {
+  const j1=localP1(), j2=localP2();
   container.innerHTML = `
     <div class="game-container" style="background:#0a0a14;padding:0;overflow:hidden">
       <div id="reactInfo" style="text-align:center;padding:14px;color:#fff;font-weight:800;font-size:1.05rem">Pulsa ▶ Iniciar ronda. Cuando el centro se ponga 🟢 VERDE, ¡pulsa tu botón!</div>
       <div style="display:flex;flex-direction:column;gap:4px">
-        <button id="p1btn" style="background:#00B4D8;border:none;color:white;padding:38px;font-family:Fredoka One,cursive;font-size:1.4rem;cursor:pointer;-webkit-tap-highlight-color:transparent">🔵 JUGADOR 1</button>
+        <button id="p1btn" style="background:#00B4D8;border:none;color:white;padding:38px;font-family:Fredoka One,cursive;font-size:1.3rem;cursor:pointer;-webkit-tap-highlight-color:transparent">${j1.emoji} ${j1.name}</button>
         <div id="reactLight" style="text-align:center;padding:24px;font-family:Fredoka One,cursive;font-size:1.6rem;color:#fff;background:#c41e3a">🔴 ESPERA...</div>
-        <button id="p2btn" style="background:#FF4D9D;border:none;color:white;padding:38px;font-family:Fredoka One,cursive;font-size:1.4rem;cursor:pointer;-webkit-tap-highlight-color:transparent">🔴 JUGADOR 2</button>
+        <button id="p2btn" style="background:#FF4D9D;border:none;color:white;padding:38px;font-family:Fredoka One,cursive;font-size:1.3rem;cursor:pointer;-webkit-tap-highlight-color:transparent">${j2.emoji} ${j2.name}</button>
       </div>
       <div style="display:flex;justify-content:space-around;align-items:center;padding:14px;color:#fff;font-weight:800">
-        <span>🔵 J1: <span id="r1score">0</span></span>
+        <span>${j1.emoji} ${j1.name}: <span id="r1score">0</span></span>
         <button id="reactStartBtn" style="background:#7C3AED;border:none;color:white;padding:10px 24px;border-radius:18px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:800">▶ Iniciar ronda</button>
-        <span>🔴 J2: <span id="r2score">0</span></span>
+        <span>${j2.emoji} ${j2.name}: <span id="r2score">0</span></span>
       </div>
     </div>
-    <div class="game-instructions"><strong>2 Jugadores:</strong> Pulsa "Iniciar ronda". Espera a que el centro se ponga verde 🟢 y pulsa tu botón antes que tu rival. ¡Si pulsas antes de tiempo, pierdes! Primero en 5 gana.</div>`;
+    <div class="game-instructions"><strong>${j1.emoji} ${j1.name} vs ${j2.emoji} ${j2.name}:</strong> Pulsa "Iniciar ronda". Espera a que el centro se ponga verde 🟢 y pulsa tu botón antes que tu rival. ¡Si pulsas antes de tiempo, pierdes! Primero en 5 gana.</div>`;
   let s1=0,s2=0,state='idle',greenT;
   const light=()=>document.getElementById('reactLight');
   function startRound(){
@@ -2624,15 +2647,16 @@ function buildReaction(container) {
       if(l2){ l2.style.background='#1a8c3a'; l2.textContent='🟢 ¡YA! PULSA'; }
     }, 1500+Math.random()*2500));
   }
+  function nombreDe(p){ return p===1 ? j1.name : j2.name; }
   function press(p){
     if(state==='idle'){ setText('reactInfo','Primero pulsa ▶ Iniciar ronda'); return; }
     if(state==='ready'){ // se adelantó
-      const l=light(); if(l){ l.style.background='#e6b800'; l.textContent=`❌ ¡J${p} se adelantó!`; }
+      const l=light(); if(l){ l.style.background='#e6b800'; l.textContent=`❌ ¡${nombreDe(p)} se adelantó!`; }
       if(greenT) clearTimeout(greenT);
       state='idle'; award(p===1?2:1); return;
     }
     if(state==='go'){
-      const l=light(); if(l){ l.style.background='#7C3AED'; l.textContent=`🏆 ¡Jugador ${p} gana la ronda!`; }
+      const l=light(); if(l){ l.style.background='#7C3AED'; l.textContent=`🏆 ¡${nombreDe(p)} gana la ronda!`; }
       state='idle'; award(p);
     }
   }
@@ -2640,7 +2664,7 @@ function buildReaction(container) {
     if(p===1){ s1++; setText('r1score',s1); } else { s2++; setText('r2score',s2); }
     if(s1>=5||s2>=5){
       const w=s1>=5?1:2;
-      setText('reactInfo',`🎉 ¡JUGADOR ${w} GANA EL DUELO!`); celebrate(); showToast(`🎉 ¡Jugador ${w} gana!`);
+      setText('reactInfo',`🎉 ¡${nombreDe(w)} GANA EL DUELO!`); celebrate(); showToast(`🎉 ¡${nombreDe(w)} gana!`);
       s1=0;s2=0; setText('r1score',0); setText('r2score',0);
     } else setText('reactInfo','Pulsa ▶ Iniciar ronda para seguir');
   }
