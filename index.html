@@ -93,6 +93,12 @@
     background: var(--primary); color: white;
   }
   .nav-right { display: flex; align-items: center; gap: 10px; }
+  /* En escritorio, el botón de cuenta va junto a la fila de la derecha */
+  @media (min-width: 601px) {
+    nav { justify-content: flex-start; }
+    .brand-area { margin-right: auto; }
+    #cuentaBtn { order: 99; margin-left: 10px; }
+  }
   .search-box {
     background: #F0ECFB;
     border: 2px solid transparent;
@@ -186,6 +192,7 @@
     box-shadow: 0 4px 10px rgba(0,0,0,0.1);
   }
   .cat-pill.all    { background: var(--primary); color: white; }
+  .cat-pill.bebes.active { background: #F59E0B; color: white; }
   .cat-pill.arcade.active { background: var(--arcade); color: white; }
   .cat-pill.puzzle.active { background: var(--puzzle); color: white; }
   .cat-pill.racing.active { background: var(--racing); color: white; }
@@ -420,11 +427,37 @@
 
   /* ──── RESPONSIVE ──── */
   @media (max-width: 600px) {
-    nav { padding: 0 14px; }
+    nav {
+      padding: 8px 12px;
+      height: auto;
+      flex-wrap: wrap;
+      gap: 8px;
+      row-gap: 8px;
+    }
+    .brand-area { flex: 1; min-width: 0; }
+    .logo { font-size: 1.4rem; }
+    .family-text { font-size: 0.6rem; }
     .nav-links { display: none; }
-    .search-box { width: 130px; }
+    /* el botón de cuenta va arriba a la derecha, junto al logo */
+    #cuentaBtn { order: 2; font-size: 0.78rem !important; padding: 0 12px !important; height: 38px !important; }
+    /* la fila de la derecha ocupa todo el ancho y se reparte */
+    .nav-right {
+      order: 3;
+      width: 100%;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .search-box { flex: 1; width: auto !important; min-width: 0; }
+    .nav-right button {
+      width: 40px !important; height: 40px !important;
+      font-size: 1.15rem !important; flex-shrink: 0;
+    }
     .game-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
     section { padding: 0 14px 36px; }
+    .hero { padding: 28px 16px 36px; }
+    .hero-badge { font-size: 0.72rem; padding: 6px 14px; }
     .modal { border-radius: 16px; max-height: 95vh; }
     .modal-header { padding: 10px 14px; }
     .modal-title { font-size: 1.1rem; }
@@ -504,11 +537,13 @@
     <li><a href="#" onclick="navFilter('multi',this);return false">2 Jugadores</a></li>
     <li><a href="#" onclick="navFilter('edu',this);return false">Educativo</a></li>
   </ul>
+  <button onclick="openCuenta()" id="cuentaBtn" title="Mi cuenta" style="background:linear-gradient(135deg,#16A34A,#2563EB);border:none;border-radius:20px;padding:0 16px;height:42px;font-size:0.9rem;font-weight:800;color:#fff;cursor:pointer;flex-shrink:0;font-family:Nunito,sans-serif">Crear cuenta</button>
   <div class="nav-right">
     <input class="search-box" type="text" placeholder="🔍 Buscar juego…" id="searchInput" oninput="filterGames(this.value)">
     <button onclick="cycleTheme()" id="themeBtn" title="Cambiar tema" style="background:#F0ECFB;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0;transition:transform 0.2s">🎨</button>
+    <button onclick="openRanking()" id="rankBtn" title="Tabla de puntajes" style="background:#FFF4D6;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0">🏆</button>
+    <button onclick="openTienda()" id="tiendaBtn" title="Tienda" style="background:#FFF4D6;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0">🛒</button>
     <button onclick="openProfile()" id="profileBtn" title="Perfil y medallas" style="background:#F0ECFB;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0">👤</button>
-    <button onclick="openCuenta()" id="cuentaBtn" title="Mi cuenta" style="background:linear-gradient(135deg,#16A34A,#2563EB);border:none;border-radius:20px;padding:0 16px;height:42px;font-size:0.9rem;font-weight:800;color:#fff;cursor:pointer;flex-shrink:0;font-family:Nunito,sans-serif">Crear cuenta</button>
   </div>
 </nav>
 
@@ -526,7 +561,7 @@
 
 <!-- STATS -->
 <div class="stats">
-  <div class="stat"><div class="stat-num">34</div><div class="stat-label">Juegos</div></div>
+  <div class="stat"><div class="stat-num">46</div><div class="stat-label">Juegos</div></div>
   <div class="stat"><div class="stat-num">7</div><div class="stat-label">Categorías</div></div>
   <div class="stat"><div class="stat-num" id="onlineCount" style="color:#16A34A">🟢 1</div><div class="stat-label">En línea</div></div>
   <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Diversión</div></div>
@@ -535,6 +570,7 @@
 <!-- CATEGORIES -->
 <div class="categories" id="categoryBar">
   <button class="cat-pill all active" onclick="filterCategory('all', this)">🎮 Todos</button>
+  <button class="cat-pill bebes" onclick="filterCategory('bebes', this)">👶 Bebés (1-3)</button>
   <button class="cat-pill arcade" onclick="filterCategory('arcade', this)">🔥 Arcade</button>
   <button class="cat-pill puzzle" onclick="filterCategory('puzzle', this)">🧩 Puzzles</button>
   <button class="cat-pill racing" onclick="filterCategory('racing', this)">🏎️ Carreras</button>
@@ -571,9 +607,81 @@
 <section id="gamesSection">
   <div class="section-header">
     <div class="section-title"><span class="section-icon">🕹️</span> Todos los Juegos</div>
-    <span class="see-all" id="gameCount">34 juegos</span>
+    <span class="see-all" id="gameCount">46 juegos</span>
   </div>
   <div class="game-grid" id="gameGrid">
+
+    <div class="game-card fade-up" data-cat="bebes" data-name="globos" onclick="openGame('globos')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#fb7185,#f59e0b)"></div><span class="game-thumb-emoji">🎈</span></div>
+      <div class="game-badge badge-new">👶 Bebés</div>
+      <div class="game-info"><div class="game-name">Revienta Globos</div><div class="game-meta"><span class="game-cat" style="background:#F59E0B;color:#fff">Bebés</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="bebes" data-name="tocar" onclick="openGame('tocar')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#a78bfa,#ec4899)"></div><span class="game-thumb-emoji">⭐</span></div>
+      <div class="game-badge badge-new">👶 Bebés</div>
+      <div class="game-info"><div class="game-name">Toca y Aparece</div><div class="game-meta"><span class="game-cat" style="background:#F59E0B;color:#fff">Bebés</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="bebes" data-name="pintar" onclick="openGame('pintar')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#34d399,#3b82f6)"></div><span class="game-thumb-emoji">🎨</span></div>
+      <div class="game-badge badge-new">👶 Bebés</div>
+      <div class="game-info"><div class="game-name">Pintar con el Dedo</div><div class="game-meta"><span class="game-cat" style="background:#F59E0B;color:#fff">Bebés</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="bebes" data-name="piano" onclick="openGame('piano')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#f472b6,#a78bfa)"></div><span class="game-thumb-emoji">🎹</span></div>
+      <div class="game-badge badge-new">👶 Bebés</div>
+      <div class="game-info"><div class="game-name">Piano de Animales</div><div class="game-meta"><span class="game-cat" style="background:#F59E0B;color:#fff">Bebés</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="bebes" data-name="animales" onclick="openGame('animales')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#fbbf24,#f87171)"></div><span class="game-thumb-emoji">🐤</span></div>
+      <div class="game-badge badge-new">👶 Bebés</div>
+      <div class="game-info"><div class="game-name">Sonidos de Animales</div><div class="game-meta"><span class="game-cat" style="background:#F59E0B;color:#fff">Bebés</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="bebes" data-name="numeros" onclick="openGame('numeros')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#60a5fa,#2563eb)"></div><span class="game-thumb-emoji">🔢</span></div>
+      <div class="game-badge badge-new">👶 Bebés</div>
+      <div class="game-info"><div class="game-name">Aprende Números</div><div class="game-meta"><span class="game-cat" style="background:#F59E0B;color:#fff">Bebés</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="bebes" data-name="letras" onclick="openGame('letras')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#34d399,#059669)"></div><span class="game-thumb-emoji">🔤</span></div>
+      <div class="game-badge badge-new">👶 Bebés</div>
+      <div class="game-info"><div class="game-name">Aprende Letras</div><div class="game-meta"><span class="game-cat" style="background:#F59E0B;color:#fff">Bebés</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="bebes" data-name="vocales" onclick="openGame('vocales')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#f87171,#dc2626)"></div><span class="game-thumb-emoji">🅰️</span></div>
+      <div class="game-badge badge-new">👶 Bebés</div>
+      <div class="game-info"><div class="game-name">Aprende Vocales</div><div class="game-meta"><span class="game-cat" style="background:#F59E0B;color:#fff">Bebés</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="bebes" data-name="colores" onclick="openGame('colores')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#a78bfa,#f472b6)"></div><span class="game-thumb-emoji">🌈</span></div>
+      <div class="game-badge badge-new">👶 Bebés</div>
+      <div class="game-info"><div class="game-name">Aprende Colores</div><div class="game-meta"><span class="game-cat" style="background:#F59E0B;color:#fff">Bebés</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="bebes" data-name="formas" onclick="openGame('formas')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#fbbf24,#7c3aed)"></div><span class="game-thumb-emoji">🔺</span></div>
+      <div class="game-badge badge-new">👶 Bebés</div>
+      <div class="game-info"><div class="game-name">Aprende Formas</div><div class="game-meta"><span class="game-cat" style="background:#F59E0B;color:#fff">Bebés</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="bebes" data-name="silabas" onclick="openGame('silabas')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#22d3ee,#3b82f6)"></div><span class="game-thumb-emoji">📖</span></div>
+      <div class="game-badge badge-new">👶 Bebés</div>
+      <div class="game-info"><div class="game-name">Aprende Sílabas</div><div class="game-meta"><span class="game-cat" style="background:#F59E0B;color:#fff">Bebés</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="bebes" data-name="burbujas" onclick="openGame('burbujas')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#67e8f9,#3b82f6)"></div><span class="game-thumb-emoji">🔵</span></div>
+      <div class="game-badge badge-new">👶 Bebés</div>
+      <div class="game-info"><div class="game-name">Burbujas</div><div class="game-meta"><span class="game-cat" style="background:#F59E0B;color:#fff">Bebés</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
 
     <div class="game-card fade-up" data-cat="arcade" data-name="snake" onclick="openGame('snake')">
       <div class="game-thumb">
@@ -1104,7 +1212,8 @@ async function cargarPerfilNube() {
       if (data.numero_amigo) { try { localStorage.setItem('im_guestid', data.numero_amigo); } catch(e){} }
       if (Array.isArray(data.logros)) { try { localStorage.setItem(badgeKey(), JSON.stringify(data.logros)); } catch(e){} }
       if (Array.isArray(data.amigos)) { try { localStorage.setItem('im_amigos', JSON.stringify(data.amigos)); } catch(e){} }
-      updatePlayerBadge();
+      if (typeof updatePlayerBadge === 'function') updatePlayerBadge();
+      if (typeof actualizarSaldoVisible === 'function') actualizarSaldoVisible();
       // registrar última actividad
       try { await c.from('perfiles').update({ ultima_actividad: new Date().toISOString() }).eq('id', usuarioActual.id); } catch(e){}
     }
@@ -1131,6 +1240,69 @@ function traducirError(msg) {
 }
 function tieneSesion() { return !!usuarioActual; }
 function esAdmin() { return perfilNube && perfilNube.es_admin === true; }
+
+// ══════════════════════════════════════════════════════════
+//  SISTEMA DE MONEDAS Y PUNTOS (solo con cuenta)
+// ══════════════════════════════════════════════════════════
+// Las monedas y puntos viven en perfilNube (en la nube). Solo usuarios con sesión.
+function getMonedas() { return (perfilNube && perfilNube.monedas) || 0; }
+function getPuntos() { return (perfilNube && perfilNube.puntos) || 0; }
+function getComprados() { return (perfilNube && Array.isArray(perfilNube.comprados)) ? perfilNube.comprados : []; }
+function getTitulo() { return (perfilNube && perfilNube.titulo) || ''; }
+
+// Dar monedas y puntos al jugar (solo si hay sesión)
+let _gananciaPendiente = { monedas: 0, puntos: 0 };
+async function darRecompensa(monedas, puntos, motivo) {
+  if (!tieneSesion()) return; // solo usuarios con cuenta
+  const c = getSupabase(); if (!c || !perfilNube) return;
+  perfilNube.monedas = getMonedas() + monedas;
+  perfilNube.puntos = getPuntos() + puntos;
+  try {
+    await c.from('perfiles').update({ monedas: perfilNube.monedas, puntos: perfilNube.puntos }).eq('id', usuarioActual.id);
+  } catch (e) {}
+  mostrarGanancia(monedas, puntos, motivo);
+  actualizarSaldoVisible();
+}
+// Toast de "+5 🪙 +10 ⭐"
+function mostrarGanancia(monedas, puntos, motivo) {
+  if (monedas <= 0 && puntos <= 0) return;
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#f59e0b,#FFD600);color:#3a2700;padding:10px 20px;border-radius:20px;font-weight:800;z-index:6000;box-shadow:0 6px 20px rgba(245,158,11,0.5);font-family:Nunito,sans-serif';
+  t.innerHTML = `${monedas>0?'+'+monedas+' 🪙 ':''}${puntos>0?'+'+puntos+' ⭐':''}${motivo?' · '+motivo:''}`;
+  document.body.appendChild(t);
+  if (typeof SFX!=='undefined') SFX.coin();
+  setTimeout(() => { t.style.transition='opacity 0.4s'; t.style.opacity='0'; setTimeout(()=>t.remove(),400); }, 1800);
+}
+// Muestra el saldo de monedas en la navbar (si hay sesión)
+function actualizarSaldoVisible() {
+  let chip = document.getElementById('coinChip');
+  if (!tieneSesion()) { if (chip) chip.remove(); return; }
+  if (!chip) {
+    const nav = document.querySelector('nav');
+    const ref = document.getElementById('cuentaBtn');
+    chip = document.createElement('div');
+    chip.id = 'coinChip';
+    chip.style.cssText = 'display:flex;align-items:center;gap:4px;background:#FFF4D6;color:#92600a;border-radius:20px;padding:0 12px;height:42px;font-weight:800;flex-shrink:0;font-family:Nunito,sans-serif;cursor:pointer';
+    chip.title = 'Tus monedas';
+    chip.onclick = () => openTienda();
+    if (ref && ref.parentNode) ref.parentNode.insertBefore(chip, ref);
+  }
+  chip.innerHTML = `🪙 ${getMonedas()}`;
+}
+// Gastar monedas (devuelve true si pudo)
+async function gastarMonedas(cantidad, itemId) {
+  if (!tieneSesion()) { showToast('Necesitas una cuenta'); return false; }
+  if (getMonedas() < cantidad) { showToast('No tienes suficientes monedas'); return false; }
+  const c = getSupabase(); if (!c || !perfilNube) return false;
+  perfilNube.monedas = getMonedas() - cantidad;
+  const comp = getComprados(); if (itemId && !comp.includes(itemId)) comp.push(itemId);
+  perfilNube.comprados = comp;
+  try {
+    await c.from('perfiles').update({ monedas: perfilNube.monedas, comprados: comp }).eq('id', usuarioActual.id);
+  } catch (e) {}
+  actualizarSaldoVisible();
+  return true;
+}
 
 // ── Identidad automática de invitado online (número único + avatar) ──
 function getGuestId() {
@@ -1531,7 +1703,7 @@ function launchConfetti() {
   tick();
 }
 // Atajo: ganar = confeti + sonido
-function celebrate() { SFX.win(); launchConfetti(); }
+function celebrate() { SFX.win(); launchConfetti(); if (typeof darRecompensa==='function') darRecompensa(5, 10, '¡Bien!'); }
 
 // ══════════════════════════════════════════════════════════
 //  PANTALLA "¡NIVEL X!" (transición entre niveles)
@@ -1668,6 +1840,15 @@ function awardBadge(id) {
   _recordsFallback[badgeKey()] = list;
   showBadgeToast(id);
   if (typeof guardarPerfilNube === 'function' && typeof tieneSesion === 'function' && tieneSesion()) guardarPerfilNube();
+  // recompensa por medalla: 50 monedas + 100 puntos
+  if (typeof darRecompensa === 'function') darRecompensa(50, 100, '¡Medalla!');
+}
+// Recompensa por ganar/anotar en cualquier juego (llamar desde los juegos)
+function ganarEnJuego(dificultad) {
+  // dificultad: 1=normal, 2=difícil. Da monedas y puntos modestos.
+  const m = dificultad === 2 ? 10 : 5;
+  const p = dificultad === 2 ? 20 : 10;
+  if (typeof darRecompensa === 'function') darRecompensa(m, p, '¡Victoria!');
 }
 function showBadgeToast(id) {
   const bd = BADGES[id]; if (!bd) return;
@@ -1777,6 +1958,18 @@ function openGame(id) {
   document.body.style.overflow = 'hidden';
   
   const games = {
+    globos:   { title: '🎈 Revienta Globos',   fn: buildGlobos },
+    tocar:    { title: '⭐ Toca y Aparece',     fn: buildTocar },
+    pintar:   { title: '🎨 Pintar con el Dedo', fn: buildPintar },
+    piano:    { title: '🎹 Piano de Animales',  fn: buildPiano },
+    animales: { title: '🐤 Sonidos de Animales', fn: buildAnimales },
+    numeros:  { title: '🔢 Aprende Números',    fn: buildNumeros },
+    letras:   { title: '🔤 Aprende Letras',     fn: buildLetras },
+    vocales:  { title: '🅰️ Aprende Vocales',    fn: buildVocales },
+    colores:  { title: '🌈 Aprende Colores',    fn: buildColores },
+    formas:   { title: '🔺 Aprende Formas',     fn: buildFormas },
+    silabas:  { title: '📖 Aprende Sílabas',    fn: buildSilabas },
+    burbujas: { title: '🔵 Burbujas',           fn: buildBurbujas },
     snake:    { title: '🐍 Snake Pro',      fn: buildSnake },
     breakout: { title: '🧱 Breakout Blast', fn: buildBreakout },
     whack:    { title: '🔨 Whack-a-Mole',   fn: buildWhack },
@@ -2123,6 +2316,169 @@ async function registrarVisita() {
 // ══════════════════════════════════════════════════════════
 //  PANTALLA DE PERFIL (jugador + medallas)
 // ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  RANKING GLOBAL (tabla de puntajes que todos ven)
+// ══════════════════════════════════════════════════════════
+async function openRanking() {
+  stopAllGames();
+  const modal = document.getElementById('modalOverlay');
+  modal.classList.add('open');
+  activeGame = 'ranking';
+  document.body.style.overflow = 'hidden';
+  document.getElementById('modalTitle').textContent = '🏆 Tabla de Puntajes';
+  const body = document.getElementById('modalBody');
+  body.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:18px;min-height:340px">
+    <div style="text-align:center;color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem;margin-bottom:4px">🏆 Los Mejores Jugadores</div>
+    <div style="text-align:center;color:#aaa;font-size:0.8rem;margin-bottom:16px">¿Quién tiene más puntos? ¡Compite con tus amigos!</div>
+    <div id="rankLista" style="max-width:400px;margin:0 auto"><div style="text-align:center;color:#666">Cargando ranking...</div></div>
+  </div>
+  <div class="game-instructions">Gana puntos ⭐ jugando y ganando partidas. ¡Solo los usuarios con cuenta aparecen en el ranking!</div>`;
+  if (!onlineDisponible()) { document.getElementById('rankLista').innerHTML = '<div style="text-align:center;color:#f87171">Sin conexión</div>'; return; }
+  const c = getSupabase();
+  try {
+    const { data, error } = await c.from('perfiles').select('nombre,avatar,puntos,titulo,numero_amigo').order('puntos', { ascending:false }).limit(20);
+    const cont = document.getElementById('rankLista');
+    if (error || !data || !data.length) { cont.innerHTML = '<div style="text-align:center;color:#666">Aún no hay puntajes. ¡Sé el primero en jugar!</div>'; return; }
+    const medallas = ['🥇','🥈','🥉'];
+    const miNum = perfilNube && perfilNube.numero_amigo;
+    cont.innerHTML = data.map((u, i) => {
+      const esMio = miNum && u.numero_amigo === miNum;
+      const pos = i < 3 ? medallas[i] : `<span style="color:#666;font-weight:800">${i+1}</span>`;
+      return `<div style="display:flex;align-items:center;gap:10px;background:${esMio?'rgba(22,163,74,0.15)':'#13131f'};border:${esMio?'2px solid #16A34A':'2px solid transparent'};border-radius:12px;padding:10px;margin-bottom:6px">
+        <div style="font-size:1.3rem;width:32px;text-align:center">${pos}</div>
+        <span style="font-size:1.5rem">${u.avatar||'👤'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="color:#fff;font-weight:800;font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.nombre||'Jugador'} ${esMio?'(tú)':''}</div>
+          ${u.titulo?`<div style="color:#FFD600;font-size:0.7rem">${u.titulo}</div>`:''}
+        </div>
+        <div style="color:#FFD600;font-weight:800">${u.puntos||0} ⭐</div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    document.getElementById('rankLista').innerHTML = '<div style="text-align:center;color:#f87171">Error al cargar el ranking</div>';
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  TIENDA (avatares premium + insignias, se compran con monedas)
+// ══════════════════════════════════════════════════════════
+const TIENDA_AVATARES = [
+  { id:'av_dragon', emoji:'🐲', precio:200, nombre:'Dragón' },
+  { id:'av_robot', emoji:'🤖', precio:200, nombre:'Robot' },
+  { id:'av_alien', emoji:'👽', precio:250, nombre:'Alien' },
+  { id:'av_unicornio2', emoji:'🦄', precio:300, nombre:'Unicornio' },
+  { id:'av_payaso', emoji:'🤡', precio:150, nombre:'Payaso' },
+  { id:'av_fantasma', emoji:'👻', precio:150, nombre:'Fantasma' },
+  { id:'av_ninja', emoji:'🥷', precio:350, nombre:'Ninja' },
+  { id:'av_mago', emoji:'🧙', precio:350, nombre:'Mago' },
+  { id:'av_superheroe', emoji:'🦸', precio:400, nombre:'Superhéroe' },
+  { id:'av_rey', emoji:'🤴', precio:500, nombre:'Rey' },
+  { id:'av_dino2', emoji:'🦕', precio:250, nombre:'Dino' },
+  { id:'av_pulpo2', emoji:'🐙', precio:200, nombre:'Pulpo' }
+];
+const TIENDA_TITULOS = [
+  { id:'ti_novato', texto:'🌱 Novato', precio:100 },
+  { id:'ti_jugador', texto:'🎮 Jugador Pro', precio:300 },
+  { id:'ti_campeon', texto:'🏆 Campeón', precio:600 },
+  { id:'ti_maestro', texto:'🧠 Maestro', precio:800 },
+  { id:'ti_leyenda', texto:'⭐ Leyenda', precio:1200 },
+  { id:'ti_rey', texto:'👑 Rey del Juego', precio:2000 }
+];
+
+function openTienda() {
+  if (!tieneSesion()) {
+    stopAllGames();
+    const modal = document.getElementById('modalOverlay');
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    document.getElementById('modalTitle').textContent = '🛒 Tienda';
+    document.getElementById('modalBody').innerHTML = `<div class="game-container" style="background:#0a0a14;padding:30px;text-align:center;color:#fff">
+      <div style="font-size:2.5rem">🪙</div>
+      <div style="font-family:'Fredoka One',cursive;font-size:1.2rem;margin:10px 0">Necesitas una cuenta</div>
+      <div style="color:#aaa;margin-bottom:16px">Crea tu cuenta para ganar monedas jugando y comprar cosas en la tienda.</div>
+      <button onclick="openCuenta()" style="background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:12px 24px;border-radius:14px;font-weight:800;cursor:pointer">Crear cuenta</button>
+    </div>`;
+    return;
+  }
+  stopAllGames();
+  const modal = document.getElementById('modalOverlay');
+  modal.classList.add('open');
+  activeGame = 'tienda';
+  document.body.style.overflow = 'hidden';
+  document.getElementById('modalTitle').textContent = '🛒 Tienda';
+  renderTienda('avatares');
+}
+
+function renderTienda(tab) {
+  const body = document.getElementById('modalBody');
+  const comprados = getComprados();
+  const avHTML = TIENDA_AVATARES.map(it => {
+    const tengo = comprados.includes(it.id);
+    return `<div style="background:#13131f;border-radius:14px;padding:12px;text-align:center">
+      <div style="font-size:2.4rem">${it.emoji}</div>
+      <div style="color:#fff;font-size:0.8rem;font-weight:700;margin:4px 0">${it.nombre}</div>
+      ${tengo
+        ? `<button data-usar="${it.id}" data-emoji="${it.emoji}" style="width:100%;background:#16A34A;border:none;color:#fff;padding:7px;border-radius:10px;font-weight:800;font-size:0.78rem;cursor:pointer">Usar</button>`
+        : `<button data-comprar="${it.id}" data-precio="${it.precio}" data-tipo="avatar" data-emoji="${it.emoji}" style="width:100%;background:#FFD600;border:none;color:#3a2700;padding:7px;border-radius:10px;font-weight:800;font-size:0.78rem;cursor:pointer">🪙 ${it.precio}</button>`}
+    </div>`;
+  }).join('');
+  const tiHTML = TIENDA_TITULOS.map(it => {
+    const tengo = comprados.includes(it.id);
+    const usando = getTitulo() === it.texto;
+    return `<div style="background:#13131f;border-radius:14px;padding:12px;display:flex;align-items:center;gap:10px">
+      <div style="flex:1;color:#fff;font-weight:800">${it.texto}</div>
+      ${tengo
+        ? `<button data-usartitulo="${it.id}" data-texto="${it.texto.replace(/"/g,'&quot;')}" style="background:${usando?'#444':'#16A34A'};border:none;color:#fff;padding:7px 14px;border-radius:10px;font-weight:800;font-size:0.78rem;cursor:pointer">${usando?'En uso':'Usar'}</button>`
+        : `<button data-comprar="${it.id}" data-precio="${it.precio}" data-tipo="titulo" data-texto="${it.texto.replace(/"/g,'&quot;')}" style="background:#FFD600;border:none;color:#3a2700;padding:7px 14px;border-radius:10px;font-weight:800;font-size:0.78rem;cursor:pointer">🪙 ${it.precio}</button>`}
+    </div>`;
+  }).join('');
+  body.innerHTML = `
+    <div class="game-container" style="background:#0a0a14;padding:18px;min-height:340px">
+      <div style="text-align:center;margin-bottom:14px">
+        <div style="display:inline-block;background:#FFF4D6;color:#92600a;border-radius:20px;padding:8px 20px;font-weight:800;font-size:1.1rem">🪙 ${getMonedas()} monedas</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;max-width:360px;margin-left:auto;margin-right:auto">
+        <button id="tabAv" style="flex:1;background:${tab==='avatares'?'#7C3AED':'#1a1a2e'};border:none;color:#fff;padding:10px;border-radius:12px;font-weight:800;cursor:pointer">🎭 Avatares</button>
+        <button id="tabTi" style="flex:1;background:${tab==='titulos'?'#7C3AED':'#1a1a2e'};border:none;color:#fff;padding:10px;border-radius:12px;font-weight:800;cursor:pointer">🏅 Títulos</button>
+      </div>
+      ${tab==='avatares'
+        ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:380px;margin:0 auto">${avHTML}</div>`
+        : `<div style="display:flex;flex-direction:column;gap:8px;max-width:380px;margin:0 auto">${tiHTML}</div>`}
+    </div>
+    <div class="game-instructions">Gana monedas 🪙 jugando y ganando partidas. ¡Compra avatares y títulos exclusivos para presumir!</div>`;
+  bindBtn('tabAv', () => renderTienda('avatares'));
+  bindBtn('tabTi', () => renderTienda('titulos'));
+  // comprar
+  body.querySelectorAll('button[data-comprar]').forEach(b => {
+    const f = async e => {
+      e.preventDefault(); e.stopPropagation();
+      const id = b.dataset.comprar, precio = +b.dataset.precio;
+      const ok = await gastarMonedas(precio, id);
+      if (ok) {
+        SFX.coin(); launchConfetti(); showToast('🎉 ¡Comprado!');
+        if (b.dataset.tipo === 'avatar') { setGuestAvatar(b.dataset.emoji); guardarPerfilNube(); updatePlayerBadge(); }
+        else if (b.dataset.tipo === 'titulo') { perfilNube.titulo = b.dataset.texto; await guardarTitulo(b.dataset.texto); }
+        renderTienda(tab);
+      }
+    };
+    b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+  });
+  // usar avatar comprado
+  body.querySelectorAll('button[data-usar]').forEach(b => {
+    const f = e => { e.preventDefault(); e.stopPropagation(); setGuestAvatar(b.dataset.emoji); guardarPerfilNube(); updatePlayerBadge(); SFX.click(); showToast('Avatar equipado'); };
+    b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+  });
+  // usar título comprado
+  body.querySelectorAll('button[data-usartitulo]').forEach(b => {
+    const f = async e => { e.preventDefault(); e.stopPropagation(); perfilNube.titulo = b.dataset.texto; await guardarTitulo(b.dataset.texto); SFX.click(); showToast('Título equipado'); renderTienda(tab); };
+    b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+  });
+}
+async function guardarTitulo(texto) {
+  const c = getSupabase(); if (!c || !usuarioActual) return;
+  try { await c.from('perfiles').update({ titulo: texto }).eq('id', usuarioActual.id); } catch (e) {}
+}
+
 function openProfile() {
   stopAllGames();
   const modal = document.getElementById('modalOverlay');
@@ -5199,6 +5555,420 @@ function buildLudoOnline(container) {
     });
     ctrl.conectarChat();
   }
+}
+
+// ══════════════════════════════════════════════════════════
+//  JUEGOS PARA BEBÉS (1-3 años) — causa y efecto, sin perder
+// ══════════════════════════════════════════════════════════
+
+// 🎈 REVIENTA GLOBOS
+function buildGlobos(container) {
+  const colores = ['#ef4444','#f59e0b','#eab308','#22c55e','#3b82f6','#a855f7','#ec4899','#06b6d4'];
+  let activos = [];
+  container.innerHTML = `
+    <div class="game-container" style="background:linear-gradient(180deg,#bfdbfe,#dbeafe);min-height:420px;position:relative;overflow:hidden;border-radius:0">
+      <div id="globosArea" style="position:absolute;inset:0;touch-action:manipulation"></div>
+    </div>
+    <div class="game-instructions">👶 Toca los globos para reventarlos. ¡Sin perder, solo diversión!</div>`;
+  const area = document.getElementById('globosArea');
+  function nuevoGlobo() {
+    if (!document.body.contains(area)) return;
+    const g = document.createElement('div');
+    const col = colores[Math.floor(Math.random()*colores.length)];
+    const size = 60 + Math.random()*40;
+    const x = Math.random()*(area.clientWidth - size);
+    g.style.cssText = `position:absolute;left:${x}px;bottom:-120px;width:${size}px;height:${size*1.2}px;background:radial-gradient(circle at 35% 30%, #fff8, ${col});border-radius:50%;cursor:pointer;transition:bottom 0.05s linear;box-shadow:0 4px 10px rgba(0,0,0,0.15);-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center`;
+    g.innerHTML = `<div style="width:2px;height:30px;background:#0003;position:absolute;bottom:-26px"></div>`;
+    area.appendChild(g);
+    let pos = -120;
+    const vel = 1 + Math.random()*1.5;
+    const subir = setInterval(() => {
+      if (!document.body.contains(g)) { clearInterval(subir); return; }
+      pos += vel; g.style.bottom = pos + 'px';
+      if (pos > area.clientHeight + 60) { g.remove(); clearInterval(subir); }
+    }, 16);
+    const reventar = e => {
+      e.preventDefault(); e.stopPropagation();
+      clearInterval(subir);
+      g.innerHTML = '💥'; g.style.background='transparent'; g.style.boxShadow='none';
+      g.style.fontSize = size+'px'; g.style.transition='transform 0.2s, opacity 0.2s';
+      g.style.transform='scale(1.4)'; g.style.opacity='0';
+      try { SFX.pop(); } catch(e){}
+      setTimeout(() => g.remove(), 200);
+    };
+    g.addEventListener('touchstart', reventar, {passive:false});
+    g.addEventListener('click', reventar);
+  }
+  const generador = setInterval(nuevoGlobo, 900);
+  window.activeIntervals.push(generador);
+  for (let i=0;i<3;i++) setTimeout(nuevoGlobo, i*300);
+}
+
+// ⭐ TOCA Y APARECE
+function buildTocar(container) {
+  const cosas = ['⭐','❤️','🌈','🦋','🌟','🎈','🐱','🐶','🌸','🍎','🚗','⚽','🎀','🦄','🐠','🌞'];
+  container.innerHTML = `
+    <div class="game-container" style="background:linear-gradient(135deg,#1e1b4b,#312e81);min-height:420px;position:relative;overflow:hidden;border-radius:0">
+      <div id="tocarArea" style="position:absolute;inset:0;touch-action:manipulation;display:flex;align-items:center;justify-content:center">
+        <div style="color:#fff9;font-family:'Fredoka One',cursive;font-size:1.4rem;text-align:center;pointer-events:none">👶 ¡Toca la pantalla!</div>
+      </div>
+    </div>
+    <div class="game-instructions">👶 Toca cualquier parte de la pantalla y aparecerán cositas mágicas con sonido.</div>`;
+  const area = document.getElementById('tocarArea');
+  const aparecer = e => {
+    e.preventDefault();
+    const r = area.getBoundingClientRect();
+    const t = (e.touches && e.touches[0]) || e;
+    const x = (t.clientX || r.left+r.width/2) - r.left;
+    const y = (t.clientY || r.top+r.height/2) - r.top;
+    const el = document.createElement('div');
+    el.textContent = cosas[Math.floor(Math.random()*cosas.length)];
+    el.style.cssText = `position:absolute;left:${x}px;top:${y}px;transform:translate(-50%,-50%) scale(0);font-size:${50+Math.random()*40}px;pointer-events:none;transition:transform 0.4s cubic-bezier(.34,1.56,.64,1),opacity 0.6s;z-index:5`;
+    area.appendChild(el);
+    requestAnimationFrame(() => { el.style.transform = `translate(-50%,-50%) scale(1) rotate(${Math.random()*40-20}deg)`; });
+    try { SFX.point(); } catch(e){}
+    setTimeout(() => { el.style.opacity='0'; el.style.transform += ' translateY(-40px)'; }, 700);
+    setTimeout(() => el.remove(), 1300);
+  };
+  area.addEventListener('touchstart', aparecer, {passive:false});
+  area.addEventListener('click', aparecer);
+}
+
+// 🎨 PINTAR CON EL DEDO
+function buildPintar(container) {
+  const W = Math.min(360, window.innerWidth-40), H = 380;
+  container.innerHTML = `
+    <div class="game-container" style="background:#0a0a14;padding:12px;min-height:440px">
+      <div style="display:flex;gap:6px;justify-content:center;margin-bottom:10px;flex-wrap:wrap" id="paleta"></div>
+      <canvas id="pintarCanvas" width="${W}" height="${H}" style="background:#fff;border-radius:14px;touch-action:none;display:block;margin:0 auto;box-shadow:0 4px 14px rgba(0,0,0,0.3)"></canvas>
+      <div style="text-align:center;margin-top:10px"><button id="borrarBtn" style="background:#ef4444;border:none;color:#fff;padding:10px 24px;border-radius:16px;font-weight:800;font-family:Nunito,sans-serif;cursor:pointer">🧹 Borrar todo</button></div>
+    </div>
+    <div class="game-instructions">👶 Arrastra el dedo para pintar. Elige colores arriba. ¡Borra y vuelve a empezar!</div>`;
+  const cv = document.getElementById('pintarCanvas');
+  const ctx = cv.getContext('2d');
+  let color = '#ef4444', pintando = false;
+  const colores = ['#ef4444','#f59e0b','#eab308','#22c55e','#3b82f6','#a855f7','#ec4899','#000000'];
+  const pal = document.getElementById('paleta');
+  colores.forEach((col,i) => {
+    const b = document.createElement('button');
+    b.style.cssText = `width:36px;height:36px;border-radius:50%;background:${col};border:3px solid ${i===0?'#fff':'transparent'};cursor:pointer;-webkit-tap-highlight-color:transparent`;
+    const pick = e => { e.preventDefault(); e.stopPropagation(); color = col; [...pal.children].forEach(c=>c.style.border='3px solid transparent'); b.style.border='3px solid #fff'; try{SFX.click();}catch(e){} };
+    b.addEventListener('touchstart', pick, {passive:false}); b.addEventListener('click', pick);
+    pal.appendChild(b);
+  });
+  function pos(e) {
+    const r = cv.getBoundingClientRect();
+    const t = (e.touches && e.touches[0]) || e;
+    return { x: (t.clientX - r.left) * (cv.width/r.width), y: (t.clientY - r.top) * (cv.height/r.height) };
+  }
+  function start(e){ e.preventDefault(); pintando=true; const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); dibujarPunto(p); }
+  function move(e){ if(!pintando) return; e.preventDefault(); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.strokeStyle=color; ctx.lineWidth=14; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.stroke(); }
+  function dibujarPunto(p){ ctx.fillStyle=color; ctx.beginPath(); ctx.arc(p.x,p.y,7,0,7); ctx.fill(); }
+  function end(){ pintando=false; }
+  cv.addEventListener('touchstart', start, {passive:false});
+  cv.addEventListener('touchmove', move, {passive:false});
+  cv.addEventListener('touchend', end);
+  cv.addEventListener('mousedown', start);
+  cv.addEventListener('mousemove', move);
+  cv.addEventListener('mouseup', end);
+  bindBtn('borrarBtn', () => { ctx.clearRect(0,0,cv.width,cv.height); try{SFX.pop();}catch(e){} });
+}
+
+// 🎹 PIANO DE ANIMALES
+function buildPiano(container) {
+  const animales = [
+    { emoji:'🐶', nombre:'Perro', freq:262, color:'#ef4444' },
+    { emoji:'🐱', nombre:'Gato', freq:294, color:'#f59e0b' },
+    { emoji:'🐮', nombre:'Vaca', freq:330, color:'#eab308' },
+    { emoji:'🐑', nombre:'Oveja', freq:349, color:'#22c55e' },
+    { emoji:'🐸', nombre:'Rana', freq:392, color:'#06b6d4' },
+    { emoji:'🐤', nombre:'Pollito', freq:440, color:'#3b82f6' },
+    { emoji:'🦆', nombre:'Pato', freq:494, color:'#a855f7' },
+    { emoji:'🐷', nombre:'Cerdo', freq:523, color:'#ec4899' }
+  ];
+  container.innerHTML = `
+    <div class="game-container" style="background:linear-gradient(135deg,#1e1b4b,#4c1d95);min-height:440px;padding:16px">
+      <div id="animalShow" style="text-align:center;height:120px;display:flex;align-items:center;justify-content:center;font-size:5rem">🎹</div>
+      <div id="tecladoAnimales" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:360px;margin:0 auto"></div>
+    </div>
+    <div class="game-instructions">👶 Toca cada animal para escuchar su nota musical y verlo grande. ¡Crea tu propia música!</div>`;
+  const teclado = document.getElementById('tecladoAnimales');
+  const show = document.getElementById('animalShow');
+  animales.forEach(a => {
+    const b = document.createElement('button');
+    b.textContent = a.emoji;
+    b.style.cssText = `aspect-ratio:1;background:${a.color};border:none;border-radius:18px;font-size:2.4rem;cursor:pointer;box-shadow:0 5px 0 rgba(0,0,0,0.25);transition:transform 0.08s;-webkit-tap-highlight-color:transparent`;
+    const tocar = e => {
+      e.preventDefault(); e.stopPropagation();
+      b.style.transform = 'translateY(4px) scale(0.95)';
+      setTimeout(() => b.style.transform = '', 120);
+      // mostrar animal grande
+      show.innerHTML = `<div style="text-align:center"><div style="font-size:5rem">${a.emoji}</div><div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.2rem">${a.nombre}</div></div>`;
+      // sonar nota
+      try { tone(a.freq, 0.4); } catch(e){}
+      // decir el nombre con voz
+      try { if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(a.nombre); u.lang='es-ES'; u.rate=0.9; speechSynthesis.cancel(); speechSynthesis.speak(u); } } catch(e){}
+    };
+    b.addEventListener('touchstart', tocar, {passive:false});
+    b.addEventListener('click', tocar);
+    teclado.appendChild(b);
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+//  MÁS JUEGOS DIDÁCTICOS PARA BEBÉS
+// ══════════════════════════════════════════════════════════
+// Helper: decir algo en voz alta (español) si el dispositivo lo soporta
+function decir(texto) {
+  try {
+    if (window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance(texto);
+      u.lang = 'es-ES'; u.rate = 0.85; u.pitch = 1.1;
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }
+  } catch (e) {}
+}
+// Helper genérico: grilla de botones grandes que al tocar muestran algo grande + voz + sonido
+function juegoDidactico(container, cfg) {
+  // cfg: { items:[{label, big, voz, color, sub}], cols, instruc, freqBase }
+  container.innerHTML = `
+    <div class="game-container" style="background:linear-gradient(135deg,${cfg.bg1||'#1e1b4b'},${cfg.bg2||'#4c1d95'});min-height:440px;padding:16px">
+      <div id="ddShow" style="text-align:center;min-height:140px;display:flex;align-items:center;justify-content:center;font-size:5rem">${cfg.emoji||'👶'}</div>
+      <div id="ddGrid" style="display:grid;grid-template-columns:repeat(${cfg.cols||4},1fr);gap:10px;max-width:380px;margin:0 auto"></div>
+    </div>
+    <div class="game-instructions">${cfg.instruc}</div>`;
+  const grid = document.getElementById('ddGrid');
+  const show = document.getElementById('ddShow');
+  cfg.items.forEach((it, i) => {
+    const b = document.createElement('button');
+    b.innerHTML = it.label;
+    b.style.cssText = `aspect-ratio:1;background:${it.color};border:none;border-radius:18px;font-size:${it.fontSize||'2rem'};font-weight:800;color:#fff;cursor:pointer;box-shadow:0 5px 0 rgba(0,0,0,0.25);transition:transform 0.08s;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center`;
+    const tocar = e => {
+      e.preventDefault(); e.stopPropagation();
+      b.style.transform = 'translateY(4px) scale(0.95)';
+      setTimeout(() => b.style.transform = '', 120);
+      show.innerHTML = `<div style="text-align:center"><div style="font-size:${it.bigSize||'5rem'}">${it.big}</div>${it.sub?`<div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem;margin-top:6px">${it.sub}</div>`:''}</div>`;
+      try { tone(it.freq || (262 + i*40), 0.3); } catch(e){}
+      decir(it.voz);
+    };
+    b.addEventListener('touchstart', tocar, {passive:false});
+    b.addEventListener('click', tocar);
+    grid.appendChild(b);
+  });
+}
+
+// 🐤 SONIDOS DE ANIMALES
+function buildAnimales(container) {
+  const animales = [
+    { emoji:'🐶', nombre:'Perro', sonido:'Guau guau', color:'#ef4444', freq:200 },
+    { emoji:'🐱', nombre:'Gato', sonido:'Miau', color:'#f59e0b', freq:500 },
+    { emoji:'🐮', nombre:'Vaca', sonido:'Muuu', color:'#eab308', freq:120 },
+    { emoji:'🐷', nombre:'Cerdo', sonido:'Oink oink', color:'#ec4899', freq:260 },
+    { emoji:'🐔', nombre:'Gallina', sonido:'Co co co', color:'#22c55e', freq:600 },
+    { emoji:'🐸', nombre:'Rana', sonido:'Croac croac', color:'#06b6d4', freq:180 },
+    { emoji:'🦆', nombre:'Pato', sonido:'Cuac cuac', color:'#3b82f6', freq:400 },
+    { emoji:'🐴', nombre:'Caballo', sonido:'Iiiih', color:'#a855f7', freq:350 },
+    { emoji:'🐑', nombre:'Oveja', sonido:'Beee', color:'#14b8a6', freq:300 },
+    { emoji:'🦁', nombre:'León', sonido:'Grrr', color:'#f97316', freq:90 },
+    { emoji:'🐘', nombre:'Elefante', sonido:'Pruuum', color:'#8b5cf6', freq:80 },
+    { emoji:'🐝', nombre:'Abeja', sonido:'Bzzz', color:'#facc15', freq:700 }
+  ];
+  container.innerHTML = `
+    <div class="game-container" style="background:linear-gradient(135deg,#fef3c7,#fbbf24);min-height:440px;padding:16px">
+      <div id="ddShow" style="text-align:center;min-height:150px;display:flex;align-items:center;justify-content:center;font-size:5rem">🐤</div>
+      <div id="ddGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:380px;margin:0 auto"></div>
+    </div>
+    <div class="game-instructions">👶 Toca un animal y escucha su sonido. ¡Aprende cómo hace cada uno!</div>`;
+  const grid = document.getElementById('ddGrid');
+  const show = document.getElementById('ddShow');
+  animales.forEach(a => {
+    const b = document.createElement('button');
+    b.textContent = a.emoji;
+    b.style.cssText = `aspect-ratio:1;background:${a.color};border:none;border-radius:18px;font-size:2.4rem;cursor:pointer;box-shadow:0 5px 0 rgba(0,0,0,0.25);transition:transform 0.08s;-webkit-tap-highlight-color:transparent`;
+    const tocar = e => {
+      e.preventDefault(); e.stopPropagation();
+      b.style.transform = 'translateY(4px) scale(0.95)';
+      setTimeout(() => b.style.transform = '', 120);
+      show.innerHTML = `<div style="text-align:center"><div style="font-size:5.5rem">${a.emoji}</div><div style="color:#7c2d12;font-family:'Fredoka One',cursive;font-size:1.3rem;margin-top:6px">${a.nombre}</div><div style="color:#92400e;font-size:1rem">hace "${a.sonido}"</div></div>`;
+      // tono según el animal (grave=grande, agudo=pequeño)
+      try { tone(a.freq, 0.5, 'sawtooth', 0.12); } catch(e){}
+      // voz: primero el nombre, luego el sonido con énfasis
+      decirAnimal(a.nombre, a.sonido);
+    };
+    b.addEventListener('touchstart', tocar, {passive:false});
+    b.addEventListener('click', tocar);
+    grid.appendChild(b);
+  });
+}
+// Voz expresiva para animales: dice "El perro hace guau guau"
+function decirAnimal(nombre, sonido) {
+  try {
+    if (!window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    const u1 = new SpeechSynthesisUtterance(`El ${nombre} hace`);
+    u1.lang='es-ES'; u1.rate=0.9; u1.pitch=1.1;
+    const u2 = new SpeechSynthesisUtterance(sonido);
+    u2.lang='es-ES'; u2.rate=0.75; u2.pitch=1.3;
+    speechSynthesis.speak(u1);
+    speechSynthesis.speak(u2);
+  } catch (e) {}
+}
+
+// 🔢 APRENDE NÚMEROS
+function buildNumeros(container) {
+  const objetos = ['🍎','⭐','🎈','🐱','🌸','🍓','🚗','⚽','🦋','🍪'];
+  const items = [];
+  for (let n=1; n<=10; n++) {
+    const obj = objetos[n-1];
+    items.push({
+      label: String(n), big: obj.repeat(n), sub: String(n), voz: String(n),
+      color: ['#ef4444','#f59e0b','#eab308','#22c55e','#06b6d4','#3b82f6','#6366f1','#a855f7','#ec4899','#f43f5e'][n-1],
+      fontSize:'2.4rem', bigSize:'2.4rem'
+    });
+  }
+  juegoDidactico(container, {
+    bg1:'#dbeafe', bg2:'#3b82f6', emoji:'🔢', cols:5,
+    instruc:'👶 Toca un número, escúchalo y mira esa cantidad de cositas. ¡Aprende a contar!',
+    items
+  });
+}
+
+// 🔤 APRENDE LETRAS
+function buildLetras(container) {
+  const data = [
+    ['A','✈️','Avión'],['B','🍌','Banana'],['C','🏠','Casa'],['D','🦕','Dinosaurio'],
+    ['E','🐘','Elefante'],['F','🌸','Flor'],['G','🐱','Gato'],['H','🍦','Helado'],
+    ['I','🦎','Iguana'],['J','🦒','Jirafa'],['K','🐨','Koala'],['L','🌙','Luna'],
+    ['M','🐵','Mono'],['N','☁️','Nube'],['O','🐻','Oso'],['P','🐧','Pingüino'],
+    ['Q','🧀','Queso'],['R','🐭','Ratón'],['S','☀️','Sol'],['T','🐯','Tigre'],
+    ['U','🍇','Uva'],['V','🐮','Vaca'],['W','🧇','Waffle'],['X','🎸','Xilófono'],
+    ['Y','⛵','Yate'],['Z','🦓','Zebra']
+  ];
+  const cols = ['#ef4444','#f59e0b','#eab308','#22c55e','#06b6d4','#3b82f6','#6366f1','#a855f7','#ec4899'];
+  juegoDidactico(container, {
+    bg1:'#d1fae5', bg2:'#059669', emoji:'🔤', cols:5,
+    instruc:'👶 Toca una letra, escúchala y aprende una palabra que empieza con ella.',
+    items: data.map((d,i) => ({
+      label:d[0], big:`${d[1]}`, sub:`${d[0]} de ${d[2]}`, voz:`${d[0]}. ${d[0]} de ${d[2]}`, color:cols[i%cols.length], fontSize:'1.8rem', bigSize:'4.5rem'
+    }))
+  });
+}
+
+// 🅰️ APRENDE VOCALES
+function buildVocales(container) {
+  const data = [
+    ['A','🐝','Abeja','#ef4444'],['E','🐘','Elefante','#f59e0b'],
+    ['I','🦎','Iguana','#22c55e'],['O','🐻','Oso','#3b82f6'],['U','🍇','Uva','#a855f7']
+  ];
+  juegoDidactico(container, {
+    bg1:'#fee2e2', bg2:'#dc2626', emoji:'🅰️', cols:5,
+    instruc:'👶 Las 5 vocales: A, E, I, O, U. Toca cada una para escucharla y aprenderla.',
+    items: data.map(d => ({
+      label:d[0], big:d[1], sub:`${d[0]} de ${d[2]}`, voz:`${d[0]}. ${d[0]} de ${d[2]}`, color:d[3], fontSize:'2.6rem', bigSize:'4.5rem'
+    }))
+  });
+}
+
+// 🌈 APRENDE COLORES
+function buildColores(container) {
+  const data = [
+    ['Rojo','#ef4444'],['Naranja','#f97316'],['Amarillo','#eab308'],['Verde','#22c55e'],
+    ['Azul','#3b82f6'],['Morado','#a855f7'],['Rosado','#ec4899'],['Café','#92400e'],
+    ['Negro','#1f2937'],['Blanco','#f3f4f6']
+  ];
+  juegoDidactico(container, {
+    bg1:'#ede9fe', bg2:'#7c3aed', emoji:'🌈', cols:5,
+    instruc:'👶 Toca un color para escuchar su nombre. ¡Aprende todos los colores!',
+    items: data.map(d => ({
+      label:'', big:`<div style="width:120px;height:120px;border-radius:50%;background:${d[1]};border:6px solid #fff;box-shadow:0 4px 14px rgba(0,0,0,0.3);margin:0 auto"></div>`,
+      sub:d[0], voz:d[0], color:d[1], bigSize:'1rem'
+    }))
+  });
+}
+
+// 🔺 APRENDE FORMAS
+function buildFormas(container) {
+  const data = [
+    ['Círculo','●','#ef4444'],['Cuadrado','■','#f59e0b'],['Triángulo','▲','#22c55e'],
+    ['Estrella','★','#eab308'],['Corazón','♥','#ec4899'],['Rombo','◆','#3b82f6'],
+    ['Pentágono','⬟','#a855f7'],['Luna','☾','#06b6d4']
+  ];
+  juegoDidactico(container, {
+    bg1:'#fef9c3', bg2:'#7c3aed', emoji:'🔺', cols:4,
+    instruc:'👶 Toca una forma para escuchar su nombre. ¡Círculo, cuadrado, triángulo y más!',
+    items: data.map(d => ({
+      label:`<span style="font-size:2.6rem">${d[1]}</span>`, big:`<span style="font-size:6rem;color:${d[2]}">${d[1]}</span>`, sub:d[0], voz:d[0], color:d[2]
+    }))
+  });
+}
+
+// 📖 APRENDE SÍLABAS
+function buildSilabas(container) {
+  // sílabas simples con una consonante + vocales
+  const consonantes = ['M','P','L','S','T','N'];
+  const vocales = ['A','E','I','O','U'];
+  const ejemplos = { 'MA':'🐵 Mamá','PA':'👨 Papá','LO':'🦁 Lobo','SO':'☀️ Sol','TE':'🍵 Té','NI':'👶 Niño' };
+  // armar lista de sílabas combinando
+  const items = [];
+  const cols = ['#ef4444','#f59e0b','#22c55e','#3b82f6','#a855f7'];
+  consonantes.forEach((c, ci) => {
+    vocales.forEach((v, vi) => {
+      const sil = c + v;
+      items.push({
+        label: sil.charAt(0) + sil.charAt(1).toLowerCase(),
+        big: `<div style="font-family:'Fredoka One',cursive">${sil.charAt(0)+sil.charAt(1).toLowerCase()}</div>`,
+        sub: ejemplos[sil] || '',
+        voz: sil, color: cols[vi], fontSize:'1.4rem', bigSize:'5rem'
+      });
+    });
+  });
+  juegoDidactico(container, {
+    bg1:'#cffafe', bg2:'#0891b2', emoji:'📖', cols:5,
+    instruc:'👶 Toca una sílaba para escucharla: MA, ME, MI... ¡El primer paso para leer!',
+    items
+  });
+}
+
+// 🔵 BURBUJAS
+function buildBurbujas(container) {
+  container.innerHTML = `
+    <div class="game-container" style="background:linear-gradient(180deg,#a5f3fc,#0ea5e9);min-height:440px;position:relative;overflow:hidden;border-radius:0">
+      <div id="burbujasArea" style="position:absolute;inset:0;touch-action:manipulation"></div>
+    </div>
+    <div class="game-instructions">👶 Toca las burbujas para reventarlas. ¡Flotan suaves por la pantalla!</div>`;
+  const area = document.getElementById('burbujasArea');
+  function nueva() {
+    if (!document.body.contains(area)) return;
+    const bu = document.createElement('div');
+    const size = 50 + Math.random()*55;
+    const x = Math.random()*(area.clientWidth - size);
+    bu.style.cssText = `position:absolute;left:${x}px;bottom:-120px;width:${size}px;height:${size}px;border-radius:50%;background:radial-gradient(circle at 35% 30%, #ffffffcc, #ffffff22 40%, #38bdf833);border:2px solid #ffffff66;cursor:pointer;-webkit-tap-highlight-color:transparent;box-shadow:inset -6px -6px 12px #0ea5e955`;
+    area.appendChild(bu);
+    let pos = -120;
+    const vel = 0.7 + Math.random()*1.2;
+    const drift = (Math.random()-0.5)*0.6;
+    let dx = 0;
+    const subir = setInterval(() => {
+      if (!document.body.contains(bu)) { clearInterval(subir); return; }
+      pos += vel; dx += drift;
+      bu.style.bottom = pos + 'px';
+      bu.style.transform = `translateX(${Math.sin(pos/40)*15}px)`;
+      if (pos > area.clientHeight + 60) { bu.remove(); clearInterval(subir); }
+    }, 16);
+    const reventar = e => {
+      e.preventDefault(); e.stopPropagation();
+      clearInterval(subir);
+      bu.style.transition = 'transform 0.15s, opacity 0.15s';
+      bu.style.transform += ' scale(1.5)'; bu.style.opacity = '0';
+      try { SFX.pop(); } catch(e){}
+      setTimeout(() => bu.remove(), 150);
+    };
+    bu.addEventListener('touchstart', reventar, {passive:false});
+    bu.addEventListener('click', reventar);
+  }
+  const gen = setInterval(nueva, 700);
+  window.activeIntervals.push(gen);
+  for (let i=0;i<4;i++) setTimeout(nueva, i*250);
 }
 </script>
 </body>
