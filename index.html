@@ -512,9 +512,9 @@
 
 <!-- STATS -->
 <div class="stats">
-  <div class="stat"><div class="stat-num">28</div><div class="stat-label">Juegos</div></div>
+  <div class="stat"><div class="stat-num">29</div><div class="stat-label">Juegos</div></div>
   <div class="stat"><div class="stat-num">7</div><div class="stat-label">Categorías</div></div>
-  <div class="stat"><div class="stat-num">100%</div><div class="stat-label">Gratis</div></div>
+  <div class="stat"><div class="stat-num" id="onlineCount" style="color:#16A34A">🟢 1</div><div class="stat-label">En línea</div></div>
   <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Diversión</div></div>
 </div>
 
@@ -557,7 +557,7 @@
 <section id="gamesSection">
   <div class="section-header">
     <div class="section-title"><span class="section-icon">🕹️</span> Todos los Juegos</div>
-    <span class="see-all" id="gameCount">28 juegos</span>
+    <span class="see-all" id="gameCount">29 juegos</span>
   </div>
   <div class="game-grid" id="gameGrid">
 
@@ -897,6 +897,12 @@
       <div class="game-info"><div class="game-name">Tres en Raya Online</div><div class="game-meta"><span class="game-cat cat-online">En Línea</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
     </div>
 
+    <div class="game-card fade-up" data-cat="online" data-name="c4online" onclick="openGame('c4online')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#FFD600,#DC2626)"></div><span class="game-thumb-emoji">🔴</span></div>
+      <div class="game-badge badge-hot">🔥 Nuevo</div>
+      <div class="game-info"><div class="game-name">Conecta 4 Online</div><div class="game-meta"><span class="game-cat cat-online">En Línea</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
   </div>
 </section>
 
@@ -940,6 +946,50 @@ function getSupabase() {
 }
 const onlineDisponible = () => !!window.supabase;
 
+// ── Identidad automática de invitado online (número único + avatar) ──
+function getGuestId() {
+  let id = null;
+  try { id = localStorage.getItem('im_guestid'); } catch (e) {}
+  if (!id) {
+    id = String(Math.floor(1000 + Math.random() * 9000)); // número de 4 cifras
+    try { localStorage.setItem('im_guestid', id); } catch (e) {}
+  }
+  return id;
+}
+function getGuestName() {
+  let n = null;
+  try { n = localStorage.getItem('im_guestname'); } catch (e) {}
+  return n || ('Invitado #' + getGuestId());
+}
+function setGuestName(n) { try { localStorage.setItem('im_guestname', n); } catch (e) {} }
+function getGuestAvatar() {
+  let a = null;
+  try { a = localStorage.getItem('im_guestavatar'); } catch (e) {}
+  return a || AVATARS[getGuestId().charCodeAt(0) % AVATARS.length];
+}
+function setGuestAvatar(a) { try { localStorage.setItem('im_guestavatar', a); } catch (e) {} }
+
+// ── CONTADOR DE JUGADORES EN LÍNEA (Supabase Presence global) ──
+let canalPresencia = null;
+function iniciarPresenciaGlobal() {
+  const client = getSupabase();
+  if (!client) { return; }
+  try {
+    canalPresencia = client.channel('lobby-global', { config: { presence: { key: getGuestId() } } });
+    canalPresencia.on('presence', { event: 'sync' }, () => {
+      const estado = canalPresencia.presenceState();
+      const total = Object.keys(estado).length;
+      const el = document.getElementById('onlineCount');
+      if (el) el.textContent = '🟢 ' + Math.max(1, total);
+    });
+    canalPresencia.subscribe(async (estado) => {
+      if (estado === 'SUBSCRIBED') {
+        await canalPresencia.track({ id: getGuestId(), at: Date.now() });
+      }
+    });
+  } catch (e) { console.error('presencia', e); }
+}
+
 // Estado de la partida online
 let canalOnline = null;     // canal de Supabase Realtime
 let salaOnline = null;      // código de sala actual
@@ -947,6 +997,15 @@ let soyAnfitrion = false;   // anfitrión = 'O' y juega primero
 let onMovimientoOnline = null;  // callback que cada juego define
 let onRivalConectado = null;    // callback cuando el rival entra
 let onRivalSalio = null;        // callback cuando el rival se va
+
+// Identidad que se usa en el modo ONLINE (nombre + avatar)
+// Si el perfil es "invitado", usa el nombre/avatar de invitado automático único.
+function miIdentidadOnline() {
+  if (currentPlayer === 'invitado') {
+    return { name: getGuestName(), emoji: getGuestAvatar() };
+  }
+  return { name: PLAYERS[currentPlayer].name, emoji: PLAYERS[currentPlayer].emoji };
+}
 
 // Generar código de sala fácil de leer
 function generarCodigoSala() {
@@ -972,7 +1031,7 @@ function conectarSala(codigo, esAnfitrion) {
     if (onRivalConectado) onRivalConectado(payload);
     // Responder con mi info para que el otro también me detecte (handshake en ambos sentidos)
     if (!payload.esRespuesta) {
-      canalOnline.send({ type: 'broadcast', event: 'rival-listo', payload: { name: PLAYERS[currentPlayer].name, emoji: PLAYERS[currentPlayer].emoji, esAnfitrion: soyAnfitrion, esRespuesta: true } });
+      { const yo=miIdentidadOnline(); canalOnline.send({ type: 'broadcast', event: 'rival-listo', payload: { name: yo.name, emoji: yo.emoji, esAnfitrion: soyAnfitrion, esRespuesta: true } }); }
     }
   });
   // Presence: detectar quién está en la sala
@@ -981,10 +1040,10 @@ function conectarSala(codigo, esAnfitrion) {
   });
   canalOnline.subscribe(async (estado) => {
     if (estado === 'SUBSCRIBED') {
-      await canalOnline.track({ player: currentPlayer, name: PLAYERS[currentPlayer].name, emoji: PLAYERS[currentPlayer].emoji });
+      const yoT=miIdentidadOnline(); await canalOnline.track({ player: currentPlayer, name: yoT.name, emoji: yoT.emoji });
       // avisar al otro que estoy listo (con reintentos, por si el otro aún no se suscribe)
       const anunciar = () => {
-        if (canalOnline) canalOnline.send({ type: 'broadcast', event: 'rival-listo', payload: { name: PLAYERS[currentPlayer].name, emoji: PLAYERS[currentPlayer].emoji, esAnfitrion, esRespuesta: false } });
+        if (canalOnline) { const yo=miIdentidadOnline(); canalOnline.send({ type: 'broadcast', event: 'rival-listo', payload: { name: yo.name, emoji: yo.emoji, esAnfitrion, esRespuesta: false } }); }
       };
       anunciar();
       setTimeout(anunciar, 800);   // reintento por si el otro entró un instante después
@@ -999,9 +1058,9 @@ function enviarMovimientoOnline(datos) {
 }
 function enviarChatOnline(texto, emoji) {
   if (!canalOnline) return;
-  const nombre = PLAYERS[currentPlayer].name;
-  canalOnline.send({ type: 'broadcast', event: 'chat', payload: { nombre, texto, emoji: PLAYERS[currentPlayer].emoji } });
-  mostrarChatMsg(nombre, texto, PLAYERS[currentPlayer].emoji); // mostrar el mío
+  const yo = miIdentidadOnline();
+  canalOnline.send({ type: 'broadcast', event: 'chat', payload: { nombre: yo.name, texto, emoji: yo.emoji } });
+  mostrarChatMsg(yo.name, texto, yo.emoji); // mostrar el mío
 }
 function salirSalaOnline() {
   if (canalOnline) { try { getSupabase().removeChannel(canalOnline); } catch (e) {} canalOnline = null; }
@@ -1044,7 +1103,7 @@ function scrollToGames() {
 }
 
 // ── FILTER ──
-function filterCategory(cat, btn) {
+function filterCategory(cat, btn, noScroll) {
   document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   const cards = document.querySelectorAll('.game-card');
@@ -1055,17 +1114,19 @@ function filterCategory(cat, btn) {
     if (show) count++;
   });
   document.getElementById('gameCount').textContent = count + ' juegos';
+  // bajar a los juegos para ver el resultado del filtro
+  if (!noScroll) {
+    const grid = document.getElementById('gamesGrid') || document.getElementById('gamesSection');
+    if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 // Enlaces de la barra superior: filtran igual que los botones de categoría
 function navFilter(cat, link) {
-  // marcar el enlace activo
   document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
   if (link) link.classList.add('active');
-  // activar la "pastilla" de categoría correspondiente y filtrar
   const pill = document.querySelector('.cat-pill.' + (cat === 'all' ? 'all' : cat));
-  if (pill) filterCategory(cat, pill);
-  // desplazar hasta la sección de juegos
+  if (pill) filterCategory(cat, pill, true); // sin doble scroll
   const sec = document.getElementById('gamesSection');
   if (sec) sec.scrollIntoView({ behavior: 'smooth' });
   if (typeof SFX !== 'undefined') SFX.click();
@@ -1482,6 +1543,7 @@ function openGame(id) {
     cuerpo:   { title: '🫀 Cuerpo Humano',   fn: () => buildEduQuiz('cuerpo') },
     figuras:  { title: '🔷 Figuras y Colores', fn: () => buildEduQuiz('figuras') },
     tttonline:{ title: '🌐 Tres en Raya Online', fn: buildTttOnline },
+    c4online: { title: '🔴 Conecta 4 Online', fn: buildC4Online },
   };
   const g = games[id];
   title.textContent = g.title;
@@ -1656,6 +1718,8 @@ function cycleTheme() {
 try { const t = localStorage.getItem('imrec_theme'); if (t && THEMES.includes(t)) applyTheme(t); else applyTheme('fiesta'); } catch (e) { applyTheme('fiesta'); }
 // Mostrar el jugador actual en la navbar al cargar
 setTimeout(() => { if (typeof updatePlayerBadge === 'function') updatePlayerBadge(); }, 0);
+// Iniciar contador de jugadores en línea (espera a que cargue la librería de Supabase)
+setTimeout(() => { if (onlineDisponible()) iniciarPresenciaGlobal(); }, 1500);
 
 
 // ═══════════════════════════════════════════
@@ -3320,12 +3384,18 @@ function buildTttOnline(container) {
 
   // Pantalla de lobby (crear o unirse)
   function renderLobby() {
+    const yo = miIdentidadOnline();
     container.innerHTML = `
       <div class="game-container" style="background:#0a0a14;padding:20px;min-height:320px">
-        <div style="text-align:center;margin-bottom:20px">
+        <div style="text-align:center;margin-bottom:16px">
           <div style="font-size:2.5rem">🌐</div>
           <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem">Jugar en Línea</div>
           <div style="color:#aaa;font-size:0.85rem">Juega Tres en Raya con un amigo a distancia</div>
+        </div>
+        <div style="background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.3);border-radius:14px;padding:12px;margin-bottom:16px;max-width:340px;margin-left:auto;margin-right:auto">
+          <div style="text-align:center;color:#fff;font-weight:800;margin-bottom:6px"><span id="miAvatarBig" style="font-size:1.6rem">${yo.emoji}</span> ${yo.name}</div>
+          <div style="color:#aaa;font-size:0.74rem;text-align:center;margin-bottom:8px">Tu personaje (toca para cambiar):</div>
+          <div id="onlineAvatars" style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px"></div>
         </div>
         <div style="display:flex;flex-direction:column;gap:14px;max-width:320px;margin:0 auto">
           <button id="btnCrear" style="background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:18px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;font-size:1.05rem;cursor:pointer;-webkit-tap-highlight-color:transparent">➕ Crear sala nueva</button>
@@ -3335,6 +3405,25 @@ function buildTttOnline(container) {
         </div>
       </div>
       <div class="game-instructions"><strong>Cómo jugar:</strong> Un jugador crea una sala y le dice el código al otro. El otro entra con ese código. ¡A jugar y chatear!</div>`;
+    // selector de avatar para el online (solo afecta al invitado; si tiene perfil, cambia ese perfil)
+    const ap = document.getElementById('onlineAvatars');
+    if (ap) {
+      AVATARS.forEach(av => {
+        const b = document.createElement('button');
+        b.textContent = av;
+        b.style.cssText = `aspect-ratio:1;background:${av===yo.emoji?'#16A34A':'#1a1a2e'};border:2px solid ${av===yo.emoji?'#fff':'transparent'};border-radius:8px;font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent`;
+        const pick = e => {
+          e.preventDefault(); e.stopPropagation();
+          if (currentPlayer === 'invitado') setGuestAvatar(av);
+          else updatePlayerProfile(currentPlayer, null, av);
+          SFX.click();
+          renderLobby();
+        };
+        b.addEventListener('touchstart', pick, {passive:false});
+        b.addEventListener('click', pick);
+        ap.appendChild(b);
+      });
+    }
     bindBtn('btnCrear', () => {
       const cod = generarCodigoSala();
       iniciarSala(cod, true);
@@ -3395,7 +3484,7 @@ function buildTttOnline(container) {
   }
 
   function renderJuego() {
-    const yo = PLAYERS[currentPlayer];
+    const yo = miIdentidadOnline();
     const riv = rivalInfo || { name:'Rival', emoji:'👤' };
     container.innerHTML = `
       <div class="game-container" style="background:#0a0a14;padding:14px;min-height:300px">
@@ -3522,6 +3611,218 @@ function bindBtn(id, fn) {
 // el canal de Supabase llama a esto; delega al renderer del juego activo
 function mostrarChatMsg(nombre, texto, emoji) {
   if (window._chatRenderer) window._chatRenderer(nombre, texto, emoji);
+}
+
+// ══════════════════════════════════════════════════════════
+//  CONECTA 4 ONLINE (multijugador con Supabase + chat)
+// ══════════════════════════════════════════════════════════
+function buildC4Online(container) {
+  if (!onlineDisponible()) {
+    container.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:30px;text-align:center;color:#fff">
+      <div style="font-size:2.5rem">📡</div>
+      <div style="font-family:'Fredoka One',cursive;font-size:1.3rem;margin:10px 0">Sin conexión</div>
+      <div style="color:#aaa">No se pudo conectar al servidor. Revisa tu internet.</div>
+    </div>`;
+    return;
+  }
+  const COLS=7, ROWS=6;
+  let board, miColor, miTurno, jugando=false, rivalInfo=null;
+  // miColor: 'R' (rojo, anfitrión) o 'A' (amarillo)
+
+  function renderLobby() {
+    const yo = miIdentidadOnline();
+    container.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:20px;min-height:320px">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="font-size:2.5rem">🔴🟡</div>
+          <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem">Conecta 4 Online</div>
+          <div style="color:#aaa;font-size:0.85rem">Conecta 4 fichas en línea con un amigo</div>
+        </div>
+        <div style="background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.3);border-radius:14px;padding:12px;margin-bottom:16px;max-width:340px;margin-left:auto;margin-right:auto">
+          <div style="text-align:center;color:#fff;font-weight:800;margin-bottom:6px"><span style="font-size:1.6rem">${yo.emoji}</span> ${yo.name}</div>
+          <div style="color:#aaa;font-size:0.74rem;text-align:center;margin-bottom:8px">Tu personaje (toca para cambiar):</div>
+          <div id="c4Avatars" style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;max-width:320px;margin:0 auto">
+          <button id="c4Crear" style="background:linear-gradient(135deg,#FFD600,#DC2626);border:none;color:#fff;padding:18px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;font-size:1.05rem;cursor:pointer;-webkit-tap-highlight-color:transparent">➕ Crear sala nueva</button>
+          <div style="text-align:center;color:#666;font-weight:700">— o —</div>
+          <input id="c4Codigo" type="text" maxlength="8" placeholder="Código (ej: PEZ23)" style="background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:14px;padding:14px;color:#fff;font-family:Nunito,sans-serif;font-weight:800;font-size:1.1rem;text-align:center;text-transform:uppercase;outline:none">
+          <button id="c4Unirse" style="background:#7C3AED;border:none;color:#fff;padding:16px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;-webkit-tap-highlight-color:transparent">🔗 Unirse con código</button>
+        </div>
+      </div>
+      <div class="game-instructions"><strong>Cómo jugar:</strong> Conecta 4 fichas de tu color en fila, columna o diagonal. ¡Crea una sala y reta a un amigo!</div>`;
+    const ap = document.getElementById('c4Avatars');
+    if (ap) AVATARS.forEach(av => {
+      const b = document.createElement('button');
+      b.textContent = av;
+      b.style.cssText = `aspect-ratio:1;background:${av===yo.emoji?'#DC2626':'#1a1a2e'};border:2px solid ${av===yo.emoji?'#fff':'transparent'};border-radius:8px;font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent`;
+      const pick = e => { e.preventDefault(); e.stopPropagation(); if (currentPlayer==='invitado') setGuestAvatar(av); else updatePlayerProfile(currentPlayer,null,av); SFX.click(); renderLobby(); };
+      b.addEventListener('touchstart', pick, {passive:false});
+      b.addEventListener('click', pick);
+      ap.appendChild(b);
+    });
+    bindBtn('c4Crear', () => iniciarSala(generarCodigoSala(), true));
+    bindBtn('c4Unirse', () => {
+      const cod = (document.getElementById('c4Codigo').value||'').toUpperCase().trim();
+      if (cod.length < 4) { showToast('Escribe un código válido'); return; }
+      iniciarSala(cod, false);
+    });
+  }
+
+  function iniciarSala(codigo, esAnfitrion) {
+    SFX.click();
+    miColor = esAnfitrion ? 'R' : 'A';
+    renderEspera(codigo);
+    onRivalConectado = (info) => { rivalInfo = info; if (!jugando) empezar(); };
+    onRivalSalio = () => { if (jugando) showToast('👋 El otro jugador salió'); };
+    onMovimientoOnline = (datos) => {
+      if (datos.tipo === 'ficha') {
+        soltarFicha(datos.col, datos.color, false);
+        miTurno = true;
+        pintar();
+        revisar();
+      } else if (datos.tipo === 'reinicio') {
+        reiniciar();
+      }
+    };
+    conectarSala(codigo, esAnfitrion);
+  }
+
+  function renderEspera(codigo) {
+    container.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:24px;min-height:320px;text-align:center;color:#fff">
+        <div style="font-size:2.5rem">⏳</div>
+        <div style="font-family:'Fredoka One',cursive;font-size:1.2rem;margin:10px 0">Esperando al otro jugador...</div>
+        <div style="color:#aaa;margin-bottom:14px">Comparte este código:</div>
+        <div style="background:linear-gradient(135deg,#FFD600,#DC2626);color:#fff;font-family:'Fredoka One',cursive;font-size:2.2rem;letter-spacing:3px;padding:16px;border-radius:16px;max-width:240px;margin:0 auto">${codigo}</div>
+      </div>
+      <div class="game-instructions">Cuando tu amigo escriba <strong>${codigo}</strong> empezará la partida.</div>`;
+  }
+
+  function empezar() {
+    jugando = true;
+    board = Array(ROWS*COLS).fill(null);
+    miTurno = soyAnfitrion;
+    SFX.win();
+    renderJuego();
+    pintar();
+  }
+
+  function renderJuego() {
+    const yo = miIdentidadOnline();
+    const riv = rivalInfo || { name:'Rival', emoji:'👤' };
+    const miFicha = miColor==='R'?'🔴':'🟡';
+    const suFicha = miColor==='R'?'🟡':'🔴';
+    container.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:14px;min-height:300px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="text-align:center;flex:1"><div style="font-size:1.5rem">${yo.emoji}</div><div style="color:#fff;font-weight:800;font-size:0.8rem">${yo.name} ${miFicha}</div></div>
+          <div style="color:#fff;font-family:'Fredoka One',cursive">VS</div>
+          <div style="text-align:center;flex:1"><div style="font-size:1.5rem">${riv.emoji}</div><div style="color:#fff;font-weight:800;font-size:0.8rem">${riv.name} ${suFicha}</div></div>
+        </div>
+        <div id="c4Status" style="text-align:center;color:#FFD600;font-family:'Fredoka One',cursive;font-size:1.05rem;margin-bottom:10px"></div>
+        <div id="c4Board" style="background:#1d4ed8;border-radius:12px;padding:6px;display:grid;grid-template-columns:repeat(${COLS},1fr);gap:4px;max-width:300px;margin:0 auto"></div>
+        <div style="margin-top:12px">
+          <div id="c4Chat" style="height:54px;overflow-y:auto;background:#13131f;border-radius:10px;padding:6px;margin-bottom:6px;font-size:0.8rem;color:#fff"></div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center" id="c4Frases"></div>
+        </div>
+      </div>
+      <div class="game-instructions">Toca una columna en tu turno para soltar tu ficha. ¡Conecta 4 para ganar!</div>`;
+    const fc = document.getElementById('c4Frases');
+    CHAT_FRASES.forEach(fr => {
+      const b = document.createElement('button');
+      b.textContent = fr;
+      b.style.cssText = 'background:#1a1a2e;border:1px solid rgba(255,255,255,0.12);color:#fff;padding:5px 9px;border-radius:14px;font-size:0.74rem;cursor:pointer;-webkit-tap-highlight-color:transparent';
+      const send = e => { e.preventDefault(); e.stopPropagation(); enviarChatOnline(fr); };
+      b.addEventListener('touchstart', send, {passive:false});
+      b.addEventListener('click', send);
+      fc.appendChild(b);
+    });
+    window._chatRenderer = function(nombre, texto, emoji) {
+      const c = document.getElementById('c4Chat'); if (!c) return;
+      const d = document.createElement('div'); d.innerHTML = `<strong>${emoji||''} ${nombre}:</strong> ${texto}`;
+      c.appendChild(d); c.scrollTop = c.scrollHeight; SFX.click();
+    };
+  }
+
+  function pintar() {
+    const b = document.getElementById('c4Board'); if (!b) return;
+    b.innerHTML = '';
+    const fin = ganador();
+    for (let i=0;i<ROWS*COLS;i++) {
+      const v = board[i];
+      const cell = document.createElement('div');
+      const col = i % COLS;
+      const puedo = miTurno && jugando && !fin && board[col] === null;
+      cell.style.cssText = `aspect-ratio:1;border-radius:50%;background:${v==='R'?'#DC2626':v==='A'?'#FFD600':'#0a0a14'};cursor:${puedo?'pointer':'default'};-webkit-tap-highlight-color:transparent`;
+      if (puedo) {
+        const play = e => { e.preventDefault(); e.stopPropagation(); jugarColumna(col); };
+        cell.addEventListener('touchstart', play, {passive:false});
+        cell.addEventListener('click', play);
+      }
+      b.appendChild(cell);
+    }
+    const st = document.getElementById('c4Status');
+    if (st) {
+      if (fin) st.textContent = fin==='empate' ? '🤝 ¡Empate!' : (fin===miColor ? '🎉 ¡Ganaste!' : '😢 Perdiste');
+      else st.textContent = miTurno ? '✋ ¡Tu turno!' : '⏳ Turno del rival...';
+    }
+  }
+
+  function soltarFicha(col, color, esMia) {
+    // encuentra la fila más baja libre en esa columna
+    for (let r=ROWS-1;r>=0;r--) {
+      const idx = r*COLS+col;
+      if (board[idx]===null) { board[idx]=color; SFX.pop(); return idx; }
+    }
+    return -1;
+  }
+  function jugarColumna(col) {
+    if (!miTurno || !jugando || board[col]!==null) return;
+    soltarFicha(col, miColor, true);
+    miTurno = false;
+    enviarMovimientoOnline({ tipo:'ficha', col, color:miColor });
+    pintar();
+    revisar();
+  }
+
+  function ganador() {
+    const get=(r,c)=> (r<0||r>=ROWS||c<0||c>=COLS)?null:board[r*COLS+c];
+    for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
+      const v=get(r,c); if(!v) continue;
+      for (const [dr,dc] of [[0,1],[1,0],[1,1],[1,-1]]) {
+        let k=1; while(k<4 && get(r+dr*k,c+dc*k)===v) k++;
+        if(k===4) return v;
+      }
+    }
+    if (board.every(v=>v)) return 'empate';
+    return null;
+  }
+  function revisar() {
+    const g = ganador(); if (!g) return;
+    jugando = false;
+    if (g===miColor) { awardBadge('first_win'); celebrate(); }
+    else if (g==='empate') showToast('🤝 ¡Empate!');
+    else SFX.lose();
+    pintar();
+    setTimeout(() => {
+      const st = document.getElementById('c4Status'); if (!st) return;
+      const rb = document.createElement('button');
+      rb.textContent = '🔁 Revancha';
+      rb.style.cssText = 'display:block;margin:8px auto 0;background:#7C3AED;border:none;color:#fff;padding:8px 20px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer';
+      const again = e => { e.preventDefault(); enviarMovimientoOnline({tipo:'reinicio'}); reiniciar(); };
+      rb.addEventListener('touchstart', again, {passive:false});
+      rb.addEventListener('click', again);
+      st.appendChild(rb);
+    }, 600);
+  }
+  function reiniciar() {
+    board = Array(ROWS*COLS).fill(null);
+    miTurno = soyAnfitrion; jugando = true;
+    renderJuego(); pintar();
+  }
+
+  renderLobby();
 }
 </script>
 </body>
