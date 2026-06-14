@@ -1497,11 +1497,95 @@ function conectarSala(codigo, esAnfitrion) {
 function enviarMovimientoOnline(datos) {
   if (canalOnline) canalOnline.send({ type: 'broadcast', event: 'movimiento', payload: datos });
 }
+// ══════════════════════════════════════════════════════════
+//  FILTROS DE CHAT ABIERTO (seguridad infantil)
+// ══════════════════════════════════════════════════════════
+// Lista de palabras bloqueadas (groserías comunes en español). Se censuran.
+const PALABRAS_BLOQUEADAS = [
+  'idiota','imbecil','imbécil','estupido','estúpido','tonto','tarado','baboso','menso',
+  'puto','puta','mierda','carajo','cabron','cabrón','pendejo','pendeja','culero','chinga',
+  'verga','pija','pene','vagina','culo','teta','sexo','sexi','sexy','desnudo','desnuda',
+  'maricon','maricón','marica','joto','gay','lesbiana','zorra','perra','golfa',
+  'maldito','maldita','demonio','satanas','satán','infierno',
+  'droga','marihuana','cocaina','cocaína','alcohol','cerveza','borracho','fumar','cigarro',
+  'matar','muerte','morir','suicidio','sangre','arma','pistola','cuchillo','violencia',
+  'odio','feo','fea','gordo','gorda','estupida','estúpida','basura','asco','asqueroso'
+];
+
+// Filtra un mensaje. Devuelve { ok, texto, motivo }
+function filtrarMensaje(texto) {
+  if (!texto) return { ok:false, motivo:'vacío' };
+  let t = texto.trim();
+  // 1. Límite de longitud
+  if (t.length > 120) { return { ok:false, motivo:'⚠️ Mensaje muy largo' }; }
+  // 2. Bloquear enlaces / URLs
+  if (/(https?:\/\/|www\.|\.com|\.net|\.org|\.io|\.me|t\.me|wa\.me)/i.test(t)) {
+    return { ok:false, motivo:'🔗 No se permiten enlaces' };
+  }
+  // 3. Bloquear números de teléfono (secuencias de 6+ dígitos, con o sin espacios/guiones)
+  const soloNumeros = t.replace(/[\s\-().]/g,'');
+  if (/\d{6,}/.test(soloNumeros)) {
+    return { ok:false, motivo:'📵 No compartas números de teléfono' };
+  }
+  // 4. Bloquear @ (usuarios de redes/correos)
+  if (/@/.test(t)) { return { ok:false, motivo:'🚫 No compartas correos ni usuarios' }; }
+  // 5. Censurar groserías (reemplaza por ⭐)
+  let censurado = false;
+  const palabras = t.split(/(\s+)/);
+  const limpio = palabras.map(p => {
+    const base = p.toLowerCase().replace(/[^a-záéíóúñü]/g,'');
+    if (base && PALABRAS_BLOQUEADAS.includes(base)) { censurado = true; return '⭐'.repeat(Math.max(2,p.length)); }
+    return p;
+  }).join('');
+  return { ok:true, texto:limpio, censurado };
+}
+
+// Anti-spam: control de frecuencia de mensajes
+let _ultimoMsgTiempo = 0;
+let _msgRecientes = [];
+function puedeEnviarChat() {
+  const ahora = Date.now();
+  // máximo 1 mensaje cada 1.2 segundos
+  if (ahora - _ultimoMsgTiempo < 1200) { return { ok:false, motivo:'⏳ Espera un momento antes de escribir otra vez' }; }
+  // máximo 5 mensajes en 10 segundos
+  _msgRecientes = _msgRecientes.filter(t => ahora - t < 10000);
+  if (_msgRecientes.length >= 5) { return { ok:false, motivo:'🛑 Estás escribiendo muy rápido. Espera unos segundos.' }; }
+  return { ok:true };
+}
+function registrarEnvioChat() {
+  const ahora = Date.now();
+  _ultimoMsgTiempo = ahora;
+  _msgRecientes.push(ahora);
+}
+
+// Escapa HTML para que nadie pueda inyectar código en el chat (seguridad)
+function escaparHTML(str) {
+  if (str == null) return '';
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function enviarChatOnline(texto, emoji) {
   if (!canalOnline) return;
   const yo = miIdentidadOnline();
   canalOnline.send({ type: 'broadcast', event: 'chat', payload: { nombre: yo.name, texto, emoji: yo.emoji } });
   mostrarChatMsg(yo.name, texto, yo.emoji); // mostrar el mío
+}
+// Enviar texto libre del chat abierto (con todos los filtros)
+function enviarChatLibre(inputId) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  const original = inp.value;
+  if (!original.trim()) return;
+  // anti-spam
+  const spam = puedeEnviarChat();
+  if (!spam.ok) { showToast(spam.motivo); return; }
+  // filtro de contenido
+  const res = filtrarMensaje(original);
+  if (!res.ok) { showToast(res.motivo); return; }
+  registrarEnvioChat();
+  inp.value = '';
+  if (res.censurado) showToast('⚠️ Se ocultaron palabras no permitidas');
+  enviarChatOnline(res.texto);
 }
 function salirSalaOnline() {
   if (canalOnline) { try { getSupabase().removeChannel(canalOnline); } catch (e) {} canalOnline = null; }
@@ -4493,6 +4577,10 @@ function crearJuegoOnline(cfg) {
   ctrl.chatHTML = function() {
     return `<div style="margin-top:12px">
         <div id="olChat" style="height:54px;overflow-y:auto;background:#13131f;border-radius:10px;padding:6px;margin-bottom:6px;font-size:0.8rem;color:#fff"></div>
+        <div style="display:flex;gap:5px;margin-bottom:6px">
+          <input id="olChatInput" type="text" maxlength="120" placeholder="Escribe un mensaje..." style="flex:1;background:#1a1a2e;border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:8px 10px;color:#fff;font-family:Nunito,sans-serif;font-size:0.82rem;outline:none">
+          <button id="olChatSend" style="background:#16A34A;border:none;color:#fff;padding:0 14px;border-radius:12px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent">➤</button>
+        </div>
         <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center" id="olFrases"></div></div>`;
   };
   ctrl.conectarChat = function() {
@@ -4506,9 +4594,19 @@ function crearJuegoOnline(cfg) {
       b.addEventListener('click', send);
       fc.appendChild(b);
     });
+    // chat abierto con filtros
+    const sendBtn = document.getElementById('olChatSend');
+    const inp = document.getElementById('olChatInput');
+    if (sendBtn) {
+      const f = e => { e.preventDefault(); e.stopPropagation(); enviarChatLibre('olChatInput'); };
+      sendBtn.addEventListener('touchstart', f, {passive:false});
+      sendBtn.addEventListener('click', f);
+    }
+    if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); enviarChatLibre('olChatInput'); } });
     window._chatRenderer = function(nombre, texto, emoji) {
       const ch = document.getElementById('olChat'); if (!ch) return;
-      const d = document.createElement('div'); d.innerHTML = `<strong>${emoji||''} ${nombre}:</strong> ${texto}`;
+      const d = document.createElement('div');
+      d.innerHTML = `<strong>${escaparHTML(emoji||'')} ${escaparHTML(nombre)}:</strong> ${escaparHTML(texto)}`;
       ch.appendChild(d); ch.scrollTop = ch.scrollHeight; SFX.click();
     };
   };
@@ -4708,12 +4806,16 @@ function buildTttOnline(container) {
         <div id="tttoStatus" style="text-align:center;color:#FFD600;font-family:'Fredoka One',cursive;font-size:1.1rem;margin-bottom:12px"></div>
         <div id="tttoBoard" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:260px;margin:0 auto"></div>
         <div style="margin-top:14px">
-          <div style="color:#aaa;font-size:0.78rem;text-align:center;margin-bottom:6px">💬 Chat rápido:</div>
+          <div style="color:#aaa;font-size:0.78rem;text-align:center;margin-bottom:6px">💬 Chat:</div>
           <div id="tttoChat" style="height:70px;overflow-y:auto;background:#13131f;border-radius:10px;padding:8px;margin-bottom:8px;font-size:0.82rem;color:#fff"></div>
+          <div style="display:flex;gap:5px;margin-bottom:8px">
+            <input id="tttoChatInput" type="text" maxlength="120" placeholder="Escribe un mensaje..." style="flex:1;background:#1a1a2e;border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:8px 10px;color:#fff;font-family:Nunito,sans-serif;font-size:0.82rem;outline:none">
+            <button id="tttoChatSend" style="background:#16A34A;border:none;color:#fff;padding:0 14px;border-radius:12px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent">➤</button>
+          </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center" id="tttoFrases"></div>
         </div>
       </div>
-      <div class="game-instructions">Toca una casilla en tu turno. Usa el chat de frases para hablar con tu amigo.</div>`;
+      <div class="game-instructions">Toca una casilla en tu turno. Escribe o usa las frases para hablar con tu amigo.</div>`;
     // frases de chat
     const fc = document.getElementById('tttoFrases');
     CHAT_FRASES.forEach(fr => {
@@ -4725,6 +4827,15 @@ function buildTttOnline(container) {
       b.addEventListener('click', send);
       fc.appendChild(b);
     });
+    // chat abierto con filtros
+    const sendBtn = document.getElementById('tttoChatSend');
+    const inp = document.getElementById('tttoChatInput');
+    if (sendBtn) {
+      const f = e => { e.preventDefault(); e.stopPropagation(); enviarChatLibre('tttoChatInput'); };
+      sendBtn.addEventListener('touchstart', f, {passive:false});
+      sendBtn.addEventListener('click', f);
+    }
+    if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); enviarChatLibre('tttoChatInput'); } });
   }
 
   function pintarTablero() {
@@ -4799,7 +4910,7 @@ function buildTttOnline(container) {
     const c = document.getElementById('tttoChat'); if (!c) return;
     const d = document.createElement('div');
     d.style.cssText = 'margin-bottom:3px';
-    d.innerHTML = `<strong>${emoji||''} ${nombre}:</strong> ${texto}`;
+    d.innerHTML = `<strong>${escaparHTML(emoji||'')} ${escaparHTML(nombre)}:</strong> ${escaparHTML(texto)}`;
     c.appendChild(d); c.scrollTop = c.scrollHeight;
     SFX.click();
   };
@@ -4936,6 +5047,10 @@ function buildC4Online(container) {
         <div id="c4Board" style="background:#1d4ed8;border-radius:12px;padding:6px;display:grid;grid-template-columns:repeat(${COLS},1fr);gap:4px;max-width:300px;margin:0 auto"></div>
         <div style="margin-top:12px">
           <div id="c4Chat" style="height:54px;overflow-y:auto;background:#13131f;border-radius:10px;padding:6px;margin-bottom:6px;font-size:0.8rem;color:#fff"></div>
+          <div style="display:flex;gap:5px;margin-bottom:6px">
+            <input id="c4ChatInput" type="text" maxlength="120" placeholder="Escribe un mensaje..." style="flex:1;background:#1a1a2e;border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:8px 10px;color:#fff;font-family:Nunito,sans-serif;font-size:0.82rem;outline:none">
+            <button id="c4ChatSend" style="background:#16A34A;border:none;color:#fff;padding:0 14px;border-radius:12px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent">➤</button>
+          </div>
           <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center" id="c4Frases"></div>
         </div>
       </div>
@@ -4950,9 +5065,18 @@ function buildC4Online(container) {
       b.addEventListener('click', send);
       fc.appendChild(b);
     });
+    // chat abierto con filtros
+    const sendBtn = document.getElementById('c4ChatSend');
+    const inp = document.getElementById('c4ChatInput');
+    if (sendBtn) {
+      const f = e => { e.preventDefault(); e.stopPropagation(); enviarChatLibre('c4ChatInput'); };
+      sendBtn.addEventListener('touchstart', f, {passive:false});
+      sendBtn.addEventListener('click', f);
+    }
+    if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); enviarChatLibre('c4ChatInput'); } });
     window._chatRenderer = function(nombre, texto, emoji) {
       const c = document.getElementById('c4Chat'); if (!c) return;
-      const d = document.createElement('div'); d.innerHTML = `<strong>${emoji||''} ${nombre}:</strong> ${texto}`;
+      const d = document.createElement('div'); d.innerHTML = `<strong>${escaparHTML(emoji||'')} ${escaparHTML(nombre)}:</strong> ${escaparHTML(texto)}`;
       c.appendChild(d); c.scrollTop = c.scrollHeight; SFX.click();
     };
   }
