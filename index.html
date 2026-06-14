@@ -999,8 +999,9 @@ function getGuestAvatar() {
 }
 function setGuestAvatar(a) { try { localStorage.setItem('im_guestavatar', a); } catch (e) {} }
 
-// ── CONTADOR DE JUGADORES EN LÍNEA (Supabase Presence global) ──
+// ── CONTADOR + LISTA DE CONECTADOS (Supabase Presence global) ──
 let canalPresencia = null;
+let conectadosAhora = {}; // id -> {name, emoji}
 function iniciarPresenciaGlobal() {
   const client = getSupabase();
   if (!client) { return; }
@@ -1008,17 +1009,91 @@ function iniciarPresenciaGlobal() {
     canalPresencia = client.channel('lobby-global', { config: { presence: { key: getGuestId() } } });
     canalPresencia.on('presence', { event: 'sync' }, () => {
       const estado = canalPresencia.presenceState();
+      conectadosAhora = {};
+      Object.keys(estado).forEach(k => {
+        const meta = (estado[k] && estado[k][0]) || {};
+        conectadosAhora[meta.id || k] = { name: meta.name || 'Jugador', emoji: meta.emoji || '👤' };
+      });
       const total = Object.keys(estado).length;
       const el = document.getElementById('onlineCount');
       if (el) el.textContent = '🟢 ' + Math.max(1, total);
+      if (typeof refrescarListaAmigos === 'function') refrescarListaAmigos();
+    });
+    // recibir invitaciones de amigos
+    canalPresencia.on('broadcast', { event: 'invitacion' }, ({ payload }) => {
+      if (payload.paraId === getGuestId()) recibirInvitacion(payload);
     });
     canalPresencia.subscribe(async (estado) => {
       if (estado === 'SUBSCRIBED') {
-        await canalPresencia.track({ id: getGuestId(), at: Date.now() });
+        const yo = miIdentidadOnline();
+        await canalPresencia.track({ id: getGuestId(), name: yo.name, emoji: yo.emoji, at: Date.now() });
       }
     });
   } catch (e) { console.error('presencia', e); }
 }
+// Re-anunciar mi presencia (cuando cambio nombre/avatar)
+function actualizarPresencia() {
+  if (!canalPresencia) return;
+  const yo = miIdentidadOnline();
+  try { canalPresencia.track({ id: getGuestId(), name: yo.name, emoji: yo.emoji, at: Date.now() }); } catch (e) {}
+}
+
+// ── SISTEMA DE AMIGOS POR NÚMERO ──
+function getAmigos() {
+  try { const v = localStorage.getItem('im_amigos'); if (v) return JSON.parse(v); } catch (e) {}
+  return [];
+}
+function agregarAmigo(num) {
+  num = String(num).replace(/[^0-9]/g,'');
+  if (num.length < 3) { showToast('Número no válido'); return false; }
+  if (num === getGuestId()) { showToast('¡Ese es tu propio número!'); return false; }
+  const a = getAmigos();
+  if (a.find(x => x.num === num)) { showToast('Ya tienes a ese amigo'); return false; }
+  a.push({ num, alias: '' });
+  try { localStorage.setItem('im_amigos', JSON.stringify(a)); } catch (e) {}
+  return true;
+}
+function quitarAmigo(num) {
+  const a = getAmigos().filter(x => x.num !== num);
+  try { localStorage.setItem('im_amigos', JSON.stringify(a)); } catch (e) {}
+}
+// Enviar invitación a un amigo (por su número)
+function invitarAmigo(num) {
+  if (!canalPresencia) { showToast('Conéctate primero'); return; }
+  const yo = miIdentidadOnline();
+  const sala = generarCodigoSala();
+  try {
+    canalPresencia.send({ type:'broadcast', event:'invitacion', payload:{
+      paraId: num, deId: getGuestId(), deName: yo.name, deEmoji: yo.emoji, sala
+    }});
+    showToast('📨 Invitación enviada a #' + num);
+    // el que invita crea la sala y espera (en Tres en Raya por defecto)
+    _invitacionPendiente = { sala, soyAnfitrion:true };
+    abrirJuegoOnlineDesdeInvitacion(sala, true);
+  } catch (e) { showToast('No se pudo invitar'); }
+}
+let _invitacionPendiente = null;
+function recibirInvitacion(payload) {
+  // mostrar aviso para aceptar
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#16A34A,#2563EB);color:#fff;padding:16px 20px;border-radius:18px;z-index:5000;box-shadow:0 8px 28px rgba(0,0,0,0.4);text-align:center;max-width:90%';
+  ov.innerHTML = `<div style="font-weight:800;margin-bottom:8px">${payload.deEmoji} ${payload.deName} te invita a jugar Tres en Raya</div>
+    <button id="aceptarInv" style="background:#fff;color:#16A34A;border:none;padding:8px 18px;border-radius:14px;font-weight:800;cursor:pointer;margin-right:8px">✅ Aceptar</button>
+    <button id="rechazarInv" style="background:rgba(255,255,255,0.2);color:#fff;border:none;padding:8px 18px;border-radius:14px;font-weight:800;cursor:pointer">✕</button>`;
+  document.body.appendChild(ov);
+  if (typeof SFX!=='undefined') SFX.point();
+  const cerrar = () => ov.remove();
+  ov.querySelector('#aceptarInv').onclick = () => { cerrar(); abrirJuegoOnlineDesdeInvitacion(payload.sala, false); };
+  ov.querySelector('#rechazarInv').onclick = cerrar;
+  setTimeout(cerrar, 15000);
+}
+// abre Tres en Raya directamente en una sala (saltando lobby)
+function abrirJuegoOnlineDesdeInvitacion(sala, esAnfitrion) {
+  _autoSala = { sala, esAnfitrion };
+  openGame('tttonline');
+}
+let _autoSala = null;
+
 
 // Estado de la partida online
 let canalOnline = null;     // canal de Supabase Realtime
@@ -1655,6 +1730,15 @@ function renderProfile() {
           ${AVATARS.map(av => `<button data-av="${av}" style="aspect-ratio:1;background:${av===p.emoji?PLAYERS[currentPlayer].color:'#1a1a2e'};border:2px solid ${av===p.emoji?'#fff':'transparent'};border-radius:10px;font-size:1.4rem;cursor:pointer;-webkit-tap-highlight-color:transparent">${av}</button>`).join('')}
         </div>
       </div>` : ''}
+      <div style="background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.25);border-radius:14px;padding:14px;margin-bottom:18px">
+        <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:4px">👥 Mis Amigos</div>
+        <div style="color:#aaa;font-size:0.72rem;text-align:center;margin-bottom:10px">Tu número es <strong style="color:#16A34A">#${getGuestId()}</strong> · Agrega amigos por su número para invitarlos a jugar</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <input id="amigoInput" type="text" inputmode="numeric" maxlength="4" placeholder="N° amigo (ej: 1043)" style="flex:1;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;text-align:center;outline:none">
+          <button id="addAmigoBtn" style="background:#16A34A;border:none;color:#fff;padding:9px 16px;border-radius:10px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent">➕</button>
+        </div>
+        <div id="listaAmigos"></div>
+      </div>
       <div style="color:#fff;font-weight:800;margin-bottom:10px;text-align:center">🏅 Mis Medallas</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         ${all.map(id => {
@@ -1696,11 +1780,47 @@ function renderProfile() {
     btn.addEventListener('touchstart', pick, {passive:false});
     btn.addEventListener('click', pick);
   });
+  // conectar sistema de amigos
+  const addBtn = document.getElementById('addAmigoBtn');
+  if (addBtn) {
+    const add = e => {
+      e.preventDefault(); e.stopPropagation();
+      const inp = document.getElementById('amigoInput');
+      if (inp && agregarAmigo(inp.value)) { SFX.click(); renderProfile(); }
+    };
+    addBtn.addEventListener('touchstart', add, {passive:false});
+    addBtn.addEventListener('click', add);
+  }
+  refrescarListaAmigos();
 }
-// Actualiza el emoji del jugador en el botón de la navbar
-function updatePlayerBadge() {
-  const btn = document.getElementById('profileBtn');
-  if (btn) btn.textContent = PLAYERS[currentPlayer].emoji;
+// Dibuja la lista de amigos con su estado en línea y botón invitar
+function refrescarListaAmigos() {
+  const cont = document.getElementById('listaAmigos');
+  if (!cont) return;
+  const amigos = getAmigos();
+  if (!amigos.length) { cont.innerHTML = '<div style="color:#666;font-size:0.78rem;text-align:center">Aún no tienes amigos agregados</div>'; return; }
+  cont.innerHTML = amigos.map(a => {
+    const on = conectadosAhora[a.num];
+    const nombre = on ? on.name : ('Amigo #' + a.num);
+    const emoji = on ? on.emoji : '👤';
+    return `<div style="display:flex;align-items:center;gap:8px;background:#13131f;border-radius:10px;padding:8px;margin-bottom:6px">
+      <span style="font-size:1.3rem">${emoji}</span>
+      <div style="flex:1;min-width:0">
+        <div style="color:#fff;font-weight:700;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombre}</div>
+        <div style="color:${on?'#16A34A':'#666'};font-size:0.7rem">${on?'🟢 En línea':'⚫ Desconectado'} · #${a.num}</div>
+      </div>
+      ${on ? `<button data-inv="${a.num}" style="background:#16A34A;border:none;color:#fff;padding:7px 12px;border-radius:10px;font-weight:800;font-size:0.78rem;cursor:pointer;-webkit-tap-highlight-color:transparent">⚔️ Invitar</button>` : ''}
+      <button data-del="${a.num}" style="background:rgba(220,38,38,0.2);border:none;color:#f87171;padding:7px 9px;border-radius:10px;cursor:pointer;-webkit-tap-highlight-color:transparent">🗑️</button>
+    </div>`;
+  }).join('');
+  cont.querySelectorAll('button[data-inv]').forEach(b => {
+    const f = e => { e.preventDefault(); e.stopPropagation(); invitarAmigo(b.dataset.inv); };
+    b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+  });
+  cont.querySelectorAll('button[data-del]').forEach(b => {
+    const f = e => { e.preventDefault(); e.stopPropagation(); quitarAmigo(b.dataset.del); SFX.click(); renderProfile(); };
+    b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+  });
 }
 
 function closeModal() {
@@ -3873,7 +3993,13 @@ function buildTttOnline(container) {
     SFX.click();
   };
 
-  pantallaBienvenidaOnline(container, '🌐', 'Tres en Raya Online', 'linear-gradient(135deg,#16A34A,#2563EB)', renderLobby);
+  // Si viene de una invitación, salta directo a la sala
+  if (_autoSala) {
+    const a = _autoSala; _autoSala = null;
+    iniciarSala(a.sala, a.esAnfitrion);
+  } else {
+    pantallaBienvenidaOnline(container, '🌐', 'Tres en Raya Online', 'linear-gradient(135deg,#16A34A,#2563EB)', renderLobby);
+  }
 }
 // helper para botones del lobby online
 function bindBtn(id, fn) {
@@ -4447,25 +4573,39 @@ function buildNavalOnline(container) {
     renderBatalla();
   }
   function gridHTML(arr,tipo){
-    let h=`<div style="display:grid;grid-template-columns:repeat(${N},1fr);gap:2px;max-width:260px;margin:0 auto">`;
+    let h=`<div style="display:grid;grid-template-columns:repeat(${N},1fr);gap:3px;max-width:280px;margin:0 auto;background:linear-gradient(180deg,#0c4a6e,#082f49);padding:6px;border-radius:10px;border:2px solid #1e3a8a">`;
     for(let i=0;i<N*N;i++){
-      let bg='#0c4a6e', txt='';
-      if(tipo==='mio'){ if(arr[i]===1)bg='#475569'; if(arr[i]===2){bg='#dc2626';txt='💥';} if(disparosRival[i]==='agua'){txt='💧';} }
-      else { if(arr[i]==='agua'){txt='💧';} if(arr[i]==='tocado'){bg='#dc2626';txt='💥';} if(arr[i]==='esperando'){txt='⏳';} }
+      let bg='linear-gradient(135deg,#0e7490,#0c4a6e)', txt='', extra='';
+      if(tipo==='mio'){
+        if(arr[i]===1){bg='linear-gradient(135deg,#64748b,#475569)';txt='🚢';}
+        if(arr[i]===2){bg='radial-gradient(circle,#f97316,#dc2626)';txt='💥';}
+        if(disparosRival[i]==='agua'){txt='💧';}
+      } else {
+        if(arr[i]==='agua'){txt='💧';bg='linear-gradient(135deg,#155e75,#0c4a6e)';}
+        if(arr[i]==='tocado'){bg='radial-gradient(circle,#f97316,#dc2626)';txt='💥';}
+        if(arr[i]==='esperando'){txt='🎯';}
+      }
       const clickable = tipo==='enemigo'&&!arr[i]&&miTurno&&fase==='batalla'&&ctrl.jugando;
-      h+=`<div ${clickable?`data-shoot="${i}"`:''} style="aspect-ratio:1;background:${bg};border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:0.8rem;cursor:${clickable?'pointer':'default'}">${txt}</div>`;
+      if(clickable) extra='box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);';
+      h+=`<div ${clickable?`data-shoot="${i}"`:''} style="aspect-ratio:1;background:${bg};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.85rem;cursor:${clickable?'pointer':'default'};${extra}transition:transform 0.1s">${txt}</div>`;
     }
     return h+'</div>';
   }
+  // emoji del barco según tamaño
+  function barcoEmoji(size){ return size>=3?'🚢':size===2?'⛵':'🛶'; }
   function renderColocar(){
     const size=FLOTA[colocando];
-    let grid=`<div style="display:grid;grid-template-columns:repeat(${N},1fr);gap:2px;max-width:260px;margin:0 auto">`;
-    for(let i=0;i<N*N;i++){ const bg=miTablero[i]?'#475569':'#0c4a6e'; grid+=`<div data-place="${i}" style="aspect-ratio:1;background:${bg};border-radius:3px;cursor:pointer"></div>`; }
+    let grid=`<div style="display:grid;grid-template-columns:repeat(${N},1fr);gap:3px;max-width:280px;margin:0 auto;background:linear-gradient(180deg,#0c4a6e,#082f49);padding:6px;border-radius:10px;border:2px solid #1e3a8a">`;
+    for(let i=0;i<N*N;i++){
+      const ocupado=miTablero[i];
+      const bg=ocupado?'linear-gradient(135deg,#64748b,#475569)':'linear-gradient(135deg,#0e7490,#0c4a6e)';
+      grid+=`<div data-place="${i}" style="aspect-ratio:1;background:${bg};border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.85rem">${ocupado?'🚢':''}</div>`;
+    }
     grid+='</div>';
     container.innerHTML = `
       <div class="game-container" style="background:#0a0a14;padding:14px;min-height:300px">
         ${ctrl.barraJugadores('🚢','🚢')}
-        <div style="text-align:center;color:#FFD600;font-weight:800;margin-bottom:6px">Coloca tu barco de ${size} casillas (${colocando+1}/${FLOTA.length})</div>
+        <div style="text-align:center;color:#FFD600;font-weight:800;margin-bottom:6px">${barcoEmoji(size)} Coloca tu barco de ${size} casilla${size>1?'s':''} (${colocando+1}/${FLOTA.length})</div>
         <div style="text-align:center;margin-bottom:8px"><button id="orientBtn" style="background:#7C3AED;border:none;color:#fff;padding:6px 16px;border-radius:14px;font-weight:800;cursor:pointer">↔️ ${orient==='h'?'Horizontal':'Vertical'}</button></div>
         ${grid}
       </div>
