@@ -3403,7 +3403,16 @@ function buildPalabra(container) {
 // ══════════════════════════════════════════════════════════
 //  TRES EN RAYA ONLINE (multijugador con Supabase + chat)
 // ══════════════════════════════════════════════════════════
-const CHAT_FRASES = ['👋 ¡Hola!','😄 ¡Buena jugada!','😎 ¡Te voy a ganar!','😅 ¡Uy, casi!','🎉 ¡Gané!','🤝 ¡Buen juego!','🔁 ¿Otra vez?','⏳ ¡Apúrate!'];
+const CHAT_FRASES = [
+  '👋 ¡Hola!','😄 ¡Buena jugada!','😎 ¡Te voy a ganar!','😅 ¡Uy, casi!',
+  '🎉 ¡Gané!','🤝 ¡Buen juego!','🔁 ¿Otra vez?','⏳ ¡Apúrate!',
+  '🤣 ¡Jajaja!','😮 ¡Wow!','🔥 ¡Increíble!','👏 ¡Bien hecho!',
+  '😤 ¡No te rindas!','🍀 ¡Suerte!','🤔 Déjame pensar...','😱 ¡No puede ser!',
+  '💪 ¡Vamos!','🎯 ¡Casi gano!','😜 ¡Te tengo!','🙈 ¡Ups!',
+  '⭐ ¡Eres bueno!','🤜🤛 ¡Choca esos cinco!','😴 Me aburro, ¡juega!','🥳 ¡Qué divertido!',
+  '😅 ¡Me ganaste!','🧠 ¡Buena estrategia!','🚀 ¡A jugar!','❤️ ¡Me gusta este juego!',
+  '😂 ¡Qué risa!','👀 Te estoy mirando...','🏆 ¡Soy el campeón!','🤗 ¡Gracias por jugar!'
+];
 
 // ══════════════════════════════════════════════════════════
 //  MOTOR COMÚN DE JUEGOS ONLINE (lobby + espera + sala + chat)
@@ -3421,6 +3430,63 @@ function crearJuegoOnline(cfg) {
   }
   const tema = cfg.colorTema || 'linear-gradient(135deg,#16A34A,#2563EB)';
   const ctrl = { esAnfitrion:false, rivalInfo:null };
+
+  // Pantalla de bienvenida: muestra el número de jugador, pide nombre y avatar
+  function renderBienvenida() {
+    const yo = miIdentidadOnline();
+    const num = getGuestId();
+    c.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:20px;min-height:340px">
+        <div style="text-align:center;margin-bottom:14px">
+          <div style="font-size:2.4rem">${cfg.emoji}</div>
+          <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.25rem">${cfg.titulo}</div>
+        </div>
+        <div style="background:${tema};border-radius:16px;padding:16px;text-align:center;margin-bottom:16px;max-width:340px;margin-left:auto;margin-right:auto">
+          <div style="color:#fff;font-size:0.85rem;opacity:0.9">¡Bienvenido! Eres el</div>
+          <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.8rem">Jugador #${num}</div>
+          <div style="color:#fff;font-size:0.78rem;opacity:0.9">Comparte tu número con tus amigos para reconocerse</div>
+        </div>
+        <div style="max-width:340px;margin:0 auto">
+          <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:8px">✏️ ¿Cómo te llamas?</div>
+          <input id="bvNombre" type="text" maxlength="14" value="${yo.name.replace(/"/g,'&quot;')}" placeholder="Tu nombre" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;font-size:1rem;text-align:center;outline:none;margin-bottom:14px">
+          <div style="color:#aaa;font-size:0.78rem;text-align:center;margin-bottom:8px">Elige tu personaje:</div>
+          <div id="bvAvatars" style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-bottom:18px"></div>
+          <button id="bvContinuar" style="width:100%;background:${tema};border:none;color:#fff;padding:16px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;font-size:1.05rem;cursor:pointer;-webkit-tap-highlight-color:transparent">¡Listo, vamos a jugar! ▶</button>
+        </div>
+      </div>
+      <div class="game-instructions">Tu número <strong>#${num}</strong> te identifica. Dile tu número a tus amigos para saber quién es quién.</div>`;
+    // nombre
+    const ni = document.getElementById('bvNombre');
+    if (ni) ni.addEventListener('input', () => {
+      if (currentPlayer === 'invitado') setGuestName(ni.value || ('Invitado #' + getGuestId()));
+      else updatePlayerProfile(currentPlayer, ni.value, null);
+      updatePlayerBadge();
+    });
+    // avatares
+    const ap = document.getElementById('bvAvatars');
+    if (ap) AVATARS.forEach(av => {
+      const b = document.createElement('button');
+      b.textContent = av;
+      const cur = miIdentidadOnline().emoji;
+      b.style.cssText = `aspect-ratio:1;background:${av===cur?'#7C3AED':'#1a1a2e'};border:2px solid ${av===cur?'#fff':'transparent'};border-radius:8px;font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent`;
+      const pick = e => {
+        e.preventDefault(); e.stopPropagation();
+        const nombreActual = document.getElementById('bvNombre');
+        if (currentPlayer === 'invitado') { setGuestAvatar(av); if(nombreActual) setGuestName(nombreActual.value||('Invitado #'+getGuestId())); }
+        else updatePlayerProfile(currentPlayer, nombreActual?nombreActual.value:null, av);
+        SFX.click(); updatePlayerBadge(); renderBienvenida();
+      };
+      b.addEventListener('touchstart', pick, {passive:false});
+      b.addEventListener('click', pick);
+      ap.appendChild(b);
+    });
+    bindBtn('bvContinuar', () => {
+      const n = document.getElementById('bvNombre');
+      if (n) { if (currentPlayer==='invitado') setGuestName(n.value||('Invitado #'+getGuestId())); else updatePlayerProfile(currentPlayer, n.value, null); }
+      SFX.click();
+      renderLobby();
+    });
+  }
 
   function renderLobby() {
     const yo = miIdentidadOnline();
@@ -3517,8 +3583,66 @@ function crearJuegoOnline(cfg) {
   };
   ctrl.enviar = enviarMovimientoOnline;
   ctrl.renderLobby = renderLobby;
-  renderLobby();
+  renderBienvenida();
   return ctrl;
+}
+
+// Pantalla de bienvenida reutilizable (número de jugador + nombre + avatar)
+function pantallaBienvenidaOnline(container, emoji, titulo, tema, onContinuar) {
+  const num = getGuestId();
+  function render() {
+    const yo = miIdentidadOnline();
+    container.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:20px;min-height:340px">
+        <div style="text-align:center;margin-bottom:14px">
+          <div style="font-size:2.4rem">${emoji}</div>
+          <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.25rem">${titulo}</div>
+        </div>
+        <div style="background:${tema};border-radius:16px;padding:16px;text-align:center;margin-bottom:16px;max-width:340px;margin-left:auto;margin-right:auto">
+          <div style="color:#fff;font-size:0.85rem;opacity:0.9">¡Bienvenido! Eres el</div>
+          <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.8rem">Jugador #${num}</div>
+          <div style="color:#fff;font-size:0.78rem;opacity:0.9">Comparte tu número con tus amigos para reconocerse</div>
+        </div>
+        <div style="max-width:340px;margin:0 auto">
+          <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:8px">✏️ ¿Cómo te llamas?</div>
+          <input id="bvNombre" type="text" maxlength="14" value="${yo.name.replace(/"/g,'&quot;')}" placeholder="Tu nombre" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;font-size:1rem;text-align:center;outline:none;margin-bottom:14px">
+          <div style="color:#aaa;font-size:0.78rem;text-align:center;margin-bottom:8px">Elige tu personaje:</div>
+          <div id="bvAvatars" style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-bottom:18px"></div>
+          <button id="bvContinuar" style="width:100%;background:${tema};border:none;color:#fff;padding:16px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;font-size:1.05rem;cursor:pointer;-webkit-tap-highlight-color:transparent">¡Listo, vamos a jugar! ▶</button>
+        </div>
+      </div>
+      <div class="game-instructions">Tu número <strong>#${num}</strong> te identifica. Dile tu número a tus amigos para saber quién es quién.</div>`;
+    const ni = document.getElementById('bvNombre');
+    if (ni) ni.addEventListener('input', () => {
+      if (currentPlayer === 'invitado') setGuestName(ni.value || ('Invitado #' + getGuestId()));
+      else updatePlayerProfile(currentPlayer, ni.value, null);
+      updatePlayerBadge();
+    });
+    const ap = document.getElementById('bvAvatars');
+    if (ap) AVATARS.forEach(av => {
+      const b = document.createElement('button');
+      b.textContent = av;
+      const cur = miIdentidadOnline().emoji;
+      b.style.cssText = `aspect-ratio:1;background:${av===cur?'#7C3AED':'#1a1a2e'};border:2px solid ${av===cur?'#fff':'transparent'};border-radius:8px;font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent`;
+      const pick = e => {
+        e.preventDefault(); e.stopPropagation();
+        const nombreActual = document.getElementById('bvNombre');
+        if (currentPlayer === 'invitado') { setGuestAvatar(av); if(nombreActual) setGuestName(nombreActual.value||('Invitado #'+getGuestId())); }
+        else updatePlayerProfile(currentPlayer, nombreActual?nombreActual.value:null, av);
+        SFX.click(); updatePlayerBadge(); render();
+      };
+      b.addEventListener('touchstart', pick, {passive:false});
+      b.addEventListener('click', pick);
+      ap.appendChild(b);
+    });
+    bindBtn('bvContinuar', () => {
+      const n = document.getElementById('bvNombre');
+      if (n) { if (currentPlayer==='invitado') setGuestName(n.value||('Invitado #'+getGuestId())); else updatePlayerProfile(currentPlayer, n.value, null); }
+      SFX.click();
+      onContinuar();
+    });
+  }
+  render();
 }
 
 function buildTttOnline(container) {
@@ -3749,7 +3873,7 @@ function buildTttOnline(container) {
     SFX.click();
   };
 
-  renderLobby();
+  pantallaBienvenidaOnline(container, '🌐', 'Tres en Raya Online', 'linear-gradient(135deg,#16A34A,#2563EB)', renderLobby);
 }
 // helper para botones del lobby online
 function bindBtn(id, fn) {
@@ -3973,7 +4097,7 @@ function buildC4Online(container) {
     renderJuego(); pintar();
   }
 
-  renderLobby();
+  pantallaBienvenidaOnline(container, '🔴', 'Conecta 4 Online', 'linear-gradient(135deg,#FFD600,#DC2626)', renderLobby);
 }
 
 // ══════════════════════════════════════════════════════════
