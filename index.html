@@ -493,7 +493,7 @@
       HugoKids <span style="font-size:1.1rem">🎮</span>
     </div>
     <div class="family-text">
-      Ian • Dylan • Matías • Milan • Valery
+      Ian • Matías • Milan • Valery • Dylan
     </div>
   </div>
   <ul class="nav-links">
@@ -1017,18 +1017,33 @@ async function revisarSesion() {
 }
 
 // Crear cuenta
+// Genera un número único y estable a partir del ID único del usuario de Supabase
+function numeroDesdeId(uuid) {
+  // suma de códigos de caracteres del uuid -> número de 5 cifras estable y único por cuenta
+  let h = 0;
+  for (let i = 0; i < uuid.length; i++) { h = (h * 31 + uuid.charCodeAt(i)) % 900000; }
+  return String(100000 + h); // 6 cifras, siempre el mismo para ese uuid
+}
+function correoValido(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 async function registrarCuenta(email, password, nombre) {
   const c = getSupabase(); if (!c) return { error: 'Sin conexión' };
+  if (!correoValido(email)) return { error: 'Escribe un correo real válido (ej: nombre@gmail.com)' };
+  if (!password || password.length < 6) return { error: 'La contraseña debe tener al menos 6 caracteres' };
   try {
     const { data, error } = await c.auth.signUp({ email, password });
     if (error) return { error: traducirError(error.message) };
     usuarioActual = data.user;
-    // crear su perfil en la tabla
+    // crear su perfil en la tabla con número ÚNICO basado en su ID
     if (data.user) {
       const yo = miIdentidadOnline();
+      const numUnico = numeroDesdeId(data.user.id);
+      try { localStorage.setItem('im_guestid', numUnico); } catch (e) {}
       await c.from('perfiles').insert({
         id: data.user.id, nombre: nombre || yo.name, avatar: yo.emoji,
-        numero_amigo: getGuestId(), logros: getBadges(), records: {}, amigos: getAmigos()
+        numero_amigo: numUnico, logros: getBadges(), records: {}, amigos: getAmigos()
       });
       await cargarPerfilNube();
     }
@@ -1086,9 +1101,12 @@ async function cargarPerfilNube() {
       // aplicar logros y datos de la nube al estado local
       if (data.nombre) setGuestName(data.nombre);
       if (data.avatar) setGuestAvatar(data.avatar);
+      if (data.numero_amigo) { try { localStorage.setItem('im_guestid', data.numero_amigo); } catch(e){} }
       if (Array.isArray(data.logros)) { try { localStorage.setItem(badgeKey(), JSON.stringify(data.logros)); } catch(e){} }
       if (Array.isArray(data.amigos)) { try { localStorage.setItem('im_amigos', JSON.stringify(data.amigos)); } catch(e){} }
       updatePlayerBadge();
+      // registrar última actividad
+      try { await c.from('perfiles').update({ ultima_actividad: new Date().toISOString() }).eq('id', usuarioActual.id); } catch(e){}
     }
   } catch (e) { /* aún no tiene perfil */ }
 }
@@ -1949,25 +1967,71 @@ function renderPanelUsuario() {
   const nombre = p.nombre || miIdentidadOnline().name;
   const avatar = p.avatar || miIdentidadOnline().emoji;
   const nLogros = (Array.isArray(p.logros) ? p.logros.length : getBadges().length);
+  const miNum = p.numero_amigo || getGuestId();
   body.innerHTML = `
     <div class="game-container" style="background:#0a0a14;padding:22px;min-height:300px">
-      <div style="text-align:center;margin-bottom:18px">
-        <div style="font-size:3rem">${avatar}</div>
-        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.4rem">${nombre}</div>
-        <div style="color:#16A34A;font-size:0.85rem">✅ Sesión iniciada · Tus logros se guardan</div>
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:3rem" id="miAvatarShow">${avatar}</div>
+        <input id="miNombreInput" type="text" maxlength="14" value="${nombre.replace(/"/g,'&quot;')}" style="background:transparent;border:none;border-bottom:2px solid rgba(255,255,255,0.2);color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem;text-align:center;outline:none;width:80%;max-width:240px">
+        <div style="color:#16A34A;font-size:0.85rem;margin-top:6px">✅ Sesión iniciada · Tus logros se guardan</div>
       </div>
-      <div style="background:#13131f;border-radius:14px;padding:16px;max-width:340px;margin:0 auto 14px">
+      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:360px;margin:0 auto 14px">
+        <div style="color:#aaa;font-size:0.78rem;text-align:center;margin-bottom:8px">🎨 Cambia tu personaje:</div>
+        <div id="cuentaAvatars" style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px"></div>
+      </div>
+      <div style="background:#13131f;border-radius:14px;padding:16px;max-width:360px;margin:0 auto 14px">
         <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">🏅 Medallas</span><strong>${nLogros}/10</strong></div>
-        <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">👥 Mi número</span><strong>#${p.numero_amigo || getGuestId()}</strong></div>
+        <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">👥 Mi número</span><strong style="color:#16A34A">#${miNum}</strong></div>
         <div style="display:flex;justify-content:space-between;color:#fff"><span style="color:#aaa">📧 Correo</span><strong style="font-size:0.8rem">${(usuarioActual&&usuarioActual.email)||'-'}</strong></div>
       </div>
-      <div style="max-width:340px;margin:0 auto;display:flex;flex-direction:column;gap:10px">
+      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:360px;margin:0 auto 14px">
+        <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:4px">👥 Mis Amigos</div>
+        <div style="color:#aaa;font-size:0.72rem;text-align:center;margin-bottom:10px">Agrega amigos por su número para invitarlos a jugar</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <input id="amigoInput" type="text" inputmode="numeric" maxlength="6" placeholder="N° de tu amigo" style="flex:1;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;text-align:center;outline:none">
+          <button id="addAmigoBtn" style="background:#16A34A;border:none;color:#fff;padding:9px 16px;border-radius:10px;font-weight:800;cursor:pointer">➕</button>
+        </div>
+        <div id="listaAmigos"></div>
+      </div>
+      <div style="max-width:360px;margin:0 auto;display:flex;flex-direction:column;gap:10px">
         ${esAdmin() ? `<button id="btnAdmin" style="width:100%;background:linear-gradient(135deg,#f59e0b,#b91c1c);border:none;color:#fff;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">🛡️ Panel de Administrador</button>` : ''}
         <button id="btnVerLogros" style="width:100%;background:#7C3AED;border:none;color:#fff;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">🏅 Ver mis medallas</button>
         <button id="btnSalir" style="width:100%;background:rgba(220,38,38,0.2);border:2px solid #dc2626;color:#f87171;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">Cerrar sesión</button>
       </div>
     </div>
-    <div class="game-instructions">Tu cuenta guarda tus logros y amigos. Puedes entrar desde cualquier dispositivo con tu correo y contraseña.</div>`;
+    <div class="game-instructions">Este es tu perfil. Cambia tu nombre o personaje y se guardará en tu cuenta para todos tus dispositivos.</div>`;
+  // nombre editable
+  const ni = document.getElementById('miNombreInput');
+  if (ni) ni.addEventListener('change', () => { setGuestName(ni.value); guardarPerfilNube(); updatePlayerBadge(); });
+  // selector de avatar
+  const ap = document.getElementById('cuentaAvatars');
+  if (ap) AVATARS.forEach(av => {
+    const b = document.createElement('button');
+    b.textContent = av;
+    b.style.cssText = `aspect-ratio:1;background:${av===avatar?'#16A34A':'#1a1a2e'};border:2px solid ${av===avatar?'#fff':'transparent'};border-radius:8px;font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent`;
+    const pick = e => {
+      e.preventDefault(); e.stopPropagation();
+      setGuestAvatar(av);
+      const nombreActual = document.getElementById('miNombreInput');
+      if (nombreActual) setGuestName(nombreActual.value);
+      guardarPerfilNube(); updatePlayerBadge(); SFX.click(); renderPanelUsuario();
+    };
+    b.addEventListener('touchstart', pick, {passive:false});
+    b.addEventListener('click', pick);
+    ap.appendChild(b);
+  });
+  // amigos
+  const addBtn = document.getElementById('addAmigoBtn');
+  if (addBtn) {
+    const add = e => {
+      e.preventDefault(); e.stopPropagation();
+      const inp = document.getElementById('amigoInput');
+      if (inp && agregarAmigo(inp.value)) { guardarPerfilNube(); SFX.click(); renderPanelUsuario(); }
+    };
+    addBtn.addEventListener('touchstart', add, {passive:false});
+    addBtn.addEventListener('click', add);
+  }
+  refrescarListaAmigos();
   if (esAdmin()) bindBtn('btnAdmin', renderPanelAdmin);
   bindBtn('btnVerLogros', () => openProfile());
   bindBtn('btnSalir', async () => { await cerrarSesion(); SFX.click(); showToast('Sesión cerrada'); renderLogin(); });
@@ -1977,26 +2041,41 @@ async function renderPanelAdmin() {
   const body = document.getElementById('modalBody');
   body.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:22px;min-height:300px">
     <div style="text-align:center;color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem;margin-bottom:6px">🛡️ Panel de Administrador</div>
-    <div style="text-align:center;color:#aaa;font-size:0.82rem;margin-bottom:16px">Gestiona las cuentas de los usuarios</div>
+    <div style="text-align:center;color:#aaa;font-size:0.82rem;margin-bottom:14px">Gestiona las cuentas de los usuarios</div>
+    <div id="adminStats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:380px;margin:0 auto 14px"></div>
     <div id="adminLista" style="max-width:380px;margin:0 auto"><div style="text-align:center;color:#666">Cargando usuarios...</div></div>
     <div style="text-align:center;margin-top:16px"><a href="#" id="volverPanel" style="color:#FFD600;font-weight:800;text-decoration:none">← Volver a mi cuenta</a></div>
   </div>`;
   document.getElementById('volverPanel').onclick = e => { e.preventDefault(); renderPanelUsuario(); };
   const c = getSupabase();
   try {
-    const { data, error } = await c.from('perfiles').select('id,nombre,avatar,numero_amigo,bloqueado,es_admin');
+    const { data, error } = await c.from('perfiles').select('id,nombre,avatar,numero_amigo,bloqueado,es_admin,ultima_actividad,creado');
     const cont = document.getElementById('adminLista');
     if (error || !data) { cont.innerHTML = '<div style="text-align:center;color:#f87171">No se pudo cargar (¿tienes permisos de admin?)</div>'; return; }
     if (!data.length) { cont.innerHTML = '<div style="text-align:center;color:#666">No hay usuarios todavía</div>'; return; }
-    cont.innerHTML = data.map(u => `
+    // estadísticas
+    const ahora = Date.now();
+    const enLinea = data.filter(u => u.ultima_actividad && (ahora - new Date(u.ultima_actividad).getTime()) < 5*60*1000).length;
+    const bloqueados = data.filter(u => u.bloqueado).length;
+    const visitas = await contarVisitas();
+    const st = document.getElementById('adminStats');
+    if (st) st.innerHTML = `
+      <div style="background:#13131f;border-radius:12px;padding:10px;text-align:center"><div style="color:#16A34A;font-size:1.4rem;font-weight:800">${data.length}</div><div style="color:#aaa;font-size:0.68rem">Cuentas</div></div>
+      <div style="background:#13131f;border-radius:12px;padding:10px;text-align:center"><div style="color:#FFD600;font-size:1.4rem;font-weight:800">${visitas}</div><div style="color:#aaa;font-size:0.68rem">Visitas</div></div>
+      <div style="background:#13131f;border-radius:12px;padding:10px;text-align:center"><div style="color:#f87171;font-size:1.4rem;font-weight:800">${bloqueados}</div><div style="color:#aaa;font-size:0.68rem">Bloqueados</div></div>`;
+    cont.innerHTML = data.map(u => {
+      const inact = tiempoInactivo(u.ultima_actividad);
+      return `
       <div style="display:flex;align-items:center;gap:8px;background:#13131f;border-radius:10px;padding:10px;margin-bottom:6px">
         <span style="font-size:1.4rem">${u.avatar||'👤'}</span>
         <div style="flex:1;min-width:0">
           <div style="color:#fff;font-weight:700;font-size:0.88rem">${u.nombre||'Sin nombre'} ${u.es_admin?'🛡️':''}</div>
           <div style="color:${u.bloqueado?'#f87171':'#16A34A'};font-size:0.72rem">${u.bloqueado?'🔒 Bloqueado':'✅ Activo'} · #${u.numero_amigo||'?'}</div>
+          <div style="color:#666;font-size:0.66rem">${inact}</div>
         </div>
         <button data-toggle="${u.id}" data-bloq="${u.bloqueado?1:0}" style="background:${u.bloqueado?'#16A34A':'#dc2626'};border:none;color:#fff;padding:8px 12px;border-radius:10px;font-weight:800;font-size:0.76rem;cursor:pointer">${u.bloqueado?'Desbloquear':'Bloquear'}</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     cont.querySelectorAll('button[data-toggle]').forEach(b => {
       const f = async e => {
         e.preventDefault();
@@ -2009,6 +2088,36 @@ async function renderPanelAdmin() {
   } catch (e) {
     document.getElementById('adminLista').innerHTML = '<div style="text-align:center;color:#f87171">Error al cargar</div>';
   }
+}
+// Texto de tiempo inactivo de un usuario
+function tiempoInactivo(iso) {
+  if (!iso) return 'Nunca ha entrado';
+  const ms = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(ms/60000);
+  if (min < 1) return '🟢 Activo ahora';
+  if (min < 60) return `Hace ${min} min`;
+  const h = Math.floor(min/60);
+  if (h < 24) return `Hace ${h} h`;
+  const d = Math.floor(h/24);
+  return `Hace ${d} día${d>1?'s':''}`;
+}
+// Contador de visitas (guardado en una tabla simple de Supabase)
+async function contarVisitas() {
+  const c = getSupabase(); if (!c) return 0;
+  try {
+    const { count } = await c.from('visitas').select('*', { count:'exact', head:true });
+    return count || 0;
+  } catch (e) { return 0; }
+}
+// Registrar una visita al cargar
+async function registrarVisita() {
+  const c = getSupabase(); if (!c) return;
+  // solo una visita por sesión de navegador
+  try {
+    if (sessionStorage.getItem('im_visita_contada')) return;
+    sessionStorage.setItem('im_visita_contada', '1');
+  } catch (e) {}
+  try { await c.from('visitas').insert({ cuando: new Date().toISOString() }); } catch (e) {}
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2041,13 +2150,16 @@ function renderProfile() {
         <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.4rem">${p.name}</div>
         <div style="color:#aaa;font-size:0.85rem">${owned.length} de ${all.length} medallas</div>
       </div>
+      ${(typeof tieneSesion==='function' && tieneSesion()) ? `
+      <div style="background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.3);border-radius:12px;padding:10px;text-align:center;margin-bottom:16px;color:#16A34A;font-size:0.85rem;font-weight:700">✅ Estás usando tu cuenta. Tus logros se guardan automáticamente.</div>
+      ` : `
       <div style="color:#fff;font-weight:800;margin-bottom:8px;text-align:center">¿Quién está jugando?</div>
       <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px" id="playerPicker">
         ${Object.keys(PLAYERS).map(id => `
           <button data-pl="${id}" style="flex:1;max-width:110px;background:${id===currentPlayer?PLAYERS[id].color:'#1a1a2e'};border:2px solid ${id===currentPlayer?'#fff':'transparent'};color:#fff;padding:12px 6px;border-radius:14px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:800;-webkit-tap-highlight-color:transparent">
             <div style="font-size:1.6rem">${PLAYERS[id].emoji}</div>${PLAYERS[id].name}
           </button>`).join('')}
-      </div>
+      </div>`}
       ${editable ? `
       <div style="background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);border-radius:16px;padding:14px;margin-bottom:18px">
         <div style="color:#fff;font-weight:800;margin-bottom:8px;text-align:center">✏️ Personaliza tu perfil</div>
@@ -2204,6 +2316,7 @@ setTimeout(() => { if (typeof updatePlayerBadge === 'function') updatePlayerBadg
 // Iniciar contador de jugadores en línea (espera a que cargue la librería de Supabase)
 setTimeout(() => { if (onlineDisponible()) iniciarPresenciaGlobal(); }, 1500);
 setTimeout(() => { if (onlineDisponible()) revisarSesion(); }, 1600);
+setTimeout(() => { if (onlineDisponible()) registrarVisita(); }, 1800);
 
 
 // ═══════════════════════════════════════════
