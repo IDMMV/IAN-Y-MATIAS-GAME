@@ -561,7 +561,7 @@
 
 <!-- STATS -->
 <div class="stats">
-  <div class="stat"><div class="stat-num">48</div><div class="stat-label">Juegos</div></div>
+  <div class="stat"><div class="stat-num">51</div><div class="stat-label">Juegos</div></div>
   <div class="stat"><div class="stat-num">7</div><div class="stat-label">Categorías</div></div>
   <div class="stat"><div class="stat-num" id="onlineCount" style="color:#16A34A">🟢 1</div><div class="stat-label">En línea</div></div>
   <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Diversión</div></div>
@@ -607,7 +607,7 @@
 <section id="gamesSection">
   <div class="section-header">
     <div class="section-title"><span class="section-icon">🕹️</span> Todos los Juegos</div>
-    <span class="see-all" id="gameCount">48 juegos</span>
+    <span class="see-all" id="gameCount">51 juegos</span>
   </div>
   <div class="game-grid" id="gameGrid">
 
@@ -977,6 +977,24 @@
       <div class="game-info"><div class="game-name">Multitud</div><div class="game-meta"><span class="game-cat cat-arcade">Arcade</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
     </div>
 
+    <div class="game-card fade-up" data-cat="arcade" data-name="runner" onclick="openGame('runner')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#06b6d4,#7c3aed)"></div><span class="game-thumb-emoji">🏃</span></div>
+      <div class="game-badge badge-hot">🔥 Hot</div>
+      <div class="game-info"><div class="game-name">Corre sin Fin</div><div class="game-meta"><span class="game-cat cat-arcade">Arcade</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="puzzle" data-name="merge" onclick="openGame('merge')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#f59e0b,#ec4899)"></div><span class="game-thumb-emoji">🎯</span></div>
+      <div class="game-badge badge-new">✨ Nuevo</div>
+      <div class="game-info"><div class="game-name">Fusión</div><div class="game-meta"><span class="game-cat cat-puzzle">Puzzle</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="arcade" data-name="torre" onclick="openGame('torre')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#7c3aed,#dc2626)"></div><span class="game-thumb-emoji">🏰</span></div>
+      <div class="game-badge badge-new">✨ Nuevo</div>
+      <div class="game-info"><div class="game-name">Defiende la Torre</div><div class="game-meta"><span class="game-cat cat-arcade">Arcade</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
     <div class="game-card fade-up" data-cat="edu" data-name="sumas" onclick="openGame('sumas')">
       <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#2563EB,#06b6d4)"></div><span class="game-thumb-emoji">➕</span></div>
       <div class="game-badge badge-new">✨ Nuevo</div>
@@ -1203,7 +1221,7 @@ async function loginGoogle() {
 async function recuperarPassword(email) {
   const c = getSupabase(); if (!c) return { error: 'No se pudo conectar al servidor. Revisa tu internet e intenta de nuevo.' };
   try {
-    const { error } = await c.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+    const { error } = await c.auth.resetPasswordForEmail(email, { redirectTo: 'https://ian-y-matias-game.vercel.app' });
     if (error) return { error: traducirError(error.message) };
     return { ok: true };
   } catch (e) { return { error: 'Error' }; }
@@ -2098,6 +2116,9 @@ function openGame(id) {
     dungeon:  { title: '🗝️ Mazmorra Mágica', fn: buildDungeon },
     idle:     { title: '💰 Idle Millonario',  fn: buildIdle },
     multitud: { title: '👥 Multitud',         fn: buildMultitud },
+    runner:   { title: '🏃 Corre sin Fin',    fn: buildRunner },
+    merge:    { title: '🎯 Fusión',           fn: buildMerge },
+    torre:    { title: '🏰 Defiende la Torre', fn: buildTorre },
     sumas:    { title: '➕ Sumas y Restas',  fn: () => buildEduQuiz('sumas') },
     tablas:   { title: '✖️ Tablas de Multiplicar', fn: () => buildEduQuiz('tablas') },
     palabra:  { title: '🔤 Forma la Palabra', fn: buildPalabra },
@@ -6411,6 +6432,341 @@ function buildMultitud(container) {
   }
 
   nuevoNivel();
+}
+
+// ══════════════════════════════════════════════════════════
+//  🏃 CORRE SIN FIN (runner estilo Subway)
+// ══════════════════════════════════════════════════════════
+function buildRunner(container) {
+  const W = Math.min(360, window.innerWidth-40), H = 460;
+  container.innerHTML = `
+    <div class="game-container" style="background:#0a0a14;padding:10px;min-height:500px">
+      <div style="text-align:center;color:#fff;margin-bottom:6px">
+        <span style="font-family:'Fredoka One',cursive">🏆 <span id="runScore">0</span></span>
+        <span style="margin-left:14px;color:#FFD600">🪙 <span id="runCoins">0</span></span>
+      </div>
+      <canvas id="runCanvas" width="${W}" height="${H}" style="background:linear-gradient(180deg,#312e81,#1e1b4b);border-radius:14px;display:block;margin:0 auto;touch-action:none;max-width:100%"></canvas>
+    </div>
+    <div class="game-instructions">🏃 Toca izquierda/derecha de la pantalla (o flechas) para cambiar de carril y esquivar. ¡Recoge monedas y llega lejos!</div>`;
+  const cv = document.getElementById('runCanvas');
+  const ctx = cv.getContext('2d');
+  const carriles = [W*0.25, W*0.5, W*0.75];
+  let carril = 1, score = 0, coins = 0, vel = 4, jugando = true;
+  let obstaculos = [], monedas = [], spawnT = 0;
+  let jugadorEmoji = (typeof miIdentidadOnline==='function' ? miIdentidadOnline().emoji : '🏃');
+
+  function mover(dir) {
+    carril = Math.max(0, Math.min(2, carril + dir));
+    SFX.click();
+  }
+  // tocar la pantalla
+  const tap = e => {
+    e.preventDefault();
+    const r = cv.getBoundingClientRect();
+    const t = (e.touches && e.touches[0]) || e;
+    const x = (t.clientX - r.left);
+    if (x < r.width/2) mover(-1); else mover(1);
+  };
+  cv.addEventListener('touchstart', tap, {passive:false});
+  cv.addEventListener('click', tap);
+  const key = e => { if (e.key==='ArrowLeft') mover(-1); else if (e.key==='ArrowRight') mover(1); };
+  document.addEventListener('keydown', key);
+  window.activeKeyHandlers.push(key);
+
+  function loop() {
+    if (!container.isConnected || !jugando) return;
+    ctx.clearRect(0,0,W,H);
+    // líneas de carril
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth=2; ctx.setLineDash([12,12]);
+    [W*0.375, W*0.625].forEach(x => { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); });
+    ctx.setLineDash([]);
+    // generar
+    spawnT++;
+    if (spawnT > Math.max(28, 60-score/10)) {
+      spawnT = 0;
+      const c = Math.floor(Math.random()*3);
+      if (Math.random() < 0.7) obstaculos.push({ c, y:-40, emoji:['🚧','🪨','📦','🛢️'][Math.floor(Math.random()*4)] });
+      else monedas.push({ c, y:-40 });
+    }
+    // mover y dibujar obstáculos
+    obstaculos.forEach(o => o.y += vel);
+    monedas.forEach(m => m.y += vel);
+    obstaculos = obstaculos.filter(o => o.y < H+40);
+    monedas = monedas.filter(m => m.y < H+40);
+    ctx.font = '30px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    obstaculos.forEach(o => ctx.fillText(o.emoji, carriles[o.c], o.y));
+    monedas.forEach(m => ctx.fillText('🪙', carriles[m.c], m.y));
+    // jugador
+    const py = H-60;
+    ctx.font = '36px sans-serif';
+    ctx.fillText(jugadorEmoji, carriles[carril], py);
+    // colisiones
+    obstaculos.forEach(o => {
+      if (o.c === carril && Math.abs(o.y - py) < 30) { gameOver(); }
+    });
+    monedas = monedas.filter(m => {
+      if (m.c === carril && Math.abs(m.y - py) < 30) { coins++; score+=5; setText('runCoins',coins); SFX.coin(); return false; }
+      return true;
+    });
+    score++; setText('runScore', Math.floor(score/3));
+    vel = 4 + score/300;
+    if (jugando) requestAnimationFrame(loop);
+  }
+  function gameOver() {
+    jugando = false;
+    SFX.lose();
+    const finalScore = Math.floor(score/3);
+    ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff'; ctx.font='bold 28px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('💀 ¡Chocaste!', W/2, H/2-40);
+    ctx.font='20px sans-serif';
+    ctx.fillText('Puntos: '+finalScore+' · 🪙'+coins, W/2, H/2);
+    // recompensa
+    if (coins >= 10 && typeof darRecompensa==='function') darRecompensa(coins, finalScore, 'Runner');
+    if (finalScore >= 50 && typeof awardBadge==='function') awardBadge('first_win');
+    // botón reiniciar
+    const btn = document.createElement('button');
+    btn.textContent = '🔁 Jugar de nuevo';
+    btn.style.cssText='display:block;margin:10px auto 0;background:#7C3AED;border:none;color:#fff;padding:12px 24px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer';
+    const again = e => { e.preventDefault(); score=0;coins=0;vel=4;obstaculos=[];monedas=[];carril=1;jugando=true; setText('runScore','0');setText('runCoins','0'); loop(); };
+    btn.addEventListener('touchstart', again, {passive:false});
+    btn.addEventListener('click', again);
+    cv.parentElement.appendChild(btn);
+  }
+  loop();
+}
+
+// ══════════════════════════════════════════════════════════
+//  🎯 FUSIÓN (merge tipo 2048 con emojis)
+// ══════════════════════════════════════════════════════════
+function buildMerge(container) {
+  // cadena de evolución
+  const CADENA = ['🥚','🐣','🐤','🐥','🐔','🦃','🦅','🦄','🐉'];
+  const N = 5;
+  let grid = Array(N*N).fill(-1);
+  let score = 0;
+  let siguiente = 0;
+
+  container.innerHTML = `
+    <div class="game-container" style="background:#0a0a14;padding:14px;min-height:480px">
+      <div style="text-align:center;color:#fff;margin-bottom:10px">
+        <span style="font-family:'Fredoka One',cursive">🏆 <span id="mergeScore">0</span></span>
+        <span style="margin-left:14px;color:#aaa;font-size:0.85rem">Siguiente: <span id="mergeNext" style="font-size:1.4rem">🥚</span></span>
+      </div>
+      <div id="mergeGrid" style="display:grid;grid-template-columns:repeat(${N},1fr);gap:6px;max-width:340px;margin:0 auto"></div>
+      <div style="text-align:center;color:#aaa;font-size:0.8rem;margin-top:10px">Toca una casilla vacía para poner. ¡Junta 3 iguales para evolucionar!</div>
+    </div>
+    <div class="game-instructions">🎯 Coloca huevos en el tablero. Cuando 3 iguales se tocan, se fusionan en algo mejor: 🥚→🐣→🐤→🐔→🦄→🐉. ¡Llega al dragón!</div>`;
+  const gridEl = document.getElementById('mergeGrid');
+
+  function nuevoSiguiente() {
+    // mayormente huevos, a veces el siguiente nivel
+    siguiente = Math.random() < 0.8 ? 0 : 1;
+    setText('mergeNext', CADENA[siguiente]);
+  }
+
+  function vecinos(i) {
+    const r = Math.floor(i/N), c = i%N, v = [];
+    if (r>0) v.push(i-N); if (r<N-1) v.push(i+N);
+    if (c>0) v.push(i-1); if (c<N-1) v.push(i+1);
+    return v;
+  }
+  function resolverFusiones(desde) {
+    // BFS de iguales conectados
+    const val = grid[desde];
+    if (val < 0) return false;
+    const visto = new Set([desde]), cola = [desde];
+    while (cola.length) {
+      const x = cola.pop();
+      vecinos(x).forEach(n => { if (!visto.has(n) && grid[n]===val) { visto.add(n); cola.push(n); } });
+    }
+    if (visto.size >= 3 && val < CADENA.length-1) {
+      visto.forEach(x => grid[x] = -1);
+      grid[desde] = val+1;
+      score += (val+1)*10; setText('mergeScore', score);
+      SFX.coin();
+      // efecto cadena
+      setTimeout(() => { resolverFusiones(desde); render(); }, 120);
+      return true;
+    }
+    return false;
+  }
+  function render() {
+    gridEl.innerHTML = '';
+    grid.forEach((v, i) => {
+      const cell = document.createElement('button');
+      cell.style.cssText = `aspect-ratio:1;background:${v<0?'#13131f':'#1e1b4b'};border:2px solid ${v<0?'rgba(255,255,255,0.08)':'rgba(124,58,237,0.4)'};border-radius:10px;font-size:1.8rem;cursor:${v<0?'pointer':'default'};-webkit-tap-highlight-color:transparent`;
+      cell.textContent = v<0 ? '' : CADENA[v];
+      if (v < 0) {
+        const put = e => {
+          e.preventDefault(); e.stopPropagation();
+          grid[i] = siguiente; SFX.click();
+          if (!resolverFusiones(i)) render();
+          else render();
+          nuevoSiguiente();
+          if (grid.every(x => x>=0)) setTimeout(checkFin, 200);
+        };
+        cell.addEventListener('touchstart', put, {passive:false});
+        cell.addEventListener('click', put);
+      }
+      gridEl.appendChild(cell);
+    });
+    // ¿llegó al dragón?
+    if (grid.includes(CADENA.length-1)) {
+      if (typeof awardBadge==='function') awardBadge('first_win');
+      if (typeof celebrate==='function') celebrate();
+      showToast('🐉 ¡Creaste el DRAGÓN!');
+    }
+  }
+  function checkFin() {
+    // si está lleno y no hay fusiones posibles
+    if (grid.every(x => x>=0)) {
+      showToast('😅 Tablero lleno. +' + score + ' puntos');
+      if (score>=100 && typeof darRecompensa==='function') darRecompensa(Math.floor(score/10), score, 'Fusión');
+    }
+  }
+  nuevoSiguiente();
+  render();
+}
+
+// ══════════════════════════════════════════════════════════
+//  🏰 DEFIENDE LA TORRE (tower defense simple)
+// ══════════════════════════════════════════════════════════
+function buildTorre(container) {
+  const W = Math.min(360, window.innerWidth-40), H = 460;
+  container.innerHTML = `
+    <div class="game-container" style="background:#0a0a14;padding:10px;min-height:520px">
+      <div style="text-align:center;color:#fff;margin-bottom:6px">
+        <span style="font-family:'Fredoka One',cursive">❤️ <span id="torreVida">10</span></span>
+        <span style="margin-left:12px;color:#FFD600">🪙 <span id="torreOro">50</span></span>
+        <span style="margin-left:12px;color:#aaa;font-size:0.85rem">Oleada <span id="torreOla">1</span></span>
+      </div>
+      <canvas id="torreCanvas" width="${W}" height="${H}" style="background:#14532d;border-radius:14px;display:block;margin:0 auto;touch-action:manipulation;max-width:100%"></canvas>
+      <div style="text-align:center;margin-top:8px">
+        <button id="torreComprar" style="background:#FFD600;border:none;color:#3a2700;padding:10px 18px;border-radius:14px;font-weight:800;cursor:pointer">🏹 Torre (20🪙)</button>
+        <button id="torreOla2" style="background:#16A34A;border:none;color:#fff;padding:10px 18px;border-radius:14px;font-weight:800;cursor:pointer;margin-left:6px">▶️ Oleada</button>
+      </div>
+    </div>
+    <div class="game-instructions">🏰 Compra torres 🏹 y tócalas para colocarlas en el camino. Disparan a los enemigos 👹. ¡No dejes que lleguen a tu castillo 🏰!</div>`;
+  const cv = document.getElementById('torreCanvas');
+  const ctx = cv.getContext('2d');
+  // camino (puntos)
+  const camino = [{x:0,y:80},{x:W*0.7,y:80},{x:W*0.7,y:200},{x:W*0.25,y:200},{x:W*0.25,y:330},{x:W,y:330}];
+  let vida=10, oro=50, ola=1, jugando=true;
+  let torres=[], enemigos=[], balas=[], colocando=false;
+  let spawnQueue=0, spawnT=0, enOleada=false;
+
+  function puntoEnCamino(t) {
+    // t de 0..1 sobre el camino total
+    let segLen=[], total=0;
+    for (let i=0;i<camino.length-1;i++){ const d=Math.hypot(camino[i+1].x-camino[i].x,camino[i+1].y-camino[i].y); segLen.push(d); total+=d; }
+    let dist=t*total;
+    for (let i=0;i<segLen.length;i++){ if (dist<=segLen[i]){ const r=dist/segLen[i]; return {x:camino[i].x+(camino[i+1].x-camino[i].x)*r, y:camino[i].y+(camino[i+1].y-camino[i].y)*r}; } dist-=segLen[i]; }
+    return camino[camino.length-1];
+  }
+
+  document.getElementById('torreComprar').addEventListener('click', e => {
+    e.preventDefault();
+    if (oro>=20) { colocando=true; showToast('Toca el campo para poner la torre'); }
+    else showToast('No tienes suficiente oro');
+  });
+  document.getElementById('torreOla2').addEventListener('click', e => {
+    e.preventDefault();
+    if (!enOleada) iniciarOleada();
+  });
+  const poner = e => {
+    e.preventDefault();
+    if (!colocando) return;
+    const r = cv.getBoundingClientRect();
+    const t = (e.touches && e.touches[0]) || e;
+    const x = (t.clientX-r.left)*(W/r.width), y=(t.clientY-r.top)*(H/r.height);
+    torres.push({x,y,cd:0,rango:90,emoji:'🏹'});
+    oro-=20; setText('torreOro',oro); colocando=false; SFX.coin();
+  };
+  cv.addEventListener('touchstart', poner, {passive:false});
+  cv.addEventListener('click', poner);
+
+  function iniciarOleada() {
+    enOleada=true; spawnQueue=4+ola*2; setText('torreOla',ola);
+  }
+
+  function loop() {
+    if (!container.isConnected || !jugando) return;
+    ctx.clearRect(0,0,W,H);
+    // dibujar camino
+    ctx.strokeStyle='#a16207'; ctx.lineWidth=28; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(camino[0].x,camino[0].y);
+    camino.forEach(p=>ctx.lineTo(p.x,p.y)); ctx.stroke();
+    // castillo al final
+    ctx.font='28px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('🏰', camino[camino.length-1].x-14, camino[camino.length-1].y);
+    // spawn enemigos
+    if (enOleada && spawnQueue>0) {
+      spawnT++;
+      if (spawnT>40) { spawnT=0; spawnQueue--; enemigos.push({t:0,vida:2+Math.floor(ola/2),max:2+Math.floor(ola/2)}); }
+    }
+    // mover enemigos
+    enemigos.forEach(en => {
+      en.t += 0.0025 + ola*0.0002;
+      const p = puntoEnCamino(en.t);
+      en.x=p.x; en.y=p.y;
+      if (en.t>=1) { en.muerto=true; vida--; setText('torreVida',vida); SFX.lose(); if (vida<=0) finJuego(); }
+    });
+    // torres disparan
+    torres.forEach(to => {
+      ctx.fillText(to.emoji, to.x, to.y);
+      // rango
+      ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(to.x,to.y,to.rango,0,7); ctx.stroke();
+      to.cd--;
+      if (to.cd<=0) {
+        const obj = enemigos.find(en=>!en.muerto && Math.hypot(en.x-to.x,en.y-to.y)<to.rango);
+        if (obj) { balas.push({x:to.x,y:to.y,obj}); to.cd=35; SFX.click(); }
+      }
+    });
+    // balas
+    balas.forEach(b => {
+      if (b.obj.muerto) { b.hit=true; return; }
+      const dx=b.obj.x-b.x, dy=b.obj.y-b.y, d=Math.hypot(dx,dy);
+      if (d<8) { b.obj.vida--; b.hit=true; if (b.obj.vida<=0){ b.obj.muerto=true; oro+=5; setText('torreOro',oro); } }
+      else { b.x+=dx/d*6; b.y+=dy/d*6; }
+    });
+    balas=balas.filter(b=>!b.hit);
+    ctx.fillStyle='#fde047';
+    balas.forEach(b=>{ ctx.beginPath(); ctx.arc(b.x,b.y,4,0,7); ctx.fill(); });
+    // dibujar enemigos con barra de vida
+    ctx.font='24px sans-serif';
+    enemigos.forEach(en => {
+      if (en.muerto) return;
+      ctx.fillText('👹', en.x, en.y);
+      ctx.fillStyle='#dc2626'; ctx.fillRect(en.x-14,en.y-20,28,4);
+      ctx.fillStyle='#22c55e'; ctx.fillRect(en.x-14,en.y-20,28*(en.vida/en.max),4);
+      ctx.fillStyle='#fde047';
+    });
+    enemigos = enemigos.filter(en=>!en.muerto);
+    // fin de oleada
+    if (enOleada && spawnQueue<=0 && enemigos.length===0) {
+      enOleada=false; ola++; oro+=20; setText('torreOro',oro); setText('torreOla',ola);
+      showToast('🎉 ¡Oleada superada! +20🪙');
+      if (ola>5 && typeof awardBadge==='function') awardBadge('first_win');
+    }
+    requestAnimationFrame(loop);
+  }
+  function finJuego() {
+    jugando=false;
+    ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff'; ctx.font='bold 26px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('🏰 ¡Cayó el castillo!', W/2, H/2-20);
+    ctx.font='18px sans-serif'; ctx.fillText('Llegaste a la oleada '+ola, W/2, H/2+15);
+    if (ola>=3 && typeof darRecompensa==='function') darRecompensa(ola*5, ola*20, 'Torre');
+    const btn=document.createElement('button');
+    btn.textContent='🔁 Jugar de nuevo';
+    btn.style.cssText='display:block;margin:10px auto 0;background:#7C3AED;border:none;color:#fff;padding:12px 24px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer';
+    const again=e=>{e.preventDefault(); vida=10;oro=50;ola=1;torres=[];enemigos=[];balas=[];enOleada=false;jugando=true; setText('torreVida',10);setText('torreOro',50);setText('torreOla',1); loop();};
+    btn.addEventListener('touchstart',again,{passive:false}); btn.addEventListener('click',again);
+    cv.parentElement.appendChild(btn);
+  }
+  loop();
 }
 </script>
 </body>
