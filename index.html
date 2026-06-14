@@ -65,14 +65,20 @@
     display: flex; align-items: center; justify-content: space-between;
     box-shadow: 0 4px 20px rgba(124,58,237,0.15);
   }
+  .brand-area { display: flex; flex-direction: column; gap: 2px; }
   .logo {
     font-family: 'Fredoka One', cursive;
     font-size: 1.8rem;
     background: linear-gradient(135deg, var(--primary), var(--secondary), var(--racing));
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     letter-spacing: 1px;
+    line-height: 1.1;
   }
   .logo span { color: var(--accent); -webkit-text-fill-color: var(--accent); }
+  .family-text {
+    font-size: 0.72rem; font-weight: 700; color: var(--muted);
+    letter-spacing: 0.5px; white-space: nowrap;
+  }
   .nav-links {
     display: flex; gap: 8px; list-style: none;
   }
@@ -482,21 +488,15 @@
 
 <!-- NAVBAR -->
 <nav>
-
   <div class="brand-area">
-
     <div class="logo">
       HugoKids <span style="font-size:1.1rem">🎮</span>
     </div>
-
     <div class="family-text">
-      Ian • Matías • Milan • Valery • Dylan
+      Ian • Dylan • Matías • Milan • Valery
     </div>
-
   </div>
-
   <ul class="nav-links">
-    
     <li><a href="#" class="active" onclick="navFilter('all',this);return false">Inicio</a></li>
     <li><a href="#" onclick="navFilter('arcade',this);return false">Arcade</a></li>
     <li><a href="#" onclick="navFilter('puzzle',this);return false">Puzzles</a></li>
@@ -515,7 +515,7 @@
 <!-- HERO -->
 <div class="hero">
   <div class="hero-glow"></div>
-  <div class="hero-badge">✨ Creado por Ian &amp; Matías</div>
+  <div class="hero-badge">✨ Ian • Matías • Milan • Valery • Dylan</div>
   <h1>Tu Portal de<br>Juegos Épicos</h1>
   <p>Acción, puzzles, carreras y batallas 2 jugadores. ¡Todo gratis, sin descargas!</p>
   <div class="hero-btns">
@@ -952,10 +952,10 @@
 
 <!-- FOOTER -->
 <footer>
-  <div class="footer-logo">Ian&Matías Games 🎮</div>
+  <div class="footer-logo">HugoKids 🎮</div>
   <p>El mejor portal de juegos online en español</p>
   <p class="creators">Creado con ❤️ por <span>Ian</span> &amp; <span>Matías</span></p>
-  <p style="margin-top:8px;font-size:0.75rem">© 2026 Ian&Matías Games · Todos los juegos gratis</p>
+  <p style="margin-top:8px;font-size:0.75rem">© 2026 HugoKids · Todos los juegos gratis</p>
 </footer>
 
 <!-- MODAL -->
@@ -1869,8 +1869,7 @@ function renderLogin() {
         <input id="logEmail" type="email" placeholder="Tu correo" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
         <input id="logPass" type="password" placeholder="Tu contraseña" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:6px;outline:none">
         <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;font-size:0.8rem;text-decoration:none">¿Olvidaste tu contraseña?</a></div>
-        <button id="btnLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:10px">Ingresar ▶</button>
-        <button id="btnGoogle" style="width:100%;background:#fff;border:none;color:#444;padding:12px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer;margin-bottom:14px">🔵 Entrar con Google</button>
+        <button id="btnLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:14px">Ingresar ▶</button>
         <div style="text-align:center;color:#aaa;font-size:0.85rem">¿No tienes cuenta? <a href="#" id="irRegistro" style="color:#FFD600;font-weight:800;text-decoration:none">Crear cuenta</a></div>
       </div>
     </div>
@@ -1884,7 +1883,6 @@ function renderLogin() {
     if (r.error) showToast('❌ ' + r.error);
     else { SFX.win(); showToast('🎉 ¡Bienvenido!'); renderPanelUsuario(); }
   });
-  bindBtn('btnGoogle', () => loginGoogle());
   document.getElementById('irRegistro').onclick = e => { e.preventDefault(); renderRegistro(); };
   document.getElementById('olvideLink').onclick = e => { e.preventDefault(); renderRecuperar(); };
 }
