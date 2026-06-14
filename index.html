@@ -512,7 +512,7 @@
 
 <!-- STATS -->
 <div class="stats">
-  <div class="stat"><div class="stat-num">29</div><div class="stat-label">Juegos</div></div>
+  <div class="stat"><div class="stat-num">34</div><div class="stat-label">Juegos</div></div>
   <div class="stat"><div class="stat-num">7</div><div class="stat-label">Categorías</div></div>
   <div class="stat"><div class="stat-num" id="onlineCount" style="color:#16A34A">🟢 1</div><div class="stat-label">En línea</div></div>
   <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Diversión</div></div>
@@ -557,7 +557,7 @@
 <section id="gamesSection">
   <div class="section-header">
     <div class="section-title"><span class="section-icon">🕹️</span> Todos los Juegos</div>
-    <span class="see-all" id="gameCount">29 juegos</span>
+    <span class="see-all" id="gameCount">34 juegos</span>
   </div>
   <div class="game-grid" id="gameGrid">
 
@@ -901,6 +901,36 @@
       <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#FFD600,#DC2626)"></div><span class="game-thumb-emoji">🔴</span></div>
       <div class="game-badge badge-hot">🔥 Nuevo</div>
       <div class="game-info"><div class="game-name">Conecta 4 Online</div><div class="game-meta"><span class="game-cat cat-online">En Línea</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="online" data-name="navalonline" onclick="openGame('navalonline')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#0EA5E9,#1e3a8a)"></div><span class="game-thumb-emoji">🚢</span></div>
+      <div class="game-badge badge-hot">🔥 Nuevo</div>
+      <div class="game-info"><div class="game-name">Batalla Naval Online</div><div class="game-meta"><span class="game-cat cat-online">En Línea</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="online" data-name="damasonline" onclick="openGame('damasonline')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#444,#111)"></div><span class="game-thumb-emoji">⚫</span></div>
+      <div class="game-badge badge-new">✨ Nuevo</div>
+      <div class="game-info"><div class="game-name">Damas Online</div><div class="game-meta"><span class="game-cat cat-online">En Línea</span><span class="game-stars">⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="online" data-name="cajasonline" onclick="openGame('cajasonline')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#10b981,#7C3AED)"></div><span class="game-thumb-emoji">🎯</span></div>
+      <div class="game-badge badge-new">✨ Nuevo</div>
+      <div class="game-info"><div class="game-name">Puntos y Cajas Online</div><div class="game-meta"><span class="game-cat cat-online">En Línea</span><span class="game-stars">⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="online" data-name="ahorcadoonline" onclick="openGame('ahorcadoonline')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#f59e0b,#b91c1c)"></div><span class="game-thumb-emoji">✏️</span></div>
+      <div class="game-badge badge-new">✨ Nuevo</div>
+      <div class="game-info"><div class="game-name">Ahorcado Online</div><div class="game-meta"><span class="game-cat cat-online">En Línea</span><span class="game-stars">⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="online" data-name="ludoonline" onclick="openGame('ludoonline')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#ef4444,#22c55e)"></div><span class="game-thumb-emoji">🎲</span></div>
+      <div class="game-badge badge-hot">🔥 Nuevo</div>
+      <div class="game-info"><div class="game-name">Ludo Online</div><div class="game-meta"><span class="game-cat cat-online">En Línea</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
     </div>
 
   </div>
@@ -1544,6 +1574,11 @@ function openGame(id) {
     figuras:  { title: '🔷 Figuras y Colores', fn: () => buildEduQuiz('figuras') },
     tttonline:{ title: '🌐 Tres en Raya Online', fn: buildTttOnline },
     c4online: { title: '🔴 Conecta 4 Online', fn: buildC4Online },
+    navalonline: { title: '🚢 Batalla Naval Online', fn: buildNavalOnline },
+    damasonline: { title: '⚫ Damas Online', fn: buildDamasOnline },
+    cajasonline: { title: '🎯 Puntos y Cajas Online', fn: buildCajasOnline },
+    ahorcadoonline: { title: '✏️ Ahorcado Online', fn: buildAhorcadoOnline },
+    ludoonline: { title: '🎲 Ludo Online', fn: buildLudoOnline },
   };
   const g = games[id];
   title.textContent = g.title;
@@ -3370,6 +3405,122 @@ function buildPalabra(container) {
 // ══════════════════════════════════════════════════════════
 const CHAT_FRASES = ['👋 ¡Hola!','😄 ¡Buena jugada!','😎 ¡Te voy a ganar!','😅 ¡Uy, casi!','🎉 ¡Gané!','🤝 ¡Buen juego!','🔁 ¿Otra vez?','⏳ ¡Apúrate!'];
 
+// ══════════════════════════════════════════════════════════
+//  MOTOR COMÚN DE JUEGOS ONLINE (lobby + espera + sala + chat)
+// ══════════════════════════════════════════════════════════
+// cfg = { container, titulo, emoji, descripcion, colorTema,
+//         onEmpezar(esAnfitrion, rivalInfo), onMovimiento(datos) }
+function crearJuegoOnline(cfg) {
+  const c = cfg.container;
+  if (!onlineDisponible()) {
+    c.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:30px;text-align:center;color:#fff">
+      <div style="font-size:2.5rem">📡</div>
+      <div style="font-family:'Fredoka One',cursive;font-size:1.3rem;margin:10px 0">Sin conexión</div>
+      <div style="color:#aaa">No se pudo conectar al servidor. Revisa tu internet.</div></div>`;
+    return null;
+  }
+  const tema = cfg.colorTema || 'linear-gradient(135deg,#16A34A,#2563EB)';
+  const ctrl = { esAnfitrion:false, rivalInfo:null };
+
+  function renderLobby() {
+    const yo = miIdentidadOnline();
+    c.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:20px;min-height:320px">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="font-size:2.5rem">${cfg.emoji}</div>
+          <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem">${cfg.titulo}</div>
+          <div style="color:#aaa;font-size:0.85rem">${cfg.descripcion}</div>
+        </div>
+        <div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);border-radius:14px;padding:12px;margin-bottom:16px;max-width:340px;margin-left:auto;margin-right:auto">
+          <div style="text-align:center;color:#fff;font-weight:800;margin-bottom:6px"><span style="font-size:1.6rem">${yo.emoji}</span> ${yo.name}</div>
+          <div style="color:#aaa;font-size:0.74rem;text-align:center;margin-bottom:8px">Tu personaje (toca para cambiar):</div>
+          <div id="olAvatars" style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;max-width:320px;margin:0 auto">
+          <button id="olCrear" style="background:${tema};border:none;color:#fff;padding:18px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;font-size:1.05rem;cursor:pointer;-webkit-tap-highlight-color:transparent">➕ Crear sala nueva</button>
+          <div style="text-align:center;color:#666;font-weight:700">— o —</div>
+          <input id="olCodigo" type="text" maxlength="8" placeholder="Código (ej: GATO42)" style="background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:14px;padding:14px;color:#fff;font-family:Nunito,sans-serif;font-weight:800;font-size:1.1rem;text-align:center;text-transform:uppercase;outline:none">
+          <button id="olUnirse" style="background:#7C3AED;border:none;color:#fff;padding:16px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;-webkit-tap-highlight-color:transparent">🔗 Unirse con código</button>
+        </div>
+      </div>
+      <div class="game-instructions"><strong>Cómo jugar:</strong> Un jugador crea una sala y le da el código al otro. ¡A jugar y chatear!</div>`;
+    const ap = document.getElementById('olAvatars');
+    if (ap) AVATARS.forEach(av => {
+      const b = document.createElement('button');
+      b.textContent = av;
+      b.style.cssText = `aspect-ratio:1;background:${av===yo.emoji?'#7C3AED':'#1a1a2e'};border:2px solid ${av===yo.emoji?'#fff':'transparent'};border-radius:8px;font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent`;
+      const pick = e => { e.preventDefault(); e.stopPropagation(); if (currentPlayer==='invitado') setGuestAvatar(av); else updatePlayerProfile(currentPlayer,null,av); SFX.click(); renderLobby(); };
+      b.addEventListener('touchstart', pick, {passive:false});
+      b.addEventListener('click', pick);
+      ap.appendChild(b);
+    });
+    bindBtn('olCrear', () => iniciar(generarCodigoSala(), true));
+    bindBtn('olUnirse', () => {
+      const cod = (document.getElementById('olCodigo').value||'').toUpperCase().trim();
+      if (cod.length < 4) { showToast('Escribe un código válido'); return; }
+      iniciar(cod, false);
+    });
+  }
+
+  function iniciar(codigo, esAnfitrion) {
+    SFX.click();
+    ctrl.esAnfitrion = esAnfitrion;
+    renderEspera(codigo);
+    onRivalConectado = (info) => { ctrl.rivalInfo = info; if (!ctrl.jugando) { ctrl.jugando = true; cfg.onEmpezar(esAnfitrion, info); } };
+    onRivalSalio = () => { if (ctrl.jugando) showToast('👋 El otro jugador salió'); };
+    onMovimientoOnline = (datos) => { cfg.onMovimiento(datos); };
+    conectarSala(codigo, esAnfitrion);
+  }
+
+  function renderEspera(codigo) {
+    c.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:24px;min-height:320px;text-align:center;color:#fff">
+        <div style="font-size:2.5rem">⏳</div>
+        <div style="font-family:'Fredoka One',cursive;font-size:1.2rem;margin:10px 0">Esperando al otro jugador...</div>
+        <div style="color:#aaa;margin-bottom:14px">Comparte este código:</div>
+        <div style="background:${tema};color:#fff;font-family:'Fredoka One',cursive;font-size:2.2rem;letter-spacing:3px;padding:16px;border-radius:16px;max-width:240px;margin:0 auto">${codigo}</div>
+      </div>
+      <div class="game-instructions">Cuando tu amigo escriba <strong>${codigo}</strong> empezará la partida.</div>`;
+  }
+
+  // Helper: renderiza la barra de jugadores + chat (lo usa cada juego en su pantalla)
+  ctrl.barraJugadores = function(miFicha, suFicha) {
+    const yo = miIdentidadOnline();
+    const riv = ctrl.rivalInfo || { name:'Rival', emoji:'👤' };
+    return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="text-align:center;flex:1"><div style="font-size:1.4rem">${yo.emoji}</div><div style="color:#00B4D8;font-weight:800;font-size:0.78rem">${yo.name} ${miFicha||''}</div></div>
+        <div style="color:#fff;font-family:'Fredoka One',cursive">VS</div>
+        <div style="text-align:center;flex:1"><div style="font-size:1.4rem">${riv.emoji}</div><div style="color:#FF4D9D;font-weight:800;font-size:0.78rem">${riv.name} ${suFicha||''}</div></div>
+      </div>`;
+  };
+  ctrl.chatHTML = function() {
+    return `<div style="margin-top:12px">
+        <div id="olChat" style="height:54px;overflow-y:auto;background:#13131f;border-radius:10px;padding:6px;margin-bottom:6px;font-size:0.8rem;color:#fff"></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center" id="olFrases"></div></div>`;
+  };
+  ctrl.conectarChat = function() {
+    const fc = document.getElementById('olFrases');
+    if (fc) CHAT_FRASES.forEach(fr => {
+      const b = document.createElement('button');
+      b.textContent = fr;
+      b.style.cssText = 'background:#1a1a2e;border:1px solid rgba(255,255,255,0.12);color:#fff;padding:5px 9px;border-radius:14px;font-size:0.74rem;cursor:pointer;-webkit-tap-highlight-color:transparent';
+      const send = e => { e.preventDefault(); e.stopPropagation(); enviarChatOnline(fr); };
+      b.addEventListener('touchstart', send, {passive:false});
+      b.addEventListener('click', send);
+      fc.appendChild(b);
+    });
+    window._chatRenderer = function(nombre, texto, emoji) {
+      const ch = document.getElementById('olChat'); if (!ch) return;
+      const d = document.createElement('div'); d.innerHTML = `<strong>${emoji||''} ${nombre}:</strong> ${texto}`;
+      ch.appendChild(d); ch.scrollTop = ch.scrollHeight; SFX.click();
+    };
+  };
+  ctrl.enviar = enviarMovimientoOnline;
+  ctrl.renderLobby = renderLobby;
+  renderLobby();
+  return ctrl;
+}
+
 function buildTttOnline(container) {
   if (!onlineDisponible()) {
     container.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:30px;text-align:center;color:#fff">
@@ -3823,6 +3974,525 @@ function buildC4Online(container) {
   }
 
   renderLobby();
+}
+
+// ══════════════════════════════════════════════════════════
+//  PUNTOS Y CAJAS ONLINE
+// ══════════════════════════════════════════════════════════
+function buildCajasOnline(container) {
+  const N=5; // 5x5 puntos = 4x4 cajas
+  let hLines, vLines, boxes, miTurno, miNum, scores, ctrl;
+  ctrl = crearJuegoOnline({
+    container, titulo:'Puntos y Cajas', emoji:'🎯',
+    descripcion:'Conecta puntos y cierra cajas para ganar',
+    colorTema:'linear-gradient(135deg,#10b981,#7C3AED)',
+    onEmpezar: (esAnf) => { miNum = esAnf?1:2; empezar(); },
+    onMovimiento: (d) => {
+      if (d.tipo==='linea') { aplicarLinea(d.tipoL, d.r, d.c, d.num, false); }
+      else if (d.tipo==='reinicio') { empezar(); }
+    }
+  });
+  if (!ctrl) return;
+  function empezar(){
+    hLines={}; vLines={}; boxes={}; scores={1:0,2:0};
+    miTurno = ctrl.esAnfitrion;
+    render();
+  }
+  function aplicarLinea(tipoL, r, c, num){
+    const key=r+','+c;
+    if(tipoL==='h') hLines[key]=num; else vLines[key]=num;
+    let cerro=false;
+    for(let br=0;br<N-1;br++) for(let bc=0;bc<N-1;bc++){
+      if(boxes[br+','+bc]) continue;
+      if(hLines[br+','+bc]&&hLines[(br+1)+','+bc]&&vLines[br+','+bc]&&vLines[br+','+(bc+1)]){
+        boxes[br+','+bc]=num; scores[num]++; cerro=true;
+      }
+    }
+    if(!cerro){ miTurno = (num!==miNum); }
+    else { miTurno = (num===miNum); SFX.coin(); }
+    render();
+    revisarFin();
+  }
+  function clickLinea(tipoL,r,c){
+    if(!miTurno||!ctrl.jugando) return;
+    const key=r+','+c;
+    if((tipoL==='h'&&hLines[key])||(tipoL==='v'&&vLines[key])) return;
+    ctrl.enviar({tipo:'linea',tipoL,r,c,num:miNum});
+    SFX.click();
+    aplicarLinea(tipoL,r,c,miNum);
+  }
+  function revisarFin(){
+    const total=(N-1)*(N-1);
+    if(Object.keys(boxes).length>=total){
+      ctrl.jugando=false;
+      const gano = scores[miNum] > scores[miNum===1?2:1];
+      const empate = scores[1]===scores[2];
+      if(empate) showToast('🤝 ¡Empate!');
+      else if(gano){ awardBadge('first_win'); celebrate(); }
+      else SFX.lose();
+    }
+  }
+  function render(){
+    const cell=44, pad=20;
+    const size=(N-1)*cell;
+    let svg=`<svg width="${size+pad*2}" height="${size+pad*2}" viewBox="0 0 ${size+pad*2} ${size+pad*2}" style="max-width:100%;touch-action:manipulation">`;
+    for(let br=0;br<N-1;br++) for(let bc=0;bc<N-1;bc++){
+      const o=boxes[br+','+bc];
+      if(o) svg+=`<rect x="${pad+bc*cell+3}" y="${pad+br*cell+3}" width="${cell-6}" height="${cell-6}" fill="${o===1?'rgba(0,180,216,0.35)':'rgba(255,77,157,0.35)'}" rx="4"/>`;
+    }
+    for(let r=0;r<N;r++) for(let cc=0;cc<N-1;cc++){
+      const on=hLines[r+','+cc];
+      svg+=`<line data-h="${r},${cc}" x1="${pad+cc*cell}" y1="${pad+r*cell}" x2="${pad+(cc+1)*cell}" y2="${pad+r*cell}" stroke="${on?(on===1?'#00B4D8':'#FF4D9D'):'rgba(255,255,255,0.15)'}" stroke-width="${on?5:3}" stroke-linecap="round" style="cursor:pointer"/>`;
+    }
+    for(let r=0;r<N-1;r++) for(let cc=0;cc<N;cc++){
+      const on=vLines[r+','+cc];
+      svg+=`<line data-v="${r},${cc}" x1="${pad+cc*cell}" y1="${pad+r*cell}" x2="${pad+cc*cell}" y2="${pad+(r+1)*cell}" stroke="${on?(on===1?'#00B4D8':'#FF4D9D'):'rgba(255,255,255,0.15)'}" stroke-width="${on?5:3}" stroke-linecap="round" style="cursor:pointer"/>`;
+    }
+    for(let r=0;r<N;r++) for(let cc=0;cc<N;cc++) svg+=`<circle cx="${pad+cc*cell}" cy="${pad+r*cell}" r="4" fill="#fff"/>`;
+    svg+=`</svg>`;
+    container.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:14px;min-height:300px">
+        ${ctrl.barraJugadores('🔵','🔴')}
+        <div style="text-align:center;color:#fff;font-weight:800;margin-bottom:8px">${miTurno?'✋ ¡Tu turno!':'⏳ Turno del rival...'} · Tú: ${scores[miNum]} | Rival: ${scores[miNum===1?2:1]}</div>
+        <div style="display:flex;justify-content:center">${svg}</div>
+        ${ctrl.chatHTML()}
+      </div>
+      <div class="game-instructions">Toca una línea entre dos puntos. Si cierras una caja, ¡juegas de nuevo! Quien cierre más cajas gana.</div>`;
+    ctrl.conectarChat();
+    container.querySelectorAll('line[data-h]').forEach(l=>{
+      const [r,cc]=l.dataset.h.split(',').map(Number);
+      const f=e=>{e.preventDefault();e.stopPropagation();clickLinea('h',r,cc);};
+      l.addEventListener('touchstart',f,{passive:false}); l.addEventListener('click',f);
+    });
+    container.querySelectorAll('line[data-v]').forEach(l=>{
+      const [r,cc]=l.dataset.v.split(',').map(Number);
+      const f=e=>{e.preventDefault();e.stopPropagation();clickLinea('v',r,cc);};
+      l.addEventListener('touchstart',f,{passive:false}); l.addEventListener('click',f);
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  AHORCADO ONLINE (anfitrión pone palabra, invitado adivina)
+// ══════════════════════════════════════════════════════════
+function buildAhorcadoOnline(container) {
+  const PALABRAS=['PERU','GATO','ESCUELA','AMIGO','PELOTA','FAMILIA','COLEGIO','HELADO','MONTANA','OCEANO','JUGUETE','VENTANA'];
+  let palabra, adivinadas, errores, miNum, soyQuienAdivina, ctrl;
+  const MAX=6;
+  ctrl = crearJuegoOnline({
+    container, titulo:'Ahorcado', emoji:'✏️',
+    descripcion:'Adivina la palabra letra por letra',
+    colorTema:'linear-gradient(135deg,#f59e0b,#b91c1c)',
+    onEmpezar: (esAnf) => {
+      miNum = esAnf?1:2;
+      if(esAnf){ palabra = PALABRAS[Math.floor(Math.random()*PALABRAS.length)]; soyQuienAdivina=false; ctrl.enviar({tipo:'palabra', len:palabra.length}); }
+      else { soyQuienAdivina=true; palabra='?'; }
+      adivinadas=[]; errores=0; render();
+    },
+    onMovimiento: (d) => {
+      if(d.tipo==='palabra'){ palabra='?'.repeat(d.len); adivinadas=[]; errores=0; render(); }
+      else if(d.tipo==='letra'){ recibirLetra(d.letra); }
+      else if(d.tipo==='revelar'){ palabra=d.palabra; render(); }
+    }
+  });
+  if (!ctrl) return;
+  // El anfitrión (tiene la palabra real) valida y reenvía el resultado
+  function recibirLetra(letra){
+    if(adivinadas.includes(letra)) return;
+    adivinadas.push(letra);
+    if(!soyQuienAdivina){
+      // soy el dueño de la palabra: validar y avisar acierto/error
+      if(!palabra.includes(letra)) errores++;
+      render(); checkFinAnfitrion();
+    } else {
+      render();
+    }
+  }
+  function adivinarLetra(letra){
+    if(!soyQuienAdivina || !ctrl.jugando || adivinadas.includes(letra)) return;
+    ctrl.enviar({tipo:'letra', letra}); SFX.click();
+    adivinadas.push(letra);
+    render();
+  }
+  function checkFinAnfitrion(){
+    const completa = palabra.split('').every(l=>adivinadas.includes(l));
+    if(completa){ ctrl.jugando=false; celebrate(); ctrl.enviar({tipo:'revelar',palabra}); showToast('🎉 ¡Adivinó la palabra!'); }
+    else if(errores>=MAX){ ctrl.jugando=false; SFX.lose(); ctrl.enviar({tipo:'revelar',palabra}); showToast('💀 No la adivinó. Era: '+palabra); }
+  }
+  function render(){
+    const conocida = !soyQuienAdivina; // el dueño ve la palabra; quien adivina ve guiones
+    const display = (palabra==='?'||palabra.includes('?')) ?
+      ('_ '.repeat(palabra==='?'?1:palabra.length)).trim() :
+      palabra.split('').map(l=> adivinadas.includes(l)?l:'_').join(' ');
+    const partes=['😵','🥵','😰','😟','🙂','😊','😎'];
+    const cara = partes[Math.max(0,Math.min(6,MAX-errores))] || '😵';
+    container.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:14px;min-height:300px">
+        ${ctrl.barraJugadores(miNum===1?'✏️':'🔍', miNum===1?'🔍':'✏️')}
+        <div style="text-align:center;font-size:3rem">${cara}</div>
+        <div style="text-align:center;color:#FFD600;font-family:'Fredoka One',cursive;font-size:1.6rem;letter-spacing:4px;margin:10px 0">${display}</div>
+        <div style="text-align:center;color:#fff;margin-bottom:8px">Errores: ${errores}/${MAX} ${soyQuienAdivina?'· ✋ Tú adivinas':'· Tu amigo adivina'}</div>
+        <div id="abcGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-width:340px;margin:0 auto"></div>
+        ${ctrl.chatHTML()}
+      </div>
+      <div class="game-instructions">${soyQuienAdivina?'Toca las letras para adivinar la palabra.':'Tu amigo adivina tu palabra. ¡Anímalo por el chat!'}</div>`;
+    const grid=document.getElementById('abcGrid');
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(l=>{
+      const b=document.createElement('button');
+      const usada=adivinadas.includes(l);
+      const ok = usada && palabra!=='?' && !palabra.includes('?') && palabra.includes(l);
+      b.textContent=l; b.disabled=usada||!soyQuienAdivina;
+      b.style.cssText=`padding:8px 0;border:none;border-radius:8px;font-weight:800;font-family:Nunito,sans-serif;cursor:${usada||!soyQuienAdivina?'default':'pointer'};background:${usada?(palabra.includes(l)?'#16A34A':'#DC2626'):'#7C3AED'};color:#fff;opacity:${!soyQuienAdivina&&!usada?0.4:1};-webkit-tap-highlight-color:transparent`;
+      if(!usada&&soyQuienAdivina){ const f=e=>{e.preventDefault();e.stopPropagation();adivinarLetra(l);}; b.addEventListener('touchstart',f,{passive:false}); b.addEventListener('click',f); }
+      grid.appendChild(b);
+    });
+    ctrl.conectarChat();
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  DAMAS ONLINE (8x8, captura obligatoria simplificada)
+// ══════════════════════════════════════════════════════════
+function buildDamasOnline(container) {
+  let board, miColor, miTurno, sel, ctrl; // board: 64, 'r'/'R'(rojo/dama) 'n'/'N'(negro/dama) null
+  ctrl = crearJuegoOnline({
+    container, titulo:'Damas', emoji:'⚫',
+    descripcion:'Captura todas las fichas del rival',
+    colorTema:'linear-gradient(135deg,#444,#111)',
+    onEmpezar: (esAnf) => { miColor = esAnf?'r':'n'; empezar(); },
+    onMovimiento: (d) => {
+      if(d.tipo==='mov'){ aplicarMov(d.from, d.to, false); miTurno=true; sel=null; render(); }
+      else if(d.tipo==='reinicio'){ empezar(); }
+    }
+  });
+  if (!ctrl) return;
+  function empezar(){
+    board=Array(64).fill(null);
+    for(let i=0;i<24;i++){ const r=Math.floor(i/4); }
+    // colocar fichas en casillas oscuras
+    for(let r=0;r<3;r++) for(let c=0;c<8;c++) if((r+c)%2===1) board[r*8+c]='n';
+    for(let r=5;r<8;r++) for(let c=0;c<8;c++) if((r+c)%2===1) board[r*8+c]='r';
+    miTurno = (miColor==='r'); // rojas empiezan
+    sel=null; render();
+  }
+  function esMio(v){ return v && v.toLowerCase()===miColor; }
+  function aplicarMov(from,to){
+    const v=board[from]; board[from]=null;
+    // captura: si saltó 2 casillas
+    const fr=Math.floor(from/8), fc=from%8, tr=Math.floor(to/8), tc=to%8;
+    if(Math.abs(tr-fr)===2){ const mr=(fr+tr)/2, mc=(fc+tc)/2; board[mr*8+mc]=null; }
+    // coronar
+    let nv=v;
+    if(v==='r'&&tr===0) nv='R';
+    if(v==='n'&&tr===7) nv='N';
+    board[to]=nv;
+  }
+  function movsValidos(idx){
+    const v=board[idx]; if(!v) return [];
+    const r=Math.floor(idx/8), c=idx%8;
+    const dama = v===v.toUpperCase();
+    const dirs = dama?[[-1,-1],[-1,1],[1,-1],[1,1]] : (v.toLowerCase()==='r'?[[-1,-1],[-1,1]]:[[1,-1],[1,1]]);
+    const movs=[], caps=[];
+    dirs.forEach(([dr,dc])=>{
+      const nr=r+dr, nc=c+dc;
+      if(nr>=0&&nr<8&&nc>=0&&nc<8){
+        const ni=nr*8+nc;
+        if(!board[ni]) movs.push(ni);
+        else if(board[ni].toLowerCase()!==v.toLowerCase()){
+          const jr=r+dr*2, jc=c+dc*2;
+          if(jr>=0&&jr<8&&jc>=0&&jc<8&&!board[jr*8+jc]) caps.push(jr*8+jc);
+        }
+      }
+    });
+    return caps.length?caps:movs; // si hay captura, prioriza
+  }
+  function click(idx){
+    if(!miTurno||!ctrl.jugando) return;
+    if(sel===null){ if(esMio(board[idx])){ sel=idx; render(); } return; }
+    if(idx===sel){ sel=null; render(); return; }
+    const validos=movsValidos(sel);
+    if(validos.includes(idx)){
+      ctrl.enviar({tipo:'mov',from:sel,to:idx});
+      aplicarMov(sel,idx); SFX.pop();
+      miTurno=false; sel=null; render(); revisarFin();
+    } else if(esMio(board[idx])){ sel=idx; render(); }
+  }
+  function revisarFin(){
+    const rojas=board.filter(v=>v&&v.toLowerCase()==='r').length;
+    const negras=board.filter(v=>v&&v.toLowerCase()==='n').length;
+    if(rojas===0||negras===0){
+      ctrl.jugando=false;
+      const gane=(miColor==='r'&&negras===0)||(miColor==='n'&&rojas===0);
+      if(gane){ awardBadge('first_win'); celebrate(); } else SFX.lose();
+    }
+  }
+  function render(){
+    const validos = sel!==null?movsValidos(sel):[];
+    let grid='<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:0;max-width:320px;margin:0 auto;border:3px solid #6b4423;border-radius:6px;overflow:hidden">';
+    for(let i=0;i<64;i++){
+      const r=Math.floor(i/8), c=i%8;
+      const oscura=(r+c)%2===1;
+      const v=board[i];
+      const ficha = v? (v.toLowerCase()==='r'?'🔴':'⚫') : '';
+      const corona = v&&v===v.toUpperCase()?'<span style="position:absolute;font-size:0.6rem;top:1px;right:3px">👑</span>':'';
+      const marca = validos.includes(i)?'box-shadow:inset 0 0 0 3px #16A34A;':'';
+      const selb = sel===i?'box-shadow:inset 0 0 0 3px #FFD600;':'';
+      grid+=`<div data-i="${i}" style="position:relative;aspect-ratio:1;background:${oscura?'#7c5230':'#e8d0aa'};display:flex;align-items:center;justify-content:center;font-size:1.3rem;cursor:pointer;${marca}${selb}">${ficha}${corona}</div>`;
+    }
+    grid+='</div>';
+    container.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:14px;min-height:300px">
+        ${ctrl.barraJugadores(miColor==='r'?'🔴':'⚫', miColor==='r'?'⚫':'🔴')}
+        <div style="text-align:center;color:#FFD600;font-weight:800;margin-bottom:8px">${miTurno?'✋ ¡Tu turno!':'⏳ Turno del rival...'}</div>
+        ${grid}
+        ${ctrl.chatHTML()}
+      </div>
+      <div class="game-instructions">Toca tu ficha y luego dónde mover (diagonal). Salta para capturar. ¡Captura todas las del rival!</div>`;
+    ctrl.conectarChat();
+    container.querySelectorAll('div[data-i]').forEach(d=>{
+      const i=+d.dataset.i;
+      const f=e=>{e.preventDefault();e.stopPropagation();click(i);};
+      d.addEventListener('touchstart',f,{passive:false}); d.addEventListener('click',f);
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  BATALLA NAVAL ONLINE
+// ══════════════════════════════════════════════════════════
+function buildNavalOnline(container) {
+  const N=7;
+  const FLOTA=[3,2,2,1]; // tamaños de barcos
+  let fase, miTablero, disparosMios, disparosRival, miTurno, ctrl, colocando, orient, listo, rivalListo;
+  ctrl = crearJuegoOnline({
+    container, titulo:'Batalla Naval', emoji:'🚢',
+    descripcion:'Hunde todos los barcos del rival',
+    colorTema:'linear-gradient(135deg,#0EA5E9,#1e3a8a)',
+    onEmpezar: (esAnf) => { empezar(esAnf); },
+    onMovimiento: (d) => {
+      if(d.tipo==='listo'){ rivalListo=true; if(listo) iniciarBatalla(); }
+      else if(d.tipo==='disparo'){ recibirDisparo(d.idx); }
+      else if(d.tipo==='resultado'){ marcarResultado(d.idx, d.agua); }
+      else if(d.tipo==='reinicio'){ empezar(ctrl.esAnfitrion); }
+    }
+  });
+  if (!ctrl) return;
+  function empezar(esAnf){
+    fase='colocar'; miTablero=Array(N*N).fill(0); disparosMios=Array(N*N).fill(null); disparosRival=Array(N*N).fill(null);
+    colocando=0; orient='h'; listo=false; rivalListo=false; miTurno=esAnf;
+    renderColocar();
+  }
+  function cabe(idx,size,o){
+    const r=Math.floor(idx/N), c=idx%N;
+    for(let k=0;k<size;k++){ const rr=o==='h'?r:r+k, cc=o==='h'?c+k:c; if(rr>=N||cc>=N) return false; if(miTablero[rr*N+cc]) return false; }
+    return true;
+  }
+  function colocar(idx){
+    const size=FLOTA[colocando];
+    if(!cabe(idx,size,orient)){ showToast('No cabe ahí'); return; }
+    const r=Math.floor(idx/N), c=idx%N;
+    for(let k=0;k<size;k++){ const rr=orient==='h'?r:r+k, cc=orient==='h'?c+k:c; miTablero[rr*N+cc]=1; }
+    SFX.pick(); colocando++;
+    if(colocando>=FLOTA.length){ listo=true; ctrl.enviar({tipo:'listo'}); if(rivalListo) iniciarBatalla(); else renderEsperaListo(); }
+    else renderColocar();
+  }
+  function iniciarBatalla(){ fase='batalla'; renderBatalla(); }
+  function recibirDisparo(idx){
+    const agua = !miTablero[idx];
+    if(!agua) miTablero[idx]=2; // tocado
+    disparosRival[idx]=agua?'agua':'tocado';
+    ctrl.enviar({tipo:'resultado',idx,agua});
+    miTurno=true;
+    // ¿perdí?
+    if(!quedanBarcos(miTablero)){ ctrl.jugando=false; SFX.lose(); showToast('💀 Hundieron tu flota'); }
+    renderBatalla();
+  }
+  function marcarResultado(idx,agua){
+    disparosMios[idx]=agua?'agua':'tocado';
+    if(agua){ SFX.click(); miTurno=false; } else { SFX.hit(); /* sigues disparando */ }
+    if(!agua && contarTocados(disparosMios)>=FLOTA.reduce((a,b)=>a+b,0)){ ctrl.jugando=false; celebrate(); awardBadge('first_win'); showToast('🎉 ¡Hundiste toda la flota!'); }
+    renderBatalla();
+  }
+  function quedanBarcos(t){ return t.includes(1); }
+  function contarTocados(d){ return d.filter(x=>x==='tocado').length; }
+  function disparar(idx){
+    if(fase!=='batalla'||!miTurno||!ctrl.jugando) return;
+    if(disparosMios[idx]) return;
+    ctrl.enviar({tipo:'disparo',idx});
+    disparosMios[idx]='esperando';
+    renderBatalla();
+  }
+  function gridHTML(arr,tipo){
+    let h=`<div style="display:grid;grid-template-columns:repeat(${N},1fr);gap:2px;max-width:260px;margin:0 auto">`;
+    for(let i=0;i<N*N;i++){
+      let bg='#0c4a6e', txt='';
+      if(tipo==='mio'){ if(arr[i]===1)bg='#475569'; if(arr[i]===2){bg='#dc2626';txt='💥';} if(disparosRival[i]==='agua'){txt='💧';} }
+      else { if(arr[i]==='agua'){txt='💧';} if(arr[i]==='tocado'){bg='#dc2626';txt='💥';} if(arr[i]==='esperando'){txt='⏳';} }
+      const clickable = tipo==='enemigo'&&!arr[i]&&miTurno&&fase==='batalla'&&ctrl.jugando;
+      h+=`<div ${clickable?`data-shoot="${i}"`:''} style="aspect-ratio:1;background:${bg};border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:0.8rem;cursor:${clickable?'pointer':'default'}">${txt}</div>`;
+    }
+    return h+'</div>';
+  }
+  function renderColocar(){
+    const size=FLOTA[colocando];
+    let grid=`<div style="display:grid;grid-template-columns:repeat(${N},1fr);gap:2px;max-width:260px;margin:0 auto">`;
+    for(let i=0;i<N*N;i++){ const bg=miTablero[i]?'#475569':'#0c4a6e'; grid+=`<div data-place="${i}" style="aspect-ratio:1;background:${bg};border-radius:3px;cursor:pointer"></div>`; }
+    grid+='</div>';
+    container.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:14px;min-height:300px">
+        ${ctrl.barraJugadores('🚢','🚢')}
+        <div style="text-align:center;color:#FFD600;font-weight:800;margin-bottom:6px">Coloca tu barco de ${size} casillas (${colocando+1}/${FLOTA.length})</div>
+        <div style="text-align:center;margin-bottom:8px"><button id="orientBtn" style="background:#7C3AED;border:none;color:#fff;padding:6px 16px;border-radius:14px;font-weight:800;cursor:pointer">↔️ ${orient==='h'?'Horizontal':'Vertical'}</button></div>
+        ${grid}
+      </div>
+      <div class="game-instructions">Toca una casilla para colocar el barco. Cambia la orientación con el botón.</div>`;
+    bindBtn('orientBtn',()=>{ orient=orient==='h'?'v':'h'; renderColocar(); });
+    container.querySelectorAll('div[data-place]').forEach(d=>{
+      const i=+d.dataset.place;
+      const f=e=>{e.preventDefault();e.stopPropagation();colocar(i);};
+      d.addEventListener('touchstart',f,{passive:false}); d.addEventListener('click',f);
+    });
+  }
+  function renderEsperaListo(){
+    container.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:24px;min-height:300px;text-align:center;color:#fff">
+        ${ctrl.barraJugadores('🚢','🚢')}
+        <div style="font-size:2rem;margin:20px 0">⏳</div>
+        <div style="font-weight:800">¡Flota lista! Esperando a que el rival coloque sus barcos...</div>
+      </div>
+      <div class="game-instructions">En cuanto tu rival termine, empieza la batalla.</div>`;
+  }
+  function renderBatalla(){
+    container.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:14px;min-height:300px">
+        ${ctrl.barraJugadores('🚢','🚢')}
+        <div style="text-align:center;color:#FFD600;font-weight:800;margin-bottom:6px">${miTurno?'🎯 ¡Dispara al rival!':'⏳ Turno del rival...'}</div>
+        <div style="color:#aaa;font-size:0.78rem;text-align:center;margin-bottom:4px">Tablero enemigo (toca para disparar):</div>
+        ${gridHTML(disparosMios,'enemigo')}
+        <div style="color:#aaa;font-size:0.78rem;text-align:center;margin:8px 0 4px">Tu flota:</div>
+        ${gridHTML(miTablero,'mio')}
+        ${ctrl.chatHTML()}
+      </div>
+      <div class="game-instructions">💥 = tocado · 💧 = agua. ¡Hunde toda la flota enemiga para ganar!</div>`;
+    ctrl.conectarChat();
+    container.querySelectorAll('div[data-shoot]').forEach(d=>{
+      const i=+d.dataset.shoot;
+      const f=e=>{e.preventDefault();e.stopPropagation();disparar(i);};
+      d.addEventListener('touchstart',f,{passive:false}); d.addEventListener('click',f);
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  LUDO ONLINE (versión 2 jugadores, carrera simplificada)
+// ══════════════════════════════════════════════════════════
+// Cada jugador tiene 2 fichas. Recorrido común de 28 casillas + meta.
+// Sacas con dado (1-6). Si caes donde está el rival, lo mandas al inicio.
+function buildLudoOnline(container) {
+  const META=28;
+  let fichas, miNum, miTurno, dado, ctrl, tiradaHecha;
+  // fichas = { 1:[posA,posB], 2:[posA,posB] }  pos: -1=base, 0..27=pista, 28=meta
+  ctrl = crearJuegoOnline({
+    container, titulo:'Ludo', emoji:'🎲',
+    descripcion:'Carrera de fichas. ¡Llega primero!',
+    colorTema:'linear-gradient(135deg,#ef4444,#22c55e)',
+    onEmpezar: (esAnf)=>{ miNum=esAnf?1:2; empezar(); },
+    onMovimiento: (d)=>{
+      if(d.tipo==='jugada'){ fichas=d.fichas; dado=d.dado; miTurno=true; tiradaHecha=false; render(); revisarFin(); }
+      else if(d.tipo==='reinicio'){ empezar(); }
+    }
+  });
+  if(!ctrl) return;
+  function empezar(){
+    fichas={1:[-1,-1],2:[-1,-1]};
+    miTurno=ctrl.esAnfitrion; dado=0; tiradaHecha=false;
+    render();
+  }
+  // casilla global de salida según jugador
+  function salida(num){ return num===1?0:14; }
+  function posGlobal(num,pos){ if(pos<0||pos>=META) return -1; return (salida(num)+pos)%META; }
+  function tirar(){
+    if(!miTurno||tiradaHecha||!ctrl.jugando) return;
+    dado=Math.floor(Math.random()*6)+1; SFX.click(); tiradaHecha=true;
+    // ¿hay movimiento posible?
+    const mis=fichas[miNum];
+    const puede = mis.some((p,i)=> puedeMover(i));
+    render();
+    if(!puede){ // sin jugada: pasa turno
+      setTimeout(()=>{ ctrl.enviar({tipo:'jugada',fichas,dado:0}); miTurno=false; tiradaHecha=false; render(); }, 900);
+    }
+  }
+  function puedeMover(i){
+    const p=fichas[miNum][i];
+    if(p>=META) return false;
+    if(p===-1) return dado===6; // sale con 6
+    return p+dado<=META;
+  }
+  function mover(i){
+    if(!miTurno||!tiradaHecha||!ctrl.jugando||!puedeMover(i)) return;
+    let p=fichas[miNum][i];
+    if(p===-1) p=0; else p=p+dado;
+    fichas[miNum][i]=p;
+    // ¿comió rival?
+    const miGlobal=posGlobal(miNum,p);
+    if(miGlobal>=0){
+      const rn=miNum===1?2:1;
+      fichas[rn].forEach((rp,ri)=>{ if(rp>=0&&rp<META&&posGlobal(rn,rp)===miGlobal){ fichas[rn][ri]=-1; SFX.coin(); showToast('¡Comiste una ficha rival!'); } });
+    }
+    SFX.pop();
+    const otra = dado===6; // con 6 repite turno
+    ctrl.enviar({tipo:'jugada',fichas,dado: otra?-1:0}); // -1 = repite el mismo
+    if(otra){ tiradaHecha=false; } else { miTurno=false; tiradaHecha=false; }
+    render(); revisarFin();
+  }
+  function revisarFin(){
+    [1,2].forEach(n=>{
+      if(fichas[n].every(p=>p>=META)){
+        ctrl.jugando=false;
+        if(n===miNum){ awardBadge('first_win'); celebrate(); } else SFX.lose();
+        showToast(n===miNum?'🎉 ¡Ganaste la carrera!':'😢 El rival llegó primero');
+      }
+    });
+  }
+  function render(){
+    // pista circular simple representada como fila de casillas
+    let pista='<div style="display:flex;flex-wrap:wrap;gap:2px;justify-content:center;max-width:320px;margin:0 auto">';
+    for(let g=0;g<META;g++){
+      let cont='';
+      [1,2].forEach(n=> fichas[n].forEach(p=>{ if(p>=0&&p<META&&posGlobal(n,p)===g) cont=(n===1?'🔴':'🟢'); }));
+      const esSalida = g===salida(1)||g===salida(14);
+      pista+=`<div style="width:30px;height:30px;background:${cont?'#1a1a2e':'#13131f'};border:1px solid ${esSalida?'#FFD600':'rgba(255,255,255,0.1)'};border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:0.9rem">${cont}</div>`;
+    }
+    pista+='</div>';
+    container.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:14px;min-height:300px">
+        ${ctrl.barraJugadores('🔴','🟢')}
+        <div style="text-align:center;color:#FFD600;font-weight:800;margin-bottom:6px">${miTurno?'✋ ¡Tu turno!':'⏳ Turno del rival...'}</div>
+        <div style="text-align:center;margin-bottom:8px">
+          <div style="display:inline-block;background:#fff;color:#000;width:54px;height:54px;border-radius:12px;font-size:2rem;line-height:54px;font-weight:800">${dado>0?['','⚀','⚁','⚂','⚃','⚄','⚅'][dado]:'🎲'}</div>
+        </div>
+        <div style="text-align:center;margin-bottom:10px">
+          <button id="tirarBtn" style="background:${miTurno&&!tiradaHecha?'#16A34A':'#444'};border:none;color:#fff;padding:10px 24px;border-radius:16px;font-weight:800;font-family:Nunito,sans-serif;cursor:${miTurno&&!tiradaHecha?'pointer':'default'}">🎲 Tirar dado</button>
+        </div>
+        <div style="color:#aaa;font-size:0.78rem;text-align:center;margin-bottom:4px">Mis fichas (${miNum===1?'🔴':'🟢'}): toca una para mover ${dado>0?'('+dado+')':''}</div>
+        <div id="misFichas" style="display:flex;gap:10px;justify-content:center;margin-bottom:8px"></div>
+        ${pista}
+        ${ctrl.chatHTML()}
+      </div>
+      <div class="game-instructions">Tira el dado. Saca fichas de 🏠 con un 6. Llega con tus 2 fichas a 🏁. Si caes sobre el rival, ¡lo mandas a casa! Con 6 repites turno.</div>`;
+    bindBtn('tirarBtn',tirar);
+    const mf=document.getElementById('misFichas');
+    fichas[miNum].forEach((p,i)=>{
+      const b=document.createElement('button');
+      const est = p===-1?'🏠':(p>=META?'🏁':String(p));
+      b.innerHTML=`${miNum===1?'🔴':'🟢'}<br><span style="font-size:0.7rem">${est}</span>`;
+      const activa = miTurno&&tiradaHecha&&puedeMover(i)&&ctrl.jugando;
+      b.style.cssText=`background:${activa?'#7C3AED':'#1a1a2e'};border:2px solid ${activa?'#FFD600':'transparent'};color:#fff;padding:8px 16px;border-radius:12px;font-weight:800;cursor:${activa?'pointer':'default'};-webkit-tap-highlight-color:transparent`;
+      if(activa){ const f=e=>{e.preventDefault();e.stopPropagation();mover(i);}; b.addEventListener('touchstart',f,{passive:false}); b.addEventListener('click',f); }
+      mf.appendChild(b);
+    });
+    ctrl.conectarChat();
+  }
 }
 </script>
 </body>
