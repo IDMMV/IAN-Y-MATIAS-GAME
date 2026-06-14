@@ -970,6 +970,10 @@ function conectarSala(codigo, esAnfitrion) {
   });
   canalOnline.on('broadcast', { event: 'rival-listo' }, ({ payload }) => {
     if (onRivalConectado) onRivalConectado(payload);
+    // Responder con mi info para que el otro también me detecte (handshake en ambos sentidos)
+    if (!payload.esRespuesta) {
+      canalOnline.send({ type: 'broadcast', event: 'rival-listo', payload: { name: PLAYERS[currentPlayer].name, emoji: PLAYERS[currentPlayer].emoji, esAnfitrion: soyAnfitrion, esRespuesta: true } });
+    }
   });
   // Presence: detectar quién está en la sala
   canalOnline.on('presence', { event: 'leave' }, () => {
@@ -978,8 +982,13 @@ function conectarSala(codigo, esAnfitrion) {
   canalOnline.subscribe(async (estado) => {
     if (estado === 'SUBSCRIBED') {
       await canalOnline.track({ player: currentPlayer, name: PLAYERS[currentPlayer].name, emoji: PLAYERS[currentPlayer].emoji });
-      // avisar al otro que estoy listo
-      canalOnline.send({ type: 'broadcast', event: 'rival-listo', payload: { name: PLAYERS[currentPlayer].name, emoji: PLAYERS[currentPlayer].emoji, esAnfitrion } });
+      // avisar al otro que estoy listo (con reintentos, por si el otro aún no se suscribe)
+      const anunciar = () => {
+        if (canalOnline) canalOnline.send({ type: 'broadcast', event: 'rival-listo', payload: { name: PLAYERS[currentPlayer].name, emoji: PLAYERS[currentPlayer].emoji, esAnfitrion, esRespuesta: false } });
+      };
+      anunciar();
+      setTimeout(anunciar, 800);   // reintento por si el otro entró un instante después
+      setTimeout(anunciar, 2000);
     }
   });
   return true;
@@ -3345,7 +3354,7 @@ function buildTttOnline(container) {
     // configurar callbacks
     onRivalConectado = (info) => {
       rivalInfo = info;
-      empezarPartida();
+      if (!jugando) empezarPartida();  // evita reiniciar la partida si ya empezó
     };
     onRivalSalio = () => {
       if (jugando) { showToast('👋 El otro jugador salió'); }
