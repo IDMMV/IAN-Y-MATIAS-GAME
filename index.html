@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HugoKids 🎮</title>
+<title>IanMatías Games 🎮</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap');
 
@@ -482,19 +482,7 @@
 
 <!-- NAVBAR -->
 <nav>
-
-  <div class="brand-area">
-
-    <div class="logo">
-      HugoKids <span style="font-size:1.1rem">🎮</span>
-    </div>
-
-    <div class="family-text">
-      Ian • Dylan • Matías • Milan • Valery 
-    </div>
-
-  </div>
-
+  <div class="logo">Ian<span>&</span>Matías <span style="font-size:1.1rem">🎮</span></div>
   <ul class="nav-links">
     <li><a href="#" class="active" onclick="navFilter('all',this);return false">Inicio</a></li>
     <li><a href="#" onclick="navFilter('arcade',this);return false">Arcade</a></li>
@@ -507,6 +495,7 @@
     <input class="search-box" type="text" placeholder="🔍 Buscar juego…" id="searchInput" oninput="filterGames(this.value)">
     <button onclick="cycleTheme()" id="themeBtn" title="Cambiar tema" style="background:#F0ECFB;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0;transition:transform 0.2s">🎨</button>
     <button onclick="openProfile()" id="profileBtn" title="Perfil y medallas" style="background:#F0ECFB;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0">👤</button>
+    <button onclick="openCuenta()" id="cuentaBtn" title="Mi cuenta" style="background:linear-gradient(135deg,#16A34A,#2563EB);border:none;border-radius:20px;padding:0 16px;height:42px;font-size:0.9rem;font-weight:800;color:#fff;cursor:pointer;flex-shrink:0;font-family:Nunito,sans-serif">Crear cuenta</button>
   </div>
 </nav>
 
@@ -987,6 +976,130 @@ function getSupabase() {
   return sb;
 }
 const onlineDisponible = () => !!window.supabase;
+
+// ══════════════════════════════════════════════════════════
+//  SISTEMA DE CUENTAS (Supabase Auth)
+// ══════════════════════════════════════════════════════════
+let usuarioActual = null;   // objeto de sesión (null = invitado sin cuenta)
+let perfilNube = null;      // datos del perfil guardado en la nube
+
+// Revisa si hay sesión activa al cargar
+async function revisarSesion() {
+  const c = getSupabase(); if (!c) return;
+  try {
+    const { data } = await c.auth.getSession();
+    if (data && data.session) {
+      usuarioActual = data.session.user;
+      await cargarPerfilNube();
+      actualizarBotonCuenta();
+    }
+    // escuchar cambios de sesión
+    c.auth.onAuthStateChange((evento, session) => {
+      usuarioActual = session ? session.user : null;
+      if (usuarioActual) cargarPerfilNube();
+      else perfilNube = null;
+      actualizarBotonCuenta();
+    });
+  } catch (e) { console.error('sesion', e); }
+}
+
+// Crear cuenta
+async function registrarCuenta(email, password, nombre) {
+  const c = getSupabase(); if (!c) return { error: 'Sin conexión' };
+  try {
+    const { data, error } = await c.auth.signUp({ email, password });
+    if (error) return { error: traducirError(error.message) };
+    usuarioActual = data.user;
+    // crear su perfil en la tabla
+    if (data.user) {
+      const yo = miIdentidadOnline();
+      await c.from('perfiles').insert({
+        id: data.user.id, nombre: nombre || yo.name, avatar: yo.emoji,
+        numero_amigo: getGuestId(), logros: getBadges(), records: {}, amigos: getAmigos()
+      });
+      await cargarPerfilNube();
+    }
+    return { ok: true };
+  } catch (e) { return { error: 'Error al crear cuenta' }; }
+}
+
+// Iniciar sesión
+async function iniciarSesion(email, password) {
+  const c = getSupabase(); if (!c) return { error: 'Sin conexión' };
+  try {
+    const { data, error } = await c.auth.signInWithPassword({ email, password });
+    if (error) return { error: traducirError(error.message) };
+    usuarioActual = data.user;
+    await cargarPerfilNube();
+    if (perfilNube && perfilNube.bloqueado) {
+      await cerrarSesion();
+      return { error: 'Tu cuenta está bloqueada. Contacta al administrador.' };
+    }
+    return { ok: true };
+  } catch (e) { return { error: 'Error al iniciar sesión' }; }
+}
+
+// Login con Google
+async function loginGoogle() {
+  const c = getSupabase(); if (!c) return;
+  try { await c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } }); }
+  catch (e) { showToast('No se pudo conectar con Google'); }
+}
+
+// Recuperar contraseña
+async function recuperarPassword(email) {
+  const c = getSupabase(); if (!c) return { error: 'Sin conexión' };
+  try {
+    const { error } = await c.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+    if (error) return { error: traducirError(error.message) };
+    return { ok: true };
+  } catch (e) { return { error: 'Error' }; }
+}
+
+async function cerrarSesion() {
+  const c = getSupabase(); if (!c) return;
+  try { await c.auth.signOut(); } catch (e) {}
+  usuarioActual = null; perfilNube = null;
+  actualizarBotonCuenta();
+}
+
+// Cargar perfil desde la nube y aplicarlo localmente
+async function cargarPerfilNube() {
+  const c = getSupabase(); if (!c || !usuarioActual) return;
+  try {
+    const { data } = await c.from('perfiles').select('*').eq('id', usuarioActual.id).single();
+    if (data) {
+      perfilNube = data;
+      // aplicar logros y datos de la nube al estado local
+      if (data.nombre) setGuestName(data.nombre);
+      if (data.avatar) setGuestAvatar(data.avatar);
+      if (Array.isArray(data.logros)) { try { localStorage.setItem(badgeKey(), JSON.stringify(data.logros)); } catch(e){} }
+      if (Array.isArray(data.amigos)) { try { localStorage.setItem('im_amigos', JSON.stringify(data.amigos)); } catch(e){} }
+      updatePlayerBadge();
+    }
+  } catch (e) { /* aún no tiene perfil */ }
+}
+
+// Guardar logros/datos actuales en la nube (si hay sesión)
+async function guardarPerfilNube() {
+  const c = getSupabase(); if (!c || !usuarioActual) return;
+  try {
+    const yo = miIdentidadOnline();
+    await c.from('perfiles').update({
+      nombre: yo.name, avatar: yo.emoji, logros: getBadges(), amigos: getAmigos()
+    }).eq('id', usuarioActual.id);
+  } catch (e) {}
+}
+
+function traducirError(msg) {
+  if (/already registered/i.test(msg)) return 'Ese correo ya tiene cuenta';
+  if (/invalid login/i.test(msg)) return 'Correo o contraseña incorrectos';
+  if (/password should be at least/i.test(msg)) return 'La contraseña debe tener al menos 6 caracteres';
+  if (/unable to validate email/i.test(msg) || /invalid email/i.test(msg)) return 'Correo no válido';
+  return msg;
+}
+function tieneSesion() { return !!usuarioActual; }
+function esAdmin() { return perfilNube && perfilNube.es_admin === true; }
 
 // ── Identidad automática de invitado online (número único + avatar) ──
 function getGuestId() {
@@ -1523,6 +1636,7 @@ function awardBadge(id) {
   try { localStorage.setItem(badgeKey(), JSON.stringify(list)); } catch (e) {}
   _recordsFallback[badgeKey()] = list;
   showBadgeToast(id);
+  if (typeof guardarPerfilNube === 'function' && typeof tieneSesion === 'function' && tieneSesion()) guardarPerfilNube();
 }
 function showBadgeToast(id) {
   const bd = BADGES[id]; if (!bd) return;
@@ -1693,6 +1807,197 @@ function exitFullscreen() {
     if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{});
     else if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
   } catch (e) {}
+}
+
+// ══════════════════════════════════════════════════════════
+//  PANTALLA DE CUENTA (login / registro / recuperar / paneles)
+// ══════════════════════════════════════════════════════════
+function actualizarBotonCuenta() {
+  const btn = document.getElementById('cuentaBtn');
+  if (!btn) return;
+  if (tieneSesion()) {
+    const nombre = (perfilNube && perfilNube.nombre) || 'Mi cuenta';
+    btn.textContent = '👤 ' + (nombre.length > 8 ? nombre.slice(0,8)+'…' : nombre);
+  } else {
+    btn.textContent = 'Crear cuenta';
+  }
+}
+
+function openCuenta() {
+  stopAllGames();
+  const modal = document.getElementById('modalOverlay');
+  const body = document.getElementById('modalBody');
+  const title = document.getElementById('modalTitle');
+  modal.classList.add('open');
+  activeGame = 'cuenta';
+  document.body.style.overflow = 'hidden';
+  title.textContent = '🔐 Mi Cuenta';
+  const sBtn = document.getElementById('soundToggle');
+  if (sBtn) sBtn.textContent = soundOn ? '🔊' : '🔇';
+  if (!onlineDisponible()) {
+    body.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:30px;text-align:center;color:#fff">
+      <div style="font-size:2.5rem">📡</div><div style="margin-top:10px">Necesitas conexión a internet para usar cuentas.</div></div>`;
+    return;
+  }
+  if (tieneSesion()) renderPanelUsuario();
+  else renderLogin();
+}
+
+function renderLogin() {
+  const body = document.getElementById('modalBody');
+  body.innerHTML = `
+    <div class="game-container" style="background:#0a0a14;padding:22px;min-height:320px">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:2.4rem">🎮</div>
+        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem">Ingresa a tu cuenta</div>
+        <div style="color:#16A34A;font-size:0.82rem;margin-top:4px">✨ Si tienes cuenta, se guardan tus logros en cualquier dispositivo</div>
+      </div>
+      <div style="max-width:340px;margin:0 auto">
+        <input id="logEmail" type="email" placeholder="Tu correo" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
+        <input id="logPass" type="password" placeholder="Tu contraseña" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:6px;outline:none">
+        <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;font-size:0.8rem;text-decoration:none">¿Olvidaste tu contraseña?</a></div>
+        <button id="btnLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:10px">Ingresar ▶</button>
+        <button id="btnGoogle" style="width:100%;background:#fff;border:none;color:#444;padding:12px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer;margin-bottom:14px">🔵 Entrar con Google</button>
+        <div style="text-align:center;color:#aaa;font-size:0.85rem">¿No tienes cuenta? <a href="#" id="irRegistro" style="color:#FFD600;font-weight:800;text-decoration:none">Crear cuenta</a></div>
+      </div>
+    </div>
+    <div class="game-instructions">Puedes jugar sin cuenta, pero con una cuenta tus logros y amigos te siguen a cualquier dispositivo.</div>`;
+  bindBtn('btnLogin', async () => {
+    const em = document.getElementById('logEmail').value.trim();
+    const pw = document.getElementById('logPass').value;
+    if (!em || !pw) { showToast('Completa correo y contraseña'); return; }
+    showToast('Ingresando...');
+    const r = await iniciarSesion(em, pw);
+    if (r.error) showToast('❌ ' + r.error);
+    else { SFX.win(); showToast('🎉 ¡Bienvenido!'); renderPanelUsuario(); }
+  });
+  bindBtn('btnGoogle', () => loginGoogle());
+  document.getElementById('irRegistro').onclick = e => { e.preventDefault(); renderRegistro(); };
+  document.getElementById('olvideLink').onclick = e => { e.preventDefault(); renderRecuperar(); };
+}
+
+function renderRegistro() {
+  const body = document.getElementById('modalBody');
+  body.innerHTML = `
+    <div class="game-container" style="background:#0a0a14;padding:22px;min-height:320px">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:2.4rem">✨</div>
+        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem">Crear cuenta nueva</div>
+      </div>
+      <div style="max-width:340px;margin:0 auto">
+        <input id="regNombre" type="text" maxlength="14" placeholder="Tu nombre" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
+        <input id="regEmail" type="email" placeholder="Tu correo (puede ser de un papá)" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
+        <input id="regPass" type="password" placeholder="Contraseña (mínimo 6 letras)" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:14px;outline:none">
+        <button id="btnRegistro" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:14px">Crear mi cuenta ▶</button>
+        <div style="text-align:center;color:#aaa;font-size:0.85rem">¿Ya tienes cuenta? <a href="#" id="irLogin" style="color:#FFD600;font-weight:800;text-decoration:none">Ingresar</a></div>
+      </div>
+    </div>
+    <div class="game-instructions">Con tu cuenta se guardan tus logros, medallas y amigos para siempre, en cualquier dispositivo.</div>`;
+  bindBtn('btnRegistro', async () => {
+    const nom = document.getElementById('regNombre').value.trim();
+    const em = document.getElementById('regEmail').value.trim();
+    const pw = document.getElementById('regPass').value;
+    if (!nom || !em || !pw) { showToast('Completa todos los campos'); return; }
+    showToast('Creando cuenta...');
+    const r = await registrarCuenta(em, pw, nom);
+    if (r.error) showToast('❌ ' + r.error);
+    else { SFX.win(); launchConfetti(); showToast('🎉 ¡Cuenta creada!'); renderPanelUsuario(); }
+  });
+  document.getElementById('irLogin').onclick = e => { e.preventDefault(); renderLogin(); };
+}
+
+function renderRecuperar() {
+  const body = document.getElementById('modalBody');
+  body.innerHTML = `
+    <div class="game-container" style="background:#0a0a14;padding:22px;min-height:280px">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:2.4rem">🔑</div>
+        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.2rem">Recuperar contraseña</div>
+        <div style="color:#aaa;font-size:0.82rem;margin-top:6px">Te enviaremos un correo para crear una nueva</div>
+      </div>
+      <div style="max-width:340px;margin:0 auto">
+        <input id="recEmail" type="email" placeholder="Tu correo" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:14px;outline:none">
+        <button id="btnRecuperar" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer;margin-bottom:12px">Enviar correo 📧</button>
+        <div style="text-align:center"><a href="#" id="volverLogin" style="color:#FFD600;font-weight:800;text-decoration:none;font-size:0.85rem">← Volver</a></div>
+      </div>
+    </div>
+    <div class="game-instructions">Revisa tu bandeja de correo (y la carpeta de spam) para el enlace de recuperación.</div>`;
+  bindBtn('btnRecuperar', async () => {
+    const em = document.getElementById('recEmail').value.trim();
+    if (!em) { showToast('Escribe tu correo'); return; }
+    const r = await recuperarPassword(em);
+    if (r.error) showToast('❌ ' + r.error);
+    else showToast('📧 ¡Correo enviado! Revisa tu bandeja');
+  });
+  document.getElementById('volverLogin').onclick = e => { e.preventDefault(); renderLogin(); };
+}
+
+function renderPanelUsuario() {
+  const body = document.getElementById('modalBody');
+  const p = perfilNube || {};
+  const nombre = p.nombre || miIdentidadOnline().name;
+  const avatar = p.avatar || miIdentidadOnline().emoji;
+  const nLogros = (Array.isArray(p.logros) ? p.logros.length : getBadges().length);
+  body.innerHTML = `
+    <div class="game-container" style="background:#0a0a14;padding:22px;min-height:300px">
+      <div style="text-align:center;margin-bottom:18px">
+        <div style="font-size:3rem">${avatar}</div>
+        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.4rem">${nombre}</div>
+        <div style="color:#16A34A;font-size:0.85rem">✅ Sesión iniciada · Tus logros se guardan</div>
+      </div>
+      <div style="background:#13131f;border-radius:14px;padding:16px;max-width:340px;margin:0 auto 14px">
+        <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">🏅 Medallas</span><strong>${nLogros}/10</strong></div>
+        <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">👥 Mi número</span><strong>#${p.numero_amigo || getGuestId()}</strong></div>
+        <div style="display:flex;justify-content:space-between;color:#fff"><span style="color:#aaa">📧 Correo</span><strong style="font-size:0.8rem">${(usuarioActual&&usuarioActual.email)||'-'}</strong></div>
+      </div>
+      <div style="max-width:340px;margin:0 auto;display:flex;flex-direction:column;gap:10px">
+        ${esAdmin() ? `<button id="btnAdmin" style="width:100%;background:linear-gradient(135deg,#f59e0b,#b91c1c);border:none;color:#fff;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">🛡️ Panel de Administrador</button>` : ''}
+        <button id="btnVerLogros" style="width:100%;background:#7C3AED;border:none;color:#fff;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">🏅 Ver mis medallas</button>
+        <button id="btnSalir" style="width:100%;background:rgba(220,38,38,0.2);border:2px solid #dc2626;color:#f87171;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">Cerrar sesión</button>
+      </div>
+    </div>
+    <div class="game-instructions">Tu cuenta guarda tus logros y amigos. Puedes entrar desde cualquier dispositivo con tu correo y contraseña.</div>`;
+  if (esAdmin()) bindBtn('btnAdmin', renderPanelAdmin);
+  bindBtn('btnVerLogros', () => openProfile());
+  bindBtn('btnSalir', async () => { await cerrarSesion(); SFX.click(); showToast('Sesión cerrada'); renderLogin(); });
+}
+
+async function renderPanelAdmin() {
+  const body = document.getElementById('modalBody');
+  body.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:22px;min-height:300px">
+    <div style="text-align:center;color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem;margin-bottom:6px">🛡️ Panel de Administrador</div>
+    <div style="text-align:center;color:#aaa;font-size:0.82rem;margin-bottom:16px">Gestiona las cuentas de los usuarios</div>
+    <div id="adminLista" style="max-width:380px;margin:0 auto"><div style="text-align:center;color:#666">Cargando usuarios...</div></div>
+    <div style="text-align:center;margin-top:16px"><a href="#" id="volverPanel" style="color:#FFD600;font-weight:800;text-decoration:none">← Volver a mi cuenta</a></div>
+  </div>`;
+  document.getElementById('volverPanel').onclick = e => { e.preventDefault(); renderPanelUsuario(); };
+  const c = getSupabase();
+  try {
+    const { data, error } = await c.from('perfiles').select('id,nombre,avatar,numero_amigo,bloqueado,es_admin');
+    const cont = document.getElementById('adminLista');
+    if (error || !data) { cont.innerHTML = '<div style="text-align:center;color:#f87171">No se pudo cargar (¿tienes permisos de admin?)</div>'; return; }
+    if (!data.length) { cont.innerHTML = '<div style="text-align:center;color:#666">No hay usuarios todavía</div>'; return; }
+    cont.innerHTML = data.map(u => `
+      <div style="display:flex;align-items:center;gap:8px;background:#13131f;border-radius:10px;padding:10px;margin-bottom:6px">
+        <span style="font-size:1.4rem">${u.avatar||'👤'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="color:#fff;font-weight:700;font-size:0.88rem">${u.nombre||'Sin nombre'} ${u.es_admin?'🛡️':''}</div>
+          <div style="color:${u.bloqueado?'#f87171':'#16A34A'};font-size:0.72rem">${u.bloqueado?'🔒 Bloqueado':'✅ Activo'} · #${u.numero_amigo||'?'}</div>
+        </div>
+        <button data-toggle="${u.id}" data-bloq="${u.bloqueado?1:0}" style="background:${u.bloqueado?'#16A34A':'#dc2626'};border:none;color:#fff;padding:8px 12px;border-radius:10px;font-weight:800;font-size:0.76rem;cursor:pointer">${u.bloqueado?'Desbloquear':'Bloquear'}</button>
+      </div>`).join('');
+    cont.querySelectorAll('button[data-toggle]').forEach(b => {
+      const f = async e => {
+        e.preventDefault();
+        const id = b.dataset.toggle, nuevo = b.dataset.bloq === '1' ? false : true;
+        await c.from('perfiles').update({ bloqueado: nuevo }).eq('id', id);
+        SFX.click(); renderPanelAdmin();
+      };
+      b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+    });
+  } catch (e) {
+    document.getElementById('adminLista').innerHTML = '<div style="text-align:center;color:#f87171">Error al cargar</div>';
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1887,6 +2192,7 @@ try { const t = localStorage.getItem('imrec_theme'); if (t && THEMES.includes(t)
 setTimeout(() => { if (typeof updatePlayerBadge === 'function') updatePlayerBadge(); }, 0);
 // Iniciar contador de jugadores en línea (espera a que cargue la librería de Supabase)
 setTimeout(() => { if (onlineDisponible()) iniciarPresenciaGlobal(); }, 1500);
+setTimeout(() => { if (onlineDisponible()) revisarSesion(); }, 1600);
 
 
 // ═══════════════════════════════════════════
