@@ -561,7 +561,7 @@
 
 <!-- STATS -->
 <div class="stats">
-  <div class="stat"><div class="stat-num">46</div><div class="stat-label">Juegos</div></div>
+  <div class="stat"><div class="stat-num">48</div><div class="stat-label">Juegos</div></div>
   <div class="stat"><div class="stat-num">7</div><div class="stat-label">Categorías</div></div>
   <div class="stat"><div class="stat-num" id="onlineCount" style="color:#16A34A">🟢 1</div><div class="stat-label">En línea</div></div>
   <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Diversión</div></div>
@@ -607,7 +607,7 @@
 <section id="gamesSection">
   <div class="section-header">
     <div class="section-title"><span class="section-icon">🕹️</span> Todos los Juegos</div>
-    <span class="see-all" id="gameCount">46 juegos</span>
+    <span class="see-all" id="gameCount">48 juegos</span>
   </div>
   <div class="game-grid" id="gameGrid">
 
@@ -963,6 +963,18 @@
           <span class="game-stars">⭐⭐⭐⭐</span>
         </div>
       </div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="arcade" data-name="idle" onclick="openGame('idle')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#f59e0b,#eab308)"></div><span class="game-thumb-emoji">💰</span></div>
+      <div class="game-badge badge-hot">🔥 Hot</div>
+      <div class="game-info"><div class="game-name">Idle Millonario</div><div class="game-meta"><span class="game-cat cat-arcade">Arcade</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
+    </div>
+
+    <div class="game-card fade-up" data-cat="arcade" data-name="multitud" onclick="openGame('multitud')">
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#2563EB,#16A34A)"></div><span class="game-thumb-emoji">👥</span></div>
+      <div class="game-badge badge-hot">🔥 Hot</div>
+      <div class="game-info"><div class="game-name">Multitud</div><div class="game-meta"><span class="game-cat cat-arcade">Arcade</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>
     </div>
 
     <div class="game-card fade-up" data-cat="edu" data-name="sumas" onclick="openGame('sumas')">
@@ -1387,11 +1399,14 @@ function agregarAmigo(num) {
   if (a.find(x => x.num === num)) { showToast('Ya tienes a ese amigo'); return false; }
   a.push({ num, alias: '' });
   try { localStorage.setItem('im_amigos', JSON.stringify(a)); } catch (e) {}
+  // guardar en la nube si hay sesión (así no se pierde)
+  if (typeof tieneSesion === 'function' && tieneSesion() && typeof guardarPerfilNube === 'function') guardarPerfilNube();
   return true;
 }
 function quitarAmigo(num) {
   const a = getAmigos().filter(x => x.num !== num);
   try { localStorage.setItem('im_amigos', JSON.stringify(a)); } catch (e) {}
+  if (typeof tieneSesion === 'function' && tieneSesion() && typeof guardarPerfilNube === 'function') guardarPerfilNube();
 }
 // Enviar invitación a un amigo (por su número)
 function invitarAmigo(num) {
@@ -2081,6 +2096,8 @@ function openGame(id) {
     platform: { title: '🦸 Súper Salto',    fn: buildPlatform },
     defender: { title: '🚀 Defensa Espacial', fn: buildDefender },
     dungeon:  { title: '🗝️ Mazmorra Mágica', fn: buildDungeon },
+    idle:     { title: '💰 Idle Millonario',  fn: buildIdle },
+    multitud: { title: '👥 Multitud',         fn: buildMultitud },
     sumas:    { title: '➕ Sumas y Restas',  fn: () => buildEduQuiz('sumas') },
     tablas:   { title: '✖️ Tablas de Multiplicar', fn: () => buildEduQuiz('tablas') },
     palabra:  { title: '🔤 Forma la Palabra', fn: buildPalabra },
@@ -2234,19 +2251,25 @@ function renderRecuperar() {
       <div style="max-width:340px;margin:0 auto">
         <input id="recEmail" type="email" placeholder="Tu correo" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:14px;outline:none">
         <button id="btnRecuperar" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer;margin-bottom:12px">Enviar correo 📧</button>
+        <div id="recMsg" style="margin-bottom:12px"></div>
         <div style="text-align:center"><a href="#" id="volverLogin" style="color:#FFD600;font-weight:800;text-decoration:none;font-size:0.85rem">← Volver</a></div>
       </div>
-    </div>
-    <div class="game-instructions">Revisa tu bandeja de correo (y la carpeta de spam) para el enlace de recuperación.</div>`;
+    </div>`;
   bindBtn('btnRecuperar', async () => {
     const em = document.getElementById('recEmail').value.trim();
+    const msg = document.getElementById('recMsg');
     if (!em) { showToast('⚠️ Escribe tu correo'); return; }
     if (!correoValido(em)) { showToast('⚠️ Escribe un correo válido'); return; }
     if (!supabaseListo()) { showToast('⏳ Conectando al servidor... intenta de nuevo'); return; }
     showToast('Enviando...');
     const r = await recuperarPassword(em);
-    if (r.error) showToast('❌ ' + r.error);
-    else showToast('📧 ¡Correo enviado! Revisa tu bandeja');
+    if (r.error) {
+      showToast('❌ ' + r.error);
+      if (msg) msg.innerHTML = `<div style="background:rgba(220,38,38,0.15);border:1px solid #dc2626;border-radius:10px;padding:10px;color:#f87171;font-size:0.8rem;text-align:center">❌ ${r.error}</div>`;
+    } else {
+      showToast('📧 ¡Correo enviado!');
+      if (msg) msg.innerHTML = `<div style="background:rgba(22,163,74,0.15);border:1px solid #16A34A;border-radius:10px;padding:12px;color:#86efac;font-size:0.82rem;text-align:center">📧 <strong>¡Correo enviado!</strong><br>Revisa tu bandeja de entrada y la carpeta de spam para el enlace.</div>`;
+    }
   });
   document.getElementById('volverLogin').onclick = e => { e.preventDefault(); renderLogin(); };
 }
@@ -2606,13 +2629,7 @@ function renderProfile() {
       ${(typeof tieneSesion==='function' && tieneSesion()) ? `
       <div style="background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.3);border-radius:12px;padding:10px;text-align:center;margin-bottom:16px;color:#16A34A;font-size:0.85rem;font-weight:700">✅ Estás usando tu cuenta. Tus logros se guardan automáticamente.</div>
       ` : `
-      <div style="color:#fff;font-weight:800;margin-bottom:8px;text-align:center">¿Quién está jugando?</div>
-      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px" id="playerPicker">
-        ${Object.keys(PLAYERS).map(id => `
-          <button data-pl="${id}" style="flex:1;max-width:110px;background:${id===currentPlayer?PLAYERS[id].color:'#1a1a2e'};border:2px solid ${id===currentPlayer?'#fff':'transparent'};color:#fff;padding:12px 6px;border-radius:14px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:800;-webkit-tap-highlight-color:transparent">
-            <div style="font-size:1.6rem">${PLAYERS[id].emoji}</div>${PLAYERS[id].name}
-          </button>`).join('')}
-      </div>`}
+      <div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);border-radius:12px;padding:10px;text-align:center;margin-bottom:16px;color:#c4b5fd;font-size:0.82rem">💡 Crea una cuenta para guardar tus logros y jugar con amigos en cualquier dispositivo.</div>`}
       ${editable ? `
       <div style="background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);border-radius:16px;padding:14px;margin-bottom:18px">
         <div style="color:#fff;font-weight:800;margin-bottom:8px;text-align:center">✏️ Personaliza tu perfil</div>
@@ -6106,6 +6123,294 @@ function buildBurbujas(container) {
   const gen = setInterval(nueva, 700);
   window.activeIntervals.push(gen);
   for (let i=0;i<4;i++) setTimeout(nueva, i*250);
+}
+
+// ══════════════════════════════════════════════════════════
+//  💰 IDLE MILLONARIO (clicker estilo CrazyGames)
+// ══════════════════════════════════════════════════════════
+function buildIdle(container) {
+  let dinero = 0;
+  let porClic = 1;
+  let porSegundo = 0;
+  // negocios que se compran y generan dinero solo
+  const negocios = [
+    { id:'limonada', emoji:'🍋', nombre:'Puesto de Limonada', precio:15, ingreso:1, cant:0 },
+    { id:'pizza', emoji:'🍕', nombre:'Pizzería', precio:100, ingreso:5, cant:0 },
+    { id:'tienda', emoji:'🏪', nombre:'Tiendita', precio:500, ingreso:20, cant:0 },
+    { id:'auto', emoji:'🚗', nombre:'Taller de Autos', precio:2000, ingreso:75, cant:0 },
+    { id:'fabrica', emoji:'🏭', nombre:'Fábrica', precio:10000, ingreso:300, cant:0 },
+    { id:'banco', emoji:'🏦', nombre:'Banco', precio:50000, ingreso:1500, cant:0 },
+    { id:'cohete', emoji:'🚀', nombre:'Empresa Espacial', precio:250000, ingreso:8000, cant:0 }
+  ];
+  function fmt(n) {
+    n = Math.floor(n);
+    if (n >= 1e9) return (n/1e9).toFixed(1)+'B';
+    if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+    if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
+    return String(n);
+  }
+  container.innerHTML = `
+    <div class="game-container" style="background:linear-gradient(160deg,#1e1b4b,#4c1d95);min-height:460px;padding:16px;overflow-y:auto">
+      <div style="text-align:center;margin-bottom:14px">
+        <div style="color:#FFD600;font-family:'Fredoka One',cursive;font-size:2rem" id="idleDinero">$0</div>
+        <div style="color:#aaa;font-size:0.82rem" id="idlePorSeg">$0/seg</div>
+      </div>
+      <div style="text-align:center;margin-bottom:18px">
+        <button id="idleBtn" style="width:150px;height:150px;border-radius:50%;background:radial-gradient(circle at 35% 30%, #fde68a, #f59e0b);border:6px solid #fff;font-size:4rem;cursor:pointer;box-shadow:0 8px 0 #b45309,0 12px 20px rgba(0,0,0,0.3);transition:transform 0.08s;-webkit-tap-highlight-color:transparent">💰</button>
+        <div style="color:#fff;font-size:0.8rem;margin-top:8px">¡Toca la moneda para ganar dinero!</div>
+      </div>
+      <div style="color:#fff;font-weight:800;margin-bottom:8px;text-align:center">🏪 Compra negocios (ganan dinero solos)</div>
+      <div id="idleNegocios" style="display:flex;flex-direction:column;gap:8px;max-width:420px;margin:0 auto"></div>
+    </div>
+    <div class="game-instructions">💰 Toca la moneda para ganar dinero. Compra negocios para ganar dinero automáticamente. ¡Hazte millonario!</div>`;
+
+  const elDinero = document.getElementById('idleDinero');
+  const elPorSeg = document.getElementById('idlePorSeg');
+  const cont = document.getElementById('idleNegocios');
+
+  function precioActual(n) { return Math.floor(n.precio * Math.pow(1.15, n.cant)); }
+
+  function render() {
+    elDinero.textContent = '$' + fmt(dinero);
+    elPorSeg.textContent = '$' + fmt(porSegundo) + '/seg · 💪 $' + fmt(porClic) + '/toque';
+    cont.innerHTML = '';
+    negocios.forEach(n => {
+      const precio = precioActual(n);
+      const puedo = dinero >= precio;
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;align-items:center;gap:10px;background:#13131f;border-radius:12px;padding:10px;opacity:${puedo?'1':'0.6'}`;
+      row.innerHTML = `
+        <div style="font-size:2rem">${n.emoji}</div>
+        <div style="flex:1;min-width:0">
+          <div style="color:#fff;font-weight:800;font-size:0.85rem">${n.nombre} ${n.cant>0?`<span style="color:#16A34A">x${n.cant}</span>`:''}</div>
+          <div style="color:#aaa;font-size:0.72rem">Gana $${fmt(n.ingreso)}/seg cada uno</div>
+        </div>
+        <button data-buy="${n.id}" style="background:${puedo?'#FFD600':'#444'};border:none;color:${puedo?'#3a2700':'#888'};padding:8px 12px;border-radius:10px;font-weight:800;font-size:0.78rem;cursor:${puedo?'pointer':'default'};white-space:nowrap">$${fmt(precio)}</button>`;
+      cont.appendChild(row);
+    });
+    cont.querySelectorAll('button[data-buy]').forEach(b => {
+      const f = e => {
+        e.preventDefault(); e.stopPropagation();
+        const n = negocios.find(x => x.id === b.dataset.buy);
+        const precio = precioActual(n);
+        if (dinero >= precio) {
+          dinero -= precio; n.cant++;
+          porSegundo = negocios.reduce((s,x) => s + x.ingreso*x.cant, 0);
+          SFX.coin(); render();
+        }
+      };
+      b.addEventListener('touchstart', f, {passive:false});
+      b.addEventListener('click', f);
+    });
+  }
+
+  // tocar la moneda
+  const btn = document.getElementById('idleBtn');
+  const clic = e => {
+    e.preventDefault(); e.stopPropagation();
+    dinero += porClic;
+    btn.style.transform = 'scale(0.92)';
+    setTimeout(() => btn.style.transform = '', 80);
+    try { tone(660, 0.06, 'sine', 0.08); } catch(e){}
+    // texto flotante +$
+    const f = document.createElement('div');
+    f.textContent = '+$' + fmt(porClic);
+    f.style.cssText = 'position:absolute;left:50%;top:38%;transform:translateX(-50%);color:#FFD600;font-weight:800;font-size:1.2rem;pointer-events:none;transition:all 0.7s;z-index:10';
+    btn.parentElement.style.position = 'relative';
+    btn.parentElement.appendChild(f);
+    requestAnimationFrame(() => { f.style.top='20%'; f.style.opacity='0'; });
+    setTimeout(() => f.remove(), 700);
+    render();
+  };
+  btn.addEventListener('touchstart', clic, {passive:false});
+  btn.addEventListener('click', clic);
+
+  // ganar dinero automático cada segundo
+  const tick = setInterval(() => {
+    if (porSegundo > 0) { dinero += porSegundo; render(); }
+  }, 1000);
+  window.activeIntervals.push(tick);
+
+  // dar recompensa real al llegar a millonario (una vez)
+  let dioPremio = false;
+  const checkPremio = setInterval(() => {
+    if (!dioPremio && dinero >= 1000000) {
+      dioPremio = true;
+      if (typeof awardBadge === 'function') awardBadge('first_win');
+      if (typeof celebrate === 'function') celebrate();
+      showToast('🎉 ¡Eres MILLONARIO!');
+    }
+  }, 2000);
+  window.activeIntervals.push(checkPremio);
+
+  render();
+}
+
+// ══════════════════════════════════════════════════════════
+//  👥 MULTITUD (Count Masters 2D estilo CrazyGames)
+// ══════════════════════════════════════════════════════════
+function buildMultitud(container) {
+  const W = Math.min(360, window.innerWidth - 40), H = 460;
+  container.innerHTML = `
+    <div class="game-container" style="background:#0a0a14;padding:10px;min-height:500px">
+      <div style="text-align:center;color:#fff;margin-bottom:6px">
+        <span style="font-family:'Fredoka One',cursive;font-size:1.1rem">👥 Tu equipo: <span id="multCount" style="color:#3b82f6">1</span></span>
+        <span style="margin-left:12px;color:#aaa;font-size:0.85rem">Nivel <span id="multNivel">1</span></span>
+      </div>
+      <canvas id="multCanvas" width="${W}" height="${H}" style="background:linear-gradient(180deg,#1e3a5f,#0f172a);border-radius:14px;display:block;margin:0 auto;touch-action:none;max-width:100%"></canvas>
+      <div id="multMsg" style="text-align:center;color:#FFD600;font-weight:800;margin-top:8px;min-height:24px;font-size:0.9rem"></div>
+    </div>
+    <div class="game-instructions">👥 Mueve el dedo (o el mouse) a izquierda y derecha para elegir las puertas. Pasa por ✖️2 o ➕ para crecer tu equipo. ¡Vence al equipo rojo al final!</div>`;
+  const cv = document.getElementById('multCanvas');
+  const ctx = cv.getContext('2d');
+  const elCount = document.getElementById('multCount');
+  const elNivel = document.getElementById('multNivel');
+  const elMsg = document.getElementById('multMsg');
+
+  let nivel = 1;
+  let miEquipo = 1;
+  let playerX = W/2;
+  let scroll = 0;
+  let jugando = true;
+  let puertas = [];   // {y, izq:{tipo,val}, der:{tipo,val}, pasada}
+  let enemigo = 0;
+  let enemyY = -800;
+  let estado = 'corriendo'; // corriendo | batalla | fin
+
+  function nuevoNivel() {
+    miEquipo = 1; playerX = W/2; scroll = 0; jugando = true; estado = 'corriendo';
+    puertas = [];
+    const numPuertas = 3 + nivel;
+    for (let i = 0; i < numPuertas; i++) {
+      puertas.push(generarPuerta(-(i+1) * 320 - 200));
+    }
+    enemigo = Math.floor(8 * nivel * (1 + Math.random()));
+    enemyY = -(numPuertas + 1) * 320 - 300;
+    elNivel.textContent = nivel;
+    elMsg.textContent = '';
+    update();
+  }
+  function generarPuerta(y) {
+    const ops = ['x2','+5','+10','x3','-5','+8'];
+    const buenos = ['x2','+5','+10','x3','+8'];
+    // al menos una opción buena
+    let izq = ops[Math.floor(Math.random()*ops.length)];
+    let der = buenos[Math.floor(Math.random()*buenos.length)];
+    if (Math.random() < 0.5) { const t = izq; izq = der; der = t; }
+    return { y, izq: parseOp(izq), der: parseOp(der), pasada: false };
+  }
+  function parseOp(s) {
+    if (s[0] === 'x') return { tipo:'x', val:+s.slice(1), txt:s };
+    return { tipo:'+', val:+s.slice(1), txt:s, neg:s[0]==='-' };
+  }
+  function aplicar(op) {
+    if (op.txt[0] === 'x') miEquipo = Math.max(1, Math.floor(miEquipo * op.val));
+    else miEquipo = Math.max(1, miEquipo + op.val);
+  }
+
+  // control: mover con dedo/mouse
+  function mover(e) {
+    if (!jugando) return;
+    const r = cv.getBoundingClientRect();
+    const t = (e.touches && e.touches[0]) || e;
+    if (!t) return;
+    playerX = Math.max(30, Math.min(W-30, (t.clientX - r.left) * (W/r.width)));
+  }
+  cv.addEventListener('touchmove', e => { e.preventDefault(); mover(e); }, {passive:false});
+  cv.addEventListener('mousemove', e => { if (e.buttons) mover(e); });
+  cv.addEventListener('touchstart', e => { e.preventDefault(); mover(e); }, {passive:false});
+
+  function dibujarMultitud(x, y, n, color, emoji) {
+    // dibuja hasta ~30 muñecos en bloque
+    const mostrar = Math.min(30, n);
+    const cols = Math.ceil(Math.sqrt(mostrar));
+    ctx.font = '16px sans-serif'; ctx.textAlign = 'center';
+    for (let i = 0; i < mostrar; i++) {
+      const cx = x + ((i % cols) - cols/2) * 14;
+      const cy = y + Math.floor(i / cols) * 14;
+      ctx.fillText(emoji, cx, cy);
+    }
+  }
+
+  function update() {
+    if (!container.isConnected) return;
+    ctx.clearRect(0, 0, W, H);
+    // carretera
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 3; ctx.setLineDash([15, 15]);
+    ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke(); ctx.setLineDash([]);
+
+    if (estado === 'corriendo') {
+      scroll += 2.5 + nivel*0.3;
+      // dibujar puertas
+      puertas.forEach(p => {
+        const py = p.y + scroll;
+        if (py > -60 && py < H) {
+          // dos puertas (izq y der)
+          dibujarPuerta(W*0.27, py, p.izq);
+          dibujarPuerta(W*0.73, py, p.der);
+        }
+        // detección de paso (cuando la puerta llega al jugador ~H-80)
+        if (!p.pasada && py >= H-90) {
+          p.pasada = true;
+          const elige = playerX < W/2 ? p.izq : p.der;
+          aplicar(elige);
+          elCount.textContent = miEquipo;
+          SFX.coin();
+        }
+      });
+      // enemigo se acerca
+      const ey = enemyY + scroll;
+      if (ey > -60 && ey < H) {
+        dibujarMultitud(W/2, ey, enemigo, '#ef4444', '🔴');
+        ctx.fillStyle = '#ef4444'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign='center';
+        ctx.fillText('👹 ' + enemigo, W/2, ey - 30);
+      }
+      // ¿llegamos al enemigo?
+      if (ey >= H-130) { estado = 'batalla'; setTimeout(batalla, 300); }
+      // dibujar mi multitud
+      dibujarMultitud(playerX, H-70, miEquipo, '#3b82f6', '🔵');
+      ctx.fillStyle = '#3b82f6'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('' + miEquipo, playerX, H-95);
+    }
+
+    if (jugando) requestAnimationFrame(update);
+  }
+
+  function dibujarPuerta(x, y, op) {
+    const bueno = op.txt[0]==='x' || (op.tipo==='+' && !op.neg);
+    ctx.fillStyle = bueno ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)';
+    ctx.fillRect(x-45, y-50, 90, 50);
+    ctx.strokeStyle = bueno ? '#22c55e' : '#ef4444'; ctx.lineWidth=3;
+    ctx.strokeRect(x-45, y-50, 90, 50);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(op.txt, x, y-18);
+  }
+
+  function batalla() {
+    estado = 'batalla'; jugando = false;
+    if (miEquipo >= enemigo) {
+      elMsg.innerHTML = `🎉 ¡GANASTE! ${miEquipo} vs ${enemigo}`;
+      SFX.win(); if (typeof celebrate === 'function') celebrate();
+      nivel++;
+      setTimeout(() => { if (container.isConnected) { jugando=true; nuevoNivel(); } }, 1800);
+    } else {
+      elMsg.innerHTML = `😢 Perdiste: ${miEquipo} vs ${enemigo}. ¡Intenta de nuevo!`;
+      SFX.lose();
+      // botón reintentar
+      setTimeout(() => {
+        if (!container.isConnected) return;
+        const btn = document.createElement('button');
+        btn.textContent = '🔁 Reintentar nivel ' + nivel;
+        btn.style.cssText = 'display:block;margin:8px auto 0;background:#7C3AED;border:none;color:#fff;padding:10px 22px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer';
+        const again = e => { e.preventDefault(); elMsg.innerHTML=''; jugando=true; nuevoNivel(); };
+        btn.addEventListener('touchstart', again, {passive:false});
+        btn.addEventListener('click', again);
+        elMsg.appendChild(btn);
+      }, 400);
+    }
+  }
+
+  nuevoNivel();
 }
 </script>
 </body>
