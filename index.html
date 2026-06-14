@@ -507,8 +507,8 @@
     position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(80px);
     background: var(--primary); color: white; padding: 12px 28px;
     border-radius: 30px; font-weight: 700; font-size: 0.95rem;
-    z-index: 2000; transition: transform 0.4s cubic-bezier(.34,1.56,.64,1);
-    box-shadow: 0 8px 24px rgba(108,58,255,0.4);
+    z-index: 9999; transition: transform 0.4s cubic-bezier(.34,1.56,.64,1);
+    box-shadow: 0 8px 24px rgba(108,58,255,0.4); max-width: 90%; text-align: center;
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
 </style>
@@ -526,7 +526,7 @@
       HugoKids <span style="font-size:1.1rem">🎮</span>
     </div>
     <div class="family-text">
-      Ian • Dylan • Matías • Milan • Valery
+      Ian • Matías • Milan • Valery • Dylan
     </div>
   </div>
   <ul class="nav-links">
@@ -550,7 +550,7 @@
 <!-- HERO -->
 <div class="hero">
   <div class="hero-glow"></div>
-  <div class="hero-badge">✨ Ian • Dylan • Matías • Milan • Valery</div>
+  <div class="hero-badge">✨ Ian • Matías • Milan • Valery • Dylan</div>
   <h1>Tu Portal de<br>Juegos Épicos</h1>
   <p>Acción, puzzles, carreras y batallas 2 jugadores. ¡Todo gratis, sin descargas!</p>
   <div class="hero-btns">
@@ -1091,12 +1091,17 @@ const SUPABASE_URL = 'https://tojrgakzyswooumdofuf.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_HfRsMAtIautbH6N6F1AiOA_XTrVIpZO';
 let sb = null;
 function getSupabase() {
-  if (!sb && window.supabase) {
-    try { sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch (e) { console.error('Supabase init', e); }
+  if (!sb && window.supabase && window.supabase.createClient) {
+    try { sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); }
+    catch (e) { console.error('Supabase init', e); }
   }
   return sb;
 }
-const onlineDisponible = () => !!window.supabase;
+// ¿La librería de Supabase terminó de cargar?
+function supabaseListo() {
+  return !!(window.supabase && window.supabase.createClient);
+}
+const onlineDisponible = () => supabaseListo();
 
 // ══════════════════════════════════════════════════════════
 //  SISTEMA DE CUENTAS (Supabase Auth)
@@ -1137,7 +1142,7 @@ function correoValido(email) {
 }
 
 async function registrarCuenta(email, password, nombre) {
-  const c = getSupabase(); if (!c) return { error: 'Sin conexión' };
+  const c = getSupabase(); if (!c) return { error: 'No se pudo conectar al servidor. Revisa tu internet e intenta de nuevo.' };
   if (!correoValido(email)) return { error: 'Escribe un correo real válido (ej: nombre@gmail.com)' };
   if (!password || password.length < 6) return { error: 'La contraseña debe tener al menos 6 caracteres' };
   try {
@@ -1161,7 +1166,7 @@ async function registrarCuenta(email, password, nombre) {
 
 // Iniciar sesión
 async function iniciarSesion(email, password) {
-  const c = getSupabase(); if (!c) return { error: 'Sin conexión' };
+  const c = getSupabase(); if (!c) return { error: 'No se pudo conectar al servidor. Revisa tu internet e intenta de nuevo.' };
   try {
     const { data, error } = await c.auth.signInWithPassword({ email, password });
     if (error) return { error: traducirError(error.message) };
@@ -1184,7 +1189,7 @@ async function loginGoogle() {
 
 // Recuperar contraseña
 async function recuperarPassword(email) {
-  const c = getSupabase(); if (!c) return { error: 'Sin conexión' };
+  const c = getSupabase(); if (!c) return { error: 'No se pudo conectar al servidor. Revisa tu internet e intenta de nuevo.' };
   try {
     const { error } = await c.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
     if (error) return { error: traducirError(error.message) };
@@ -1232,10 +1237,13 @@ async function guardarPerfilNube() {
 }
 
 function traducirError(msg) {
-  if (/already registered/i.test(msg)) return 'Ese correo ya tiene cuenta';
-  if (/invalid login/i.test(msg)) return 'Correo o contraseña incorrectos';
+  if (/already registered/i.test(msg)) return 'Ese correo ya tiene una cuenta. Intenta ingresar.';
+  if (/invalid login/i.test(msg) || /invalid credentials/i.test(msg)) return 'Correo o contraseña incorrectos. Revisa e intenta de nuevo.';
   if (/password should be at least/i.test(msg)) return 'La contraseña debe tener al menos 6 caracteres';
-  if (/unable to validate email/i.test(msg) || /invalid email/i.test(msg)) return 'Correo no válido';
+  if (/unable to validate email/i.test(msg) || /invalid email/i.test(msg)) return 'El correo no es válido';
+  if (/email not confirmed/i.test(msg)) return 'Debes confirmar tu correo. Revisa tu bandeja (o el admin debe desactivar la confirmación de correo).';
+  if (/user not found/i.test(msg)) return 'No existe una cuenta con ese correo';
+  if (/rate limit/i.test(msg) || /too many/i.test(msg)) return 'Demasiados intentos. Espera un momento.';
   return msg;
 }
 function tieneSesion() { return !!usuarioActual; }
@@ -2088,7 +2096,8 @@ function renderLogin() {
   bindBtn('btnLogin', async () => {
     const em = document.getElementById('logEmail').value.trim();
     const pw = document.getElementById('logPass').value;
-    if (!em || !pw) { showToast('Completa correo y contraseña'); return; }
+    if (!em || !pw) { showToast('⚠️ Escribe tu correo y contraseña'); return; }
+    if (!supabaseListo()) { showToast('⏳ Conectando al servidor... espera un momento e intenta de nuevo'); return; }
     showToast('Ingresando...');
     const r = await iniciarSesion(em, pw);
     if (r.error) showToast('❌ ' + r.error);
@@ -2119,7 +2128,8 @@ function renderRegistro() {
     const nom = document.getElementById('regNombre').value.trim();
     const em = document.getElementById('regEmail').value.trim();
     const pw = document.getElementById('regPass').value;
-    if (!nom || !em || !pw) { showToast('Completa todos los campos'); return; }
+    if (!nom || !em || !pw) { showToast('⚠️ Completa todos los campos'); return; }
+    if (!supabaseListo()) { showToast('⏳ Conectando al servidor... intenta de nuevo'); return; }
     showToast('Creando cuenta...');
     const r = await registrarCuenta(em, pw, nom);
     if (r.error) showToast('❌ ' + r.error);
@@ -2146,7 +2156,10 @@ function renderRecuperar() {
     <div class="game-instructions">Revisa tu bandeja de correo (y la carpeta de spam) para el enlace de recuperación.</div>`;
   bindBtn('btnRecuperar', async () => {
     const em = document.getElementById('recEmail').value.trim();
-    if (!em) { showToast('Escribe tu correo'); return; }
+    if (!em) { showToast('⚠️ Escribe tu correo'); return; }
+    if (!correoValido(em)) { showToast('⚠️ Escribe un correo válido'); return; }
+    if (!supabaseListo()) { showToast('⏳ Conectando al servidor... intenta de nuevo'); return; }
+    showToast('Enviando...');
     const r = await recuperarPassword(em);
     if (r.error) showToast('❌ ' + r.error);
     else showToast('📧 ¡Correo enviado! Revisa tu bandeja');
