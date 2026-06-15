@@ -1524,6 +1524,12 @@ async function cargarPerfilNube() {
   try {
     const { data } = await c.from('perfiles').select('*').eq('id', usuarioActual.id).single();
     if (data) {
+      // Si nombre está vacío, recuperarlo del email interno
+      if (!data.nombre && usuarioActual && usuarioActual.email && usuarioActual.email.endsWith('@usuarios.hugokids.app')) {
+        data.nombre = usuarioActual.email.split('@')[0].toUpperCase();
+        // Actualizar en DB también
+        try { await c.from('perfiles').update({ nombre: data.nombre }).eq('id', usuarioActual.id); } catch(e) {}
+      }
       perfilNube = data;
       // aplicar logros y datos de la nube al estado local
       if (data.nombre) setGuestName(data.nombre);
@@ -1562,10 +1568,15 @@ async function asegurarPerfilUsuario() {
     let { data, error } = await c.from('perfiles').select('*').eq('id', usuarioActual.id).maybeSingle();
     if (error) console.warn('perfil select', error.message);
 
+    // Recuperar nombre desde el email interno si no está en el perfil
+    const nombreDesdeEmail = (usuarioActual.email && usuarioActual.email.endsWith('@usuarios.hugokids.app'))
+      ? usuarioActual.email.split('@')[0].toUpperCase()
+      : null;
+
     if (!data) {
       const nuevo = {
         id: usuarioActual.id,
-        nombre: yo.name,
+        nombre: nombreDesdeEmail || yo.name,
         avatar: yo.emoji,
         numero_amigo: numUnico,
         codigo_publico: codigoUsuario,
@@ -1584,7 +1595,9 @@ async function asegurarPerfilUsuario() {
         tipo_cuenta: 'usuario',
         ultima_actividad: new Date().toISOString()
       };
-      // nombre NO se sobreescribe si ya existe — es único e inmutable
+      // Si el nombre está vacío en DB, recuperarlo del email interno
+      if (!data.nombre && nombreDesdeEmail) cambios.nombre = nombreDesdeEmail;
+      // avatar solo si falta
       if (!data.avatar) cambios.avatar = yo.emoji;
       await c.from('perfiles').update(cambios).eq('id', usuarioActual.id);
       data = { ...data, ...cambios };
@@ -2685,10 +2698,15 @@ function actualizarBotonCuenta() {
   const btn = document.getElementById('cuentaBtn');
   if (!btn) return;
   if (tieneSesion()) {
-    const nombre = (perfilNube && perfilNube.nombre) || 'Mi cuenta';
-    btn.textContent = '👤 ' + (nombre.length > 8 ? nombre.slice(0,8)+'…' : nombre);
+    const nombre = (perfilNube && perfilNube.nombre) || (usuarioActual && usuarioActual.email ? usuarioActual.email.split('@')[0] : 'Mi cuenta');
+    const corto = nombre.length > 10 ? nombre.slice(0,10)+'…' : nombre;
+    btn.textContent = '👤 ' + corto;
+    btn.title = nombre + ' · Haz clic para gestionar tu cuenta';
+    btn.style.background = 'linear-gradient(135deg,#7C3AED,#2563EB)';
   } else {
     btn.textContent = 'Crear cuenta';
+    btn.title = 'Crear cuenta o iniciar sesión';
+    btn.style.background = 'linear-gradient(135deg,#16A34A,#2563EB)';
   }
 }
 
@@ -2890,14 +2908,24 @@ function renderRecuperar() {
 
 function renderPanelUsuario() {
   const body = document.getElementById('modalBody');
+  // Si no tenemos nombre de la DB, recargar perfil primero
+  if (usuarioActual && (!perfilNube || !perfilNube.nombre)) {
+    body.innerHTML = '<div style="background:#0a0a14;padding:40px;text-align:center;color:#c4b5fd;min-height:200px">Cargando perfil...</div>';
+    cargarPerfilNube().then(() => renderPanelUsuario());
+    return;
+  }
+  const body2 = document.getElementById('modalBody');
+  if (!body2) return;
   const p = perfilNube || {};
-  const nombre = p.nombre || miIdentidadOnline().name;
+  // Nombre: siempre priorizar DB sobre localStorage
+  const nombre = p.nombre || (usuarioActual && usuarioActual.email && !usuarioActual.email.endsWith('@usuarios.hugokids.app')
+    ? usuarioActual.email.split('@')[0] : null) || 'Mi cuenta';
   const avatar = p.avatar || miIdentidadOnline().emoji;
   const nLogros = (Array.isArray(p.logros) ? p.logros.length : getBadges().length);
   const miNum = p.numero_amigo || getGuestId();
   const correoMostrar = (usuarioActual && usuarioActual.email && !usuarioActual.email.endsWith('@usuarios.hugokids.app'))
     ? usuarioActual.email : null;
-  body.innerHTML = `
+  body2.innerHTML = `
     <div class="game-container" style="background:#0a0a14;padding:22px;min-height:300px">
       <div style="text-align:center;margin-bottom:16px">
         <div style="font-size:3rem" id="miAvatarShow">${avatar}</div>
@@ -3239,8 +3267,11 @@ function renderProfile() {
   const esCuenta = (typeof tieneSesion === 'function' && tieneSesion());
   const yoOnline = miIdentidadOnline();
   const pLocal = PLAYERS[currentPlayer] || { name:'Invitado', emoji:'👤', color:'#7C3AED' };
+  // Para usuarios registrados, siempre usar nombre desde perfilNube (DB), no del localStorage
   const p = esCuenta
-    ? { name: yoOnline.name || 'Mi cuenta', emoji: yoOnline.emoji || '👤', color:'#2563EB' }
+    ? { name: (perfilNube && perfilNube.nombre) || yoOnline.name || 'Mi cuenta',
+        emoji: (perfilNube && perfilNube.avatar) || yoOnline.emoji || '👤',
+        color:'#2563EB' }
     : pLocal;
   const editable = esCuenta || currentPlayer !== 'invitado';
   const nombreSeguro = escapeHtml(p.name || 'Mi cuenta');
@@ -3256,21 +3287,22 @@ function renderProfile() {
       <div style="background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.3);border-radius:12px;padding:10px;text-align:center;margin-bottom:16px;color:#16A34A;font-size:0.85rem;font-weight:700">✅ Estás usando tu cuenta. Tus logros se guardan automáticamente.</div>
       ` : `
       <div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);border-radius:12px;padding:10px;text-align:center;margin-bottom:16px;color:#c4b5fd;font-size:0.82rem">💡 Crea una cuenta para guardar tus logros y jugar con amigos en cualquier dispositivo.</div>`}
-      ${editable ? `
+      ${esCuenta ? `
+      <div style="background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);border-radius:16px;padding:14px;margin-bottom:18px;text-align:center">
+        <div style="color:#fff;font-weight:800;margin-bottom:6px">🎮 Personalizar avatar</div>
+        <div style="color:#c4b5fd;font-size:0.82rem;margin-bottom:10px">Cambia tu avatar desde el panel de <strong>Mi Cuenta</strong></div>
+        <button id="btnIrMiCuenta" style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:10px 20px;border-radius:12px;font-weight:800;cursor:pointer">👤 Ir a Mi Cuenta</button>
+      </div>` : (editable ? `
       <div style="background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);border-radius:16px;padding:14px;margin-bottom:18px">
         <div style="color:#fff;font-weight:800;margin-bottom:8px;text-align:center">✏️ Personaliza tu perfil</div>
-        ${esCuenta
-          ? `<div style="width:100%;box-sizing:border-box;background:#111827;border:2px solid rgba(255,255,255,0.08);border-radius:12px;padding:11px 14px;color:#9ca3af;font-family:'Fredoka One',cursive;font-size:1.1rem;margin-bottom:4px;text-align:center">${nombreSeguro}</div>
-             <div style="color:#6B7280;font-size:0.7rem;text-align:center;margin-bottom:10px">El nombre de usuario no se puede cambiar</div>`
-          : `<input id="nameInput" type="text" maxlength="14" value="${nombreInputSeguro}" placeholder="Tu nombre"
-               style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:11px 14px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;font-size:1rem;outline:none;margin-bottom:12px;text-align:center">`
-        }
+        <input id="nameInput" type="text" maxlength="14" value="${nombreInputSeguro}" placeholder="Tu nombre"
+          style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:11px 14px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;font-size:1rem;outline:none;margin-bottom:12px;text-align:center">
         <div style="color:#aaa;font-size:0.78rem;text-align:center;margin-bottom:8px">Elige tu personaje:</div>
         <div id="avatarPicker" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">
           ${AVATARS.map(av => `<button type="button" data-av="${av}" style="aspect-ratio:1;background:${av===p.emoji?p.color:'#1a1a2e'};border:2px solid ${av===p.emoji?'#fff':'transparent'};border-radius:10px;font-size:1.4rem;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation">${av}</button>`).join('')}
         </div>
         <div style="color:#c4b5fd;font-size:0.72rem;text-align:center;margin-top:8px">Toca un avatar para seleccionarlo. Se guarda automáticamente.</div>
-      </div>` : ''}
+      </div>` : '')}
       <div style="background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.25);border-radius:14px;padding:14px;margin-bottom:18px">
         <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:4px">👥 Mis Amigos</div>
         <div style="color:#aaa;font-size:0.72rem;text-align:center;margin-bottom:10px">Tu código es <strong style="color:${soyUsuarioRegistrado() ? '#16A34A' : '#f59e0b'}">#${getGuestId()}</strong> · ${soyUsuarioRegistrado() ? 'Agrega usuarios registrados por su código permanente' : 'Invitado temporal: crea cuenta para agregar amigos'}</div>
@@ -3312,6 +3344,16 @@ function renderProfile() {
       const grande = document.getElementById('perfilNombreGrande');
       if (grande) grande.textContent = nameInput.value || '';
       guardarCambiosPerfil();
+    });
+  }
+
+  // Si es cuenta registrada, botón para ir a Mi Cuenta
+  const btnMiCuenta = document.getElementById('btnIrMiCuenta');
+  if (btnMiCuenta) {
+    btnMiCuenta.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (typeof closeModal === 'function') closeModal();
+      setTimeout(() => { if (typeof openCuenta === 'function') openCuenta(); }, 100);
     });
   }
 
