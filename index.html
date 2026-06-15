@@ -7410,6 +7410,395 @@ if(_hgOriginalOpenGame){
     window.openJuegoExtraOnline=function(id){ hgShowRulesScreen(id,()=>_playExtra(id)); };
   }
 })();
+
+
+/* ══════════════════════════════════════════════════════════
+   CORRECCIÓN 2026-06: SOLICITUDES DE AMISTAD, INVITAR A JUGAR,
+   YANKEN PO CLARO Y RESTAURAR MÁS JUEGOS ONLINE
+   ══════════════════════════════════════════════════════════ */
+(function(){
+  function safeToast(msg){ try{ showToast(msg); }catch(e){ alert(msg); } }
+  function codigoActualSeguro(){ try{ return normalizarCodigoAmigo(getGuestId()); }catch(e){ return ''; } }
+  function esCodigoUsuario(code){ return String(code||'').toUpperCase().startsWith('U'); }
+  function htmlSeguro(v){
+    return String(v ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+  }
+  if (typeof window.escapeHtml !== 'function') window.escapeHtml = htmlSeguro;
+
+  // 1) Nombres: cambiar Piedra Papel Tijera a Yanken Po y asegurar que no falten juegos online.
+  const JUEGOS_ONLINE_QUE_DEBEN_EXISTIR = [
+    {id:'futbolonline', emoji:'⚽', name:'Fútbol Penal Online', desc:'Turnos para patear y atajar'},
+    {id:'cartasonline', emoji:'🃏', name:'Cartas Mayor Online', desc:'Gana quien saque la carta mayor'},
+    {id:'matematicasduelo', emoji:'➕', name:'Duelo Matemático Online', desc:'Responde rápido contra un amigo'},
+    {id:'memoriaonline', emoji:'🧠', name:'Memoria Online', desc:'Busca pares por turnos'},
+    {id:'carreraonline', emoji:'🏁', name:'Carrera de Dados Online', desc:'Avanza hasta la meta'},
+    {id:'piedrapapelonline', emoji:'✊', name:'Yanken Po Online', desc:'Piedra, papel o tijera por rondas'},
+    {id:'tanquesonline', emoji:'💥', name:'Tanques Online', desc:'Dispara por turnos y derriba al rival'},
+    {id:'arqueriaonline', emoji:'🏹', name:'Arquería Online', desc:'Apunta mejor que tu amigo'},
+    {id:'tesoroonline', emoji:'💎', name:'Tesoro por Turnos', desc:'Encuentra cofres y evita trampas'},
+    {id:'quizonline', emoji:'🧠', name:'Quiz Batalla Online', desc:'Contesta primero y gana puntos'},
+    {id:'laberintoonline', emoji:'🌀', name:'Laberinto Online', desc:'Llega a la meta antes que tu rival'},
+    {id:'cocinaonline', emoji:'🍔', name:'Cocina Rápida Online', desc:'Prepara pedidos contra reloj'},
+    {id:'saltosonline', emoji:'🦘', name:'Saltos Online', desc:'Sube plataformas y supera a tu amigo'},
+    {id:'mascotasonline', emoji:'🐶', name:'Mascotas Online', desc:'Cuida tu mascota y gana energía'}
+  ];
+
+  function asegurarArrayJuegosOnline(){
+    if (typeof JUEGOS_EXTRA_ONLINE === 'undefined') return;
+    JUEGOS_ONLINE_QUE_DEBEN_EXISTIR.forEach(g => {
+      const existe = JUEGOS_EXTRA_ONLINE.find(x => x.id === g.id);
+      if (existe) Object.assign(existe, g);
+      else JUEGOS_EXTRA_ONLINE.push(g);
+    });
+  }
+
+  function agregarUnaTarjetaOnline(g){
+    const grid = document.getElementById('gameGrid');
+    if (!grid || document.getElementById('card-' + g.id)) return;
+    const card = document.createElement('div');
+    card.className = 'game-card fade-up visible';
+    card.id = 'card-' + g.id;
+    card.dataset.cat = 'online multi';
+    card.dataset.name = (g.name + ' ' + g.desc + ' online 2 jugadores').toLowerCase();
+    card.onclick = () => openJuegoExtraOnline(g.id);
+    card.innerHTML = `
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#06b6d4,#7C3AED)"></div><span class="game-thumb-emoji">${g.emoji}</span></div>
+      <div class="game-badge badge-new">🌐 Online</div>
+      <div class="game-info"><div class="game-name">${htmlSeguro(g.name)}</div><div class="game-meta"><span class="game-cat cat-online">2 jugadores</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>`;
+    grid.appendChild(card);
+  }
+
+  window.hgInjectExtraOnlineGames = function(){
+    asegurarArrayJuegosOnline();
+    JUEGOS_ONLINE_QUE_DEBEN_EXISTIR.forEach(agregarUnaTarjetaOnline);
+    const old = Array.isArray(JUEGOS_EXTRA_ONLINE) ? JUEGOS_EXTRA_ONLINE : [];
+    old.forEach(agregarUnaTarjetaOnline);
+    const gc = document.getElementById('gameCount');
+    if (gc) gc.textContent = document.querySelectorAll('.game-card').length + ' juegos';
+    const primeraStat = document.querySelector('.stats .stat .stat-num');
+    if (primeraStat) primeraStat.textContent = document.querySelectorAll('.game-card').length;
+  };
+
+  function actualizarNombreYanken(){
+    asegurarArrayJuegosOnline();
+    const card = document.getElementById('card-piedrapapelonline');
+    if (card) {
+      const title = card.querySelector('.game-name');
+      if (title) title.textContent = 'Yanken Po Online';
+      const emoji = card.querySelector('.game-thumb-emoji');
+      if (emoji) emoji.textContent = '✊';
+    }
+  }
+  document.addEventListener('DOMContentLoaded', () => setTimeout(() => { window.hgInjectExtraOnlineGames(); actualizarNombreYanken(); }, 600));
+  setTimeout(() => { window.hgInjectExtraOnlineGames(); actualizarNombreYanken(); }, 1500);
+
+  // 2) Búsqueda de usuario más robusta para evitar "No se encontró el código" cuando el código sí existe.
+  const buscarOriginal = window.buscarUsuarioPorCodigo;
+  window.buscarUsuarioPorCodigo = async function(codigo){
+    const c = typeof getSupabase === 'function' ? getSupabase() : null;
+    codigo = normalizarCodigoAmigo(codigo);
+    if (!codigo || !codigo.startsWith('U')) return { error:'Solo puedes invitar a usuarios registrados con código U. Los invitados G cambian cada vez que entran.' };
+    const numero = codigo.replace(/[^0-9]/g, '');
+    if (!c) {
+      const online = (typeof conectadosAhora !== 'undefined' ? conectadosAhora : {})[codigo];
+      if (online) return { data:{ num:codigo, alias:online.name || ('Jugador #' + codigo), avatar:online.emoji || '👤' } };
+      return { error:'No hay conexión con Supabase' };
+    }
+    try{
+      let r = await c.from('perfiles').select('id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta').eq('codigo_publico', codigo).maybeSingle();
+      if ((!r || !r.data) && numero) r = await c.from('perfiles').select('id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta').eq('numero_amigo', numero).maybeSingle();
+      if ((!r || !r.data) && typeof buscarOriginal === 'function') {
+        const old = await buscarOriginal(codigo);
+        if (old && old.data) return old;
+      }
+      if (r && r.error) {
+        const onlineErr = (typeof conectadosAhora !== 'undefined' ? conectadosAhora : {})[codigo];
+        if (onlineErr && String(onlineErr.tipo || '').toLowerCase() !== 'invitado') return { data:{ num:codigo, alias:onlineErr.name || ('Jugador #' + codigo), avatar:onlineErr.emoji || '👤' } };
+        return { error:'No se pudo buscar ese código en Supabase' };
+      }
+      if (!r || !r.data) {
+        const online = (typeof conectadosAhora !== 'undefined' ? conectadosAhora : {})[codigo];
+        if (online && String(online.tipo || '').toLowerCase() !== 'invitado') return { data:{ num:codigo, alias:online.name || ('Jugador #' + codigo), avatar:online.emoji || '👤' } };
+        return { error:'No se encontró ese código. Revisa que sea un código U de usuario registrado y que exista en Supabase.' };
+      }
+      const realCode = normalizarCodigoAmigo(r.data.codigo_publico || r.data.numero_amigo);
+      if (realCode === codigoActualSeguro()) return { error:'Ese es tu propio código' };
+      const tipo = String(r.data.tipo_cuenta || 'usuario').toLowerCase();
+      if (tipo === 'invitado' || realCode.startsWith('G')) return { error:'No puedes agregar invitados porque su código cambia cada vez que entran.' };
+      return { data:{ num:realCode, alias:r.data.nombre || ('Jugador #' + realCode), avatar:r.data.avatar || '👤' } };
+    }catch(e){ return { error:'Error buscando el código en Supabase' }; }
+  };
+
+  // 3) Agregar amigo directo solo cuando el otro usuario acepta la solicitud.
+  async function agregarAmigoDirecto(amigo){
+    if (!amigo) return false;
+    if (typeof amigo === 'string') {
+      const encontrado = await window.buscarUsuarioPorCodigo(amigo);
+      if (encontrado.error) { safeToast(encontrado.error); return false; }
+      amigo = encontrado.data;
+    }
+    amigo.num = normalizarCodigoAmigo(amigo.num || amigo.codigo || amigo.id);
+    if (!amigo.num || !amigo.num.startsWith('U')) { safeToast('Solo se pueden guardar como amigos los usuarios U.'); return false; }
+    const lista = typeof getAmigos === 'function' ? getAmigos() : [];
+    if (lista.some(x => normalizarCodigoAmigo(x.num) === amigo.num)) { safeToast('✅ Ya está en tu lista de amigos'); return true; }
+    lista.push({ num:amigo.num, alias:amigo.alias || amigo.name || ('Jugador #' + amigo.num), avatar:amigo.avatar || amigo.emoji || '👤' });
+    try{ localStorage.setItem('im_amigos', JSON.stringify(lista)); }catch(e){}
+    try{ if (typeof guardarPerfilNube === 'function') await guardarPerfilNube(); }catch(e){}
+    try{ if (typeof refrescarListaAmigos === 'function') refrescarListaAmigos(); }catch(e){}
+    try{ if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline(); }catch(e){}
+    safeToast('✅ Amigo agregado: ' + (amigo.alias || amigo.name || amigo.num));
+    return true;
+  }
+  window.agregarAmigoDirecto = agregarAmigoDirecto;
+
+  // 4) Canal de solicitudes: el botón ahora invita a agregarse; el otro usuario decide aceptar o rechazar.
+  let canalSolicitudesAmigo = null;
+  function iniciarCanalSolicitudesAmigo(){
+    const c = typeof getSupabase === 'function' ? getSupabase() : null;
+    if (!c || canalSolicitudesAmigo) return;
+    try{
+      canalSolicitudesAmigo = c.channel('hugokids-solicitudes-amistad');
+      canalSolicitudesAmigo.on('broadcast', { event:'solicitud_amigo' }, ({payload}) => {
+        if (payload && payload.paraId === codigoActualSeguro()) recibirSolicitudAmigo(payload);
+      });
+      canalSolicitudesAmigo.on('broadcast', { event:'respuesta_solicitud_amigo' }, async ({payload}) => {
+        if (!payload || payload.paraId !== codigoActualSeguro()) return;
+        if (payload.aceptado) {
+          await agregarAmigoDirecto({ num:payload.deId, alias:payload.deName, avatar:payload.deEmoji });
+          safeToast('🤝 ' + (payload.deName || payload.deId) + ' aceptó agregarse contigo');
+        } else {
+          safeToast('❌ ' + (payload.deName || payload.deId) + ' rechazó la solicitud');
+        }
+      });
+      canalSolicitudesAmigo.subscribe();
+    }catch(e){ console.warn('solicitudes amistad', e); }
+  }
+  window.iniciarCanalSolicitudesAmigo = iniciarCanalSolicitudesAmigo;
+
+  async function enviarSolicitudAmistad(codigo){
+    try{ if (typeof asegurarPerfilUsuario === 'function') await asegurarPerfilUsuario(); }catch(e){}
+    if (typeof soyUsuarioRegistrado === 'function' && !soyUsuarioRegistrado()) { safeToast('🔐 Solo los usuarios con cuenta pueden invitar a agregarse.'); try{ openCuenta(); }catch(e){} return false; }
+    codigo = normalizarCodigoAmigo(codigo);
+    const encontrado = await window.buscarUsuarioPorCodigo(codigo);
+    if (encontrado.error) { safeToast(encontrado.error); return false; }
+    const amigo = encontrado.data;
+    const ya = (typeof getAmigos === 'function' ? getAmigos() : []).some(x => normalizarCodigoAmigo(x.num) === amigo.num);
+    if (ya) { safeToast('✅ Ya tienes a ese usuario como amigo'); return true; }
+    iniciarCanalSolicitudesAmigo();
+    await new Promise(r => setTimeout(r, 250));
+    if (!canalSolicitudesAmigo) { safeToast('No se pudo abrir el canal de solicitudes. Revisa Supabase Realtime.'); return false; }
+    const online = (typeof conectadosAhora !== 'undefined' ? conectadosAhora : {})[amigo.num];
+    if (!online) { safeToast('El usuario existe, pero no está en línea. Para aceptar la solicitud debe estar conectado.'); return false; }
+    const yo = typeof miIdentidadOnline === 'function' ? miIdentidadOnline() : {name:'Jugador', emoji:'👤'};
+    try{
+      await canalSolicitudesAmigo.send({ type:'broadcast', event:'solicitud_amigo', payload:{
+        paraId:amigo.num,
+        deId:codigoActualSeguro(),
+        deName:yo.name,
+        deEmoji:yo.emoji,
+        paraName:amigo.alias,
+        paraEmoji:amigo.avatar,
+        at:Date.now()
+      }});
+      safeToast('📨 Solicitud enviada a ' + amigo.alias + '. Espera que acepte.');
+      return true;
+    }catch(e){ safeToast('No se pudo enviar la solicitud. Intenta de nuevo.'); return false; }
+  }
+  window.enviarSolicitudAmistad = enviarSolicitudAmistad;
+
+  function recibirSolicitudAmigo(payload){
+    if (!payload || payload.deId === codigoActualSeguro()) return;
+    const existe = document.getElementById('hgFriendReqBox');
+    if (existe) existe.remove();
+    const box = document.createElement('div');
+    box.id = 'hgFriendReqBox';
+    box.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#7C3AED,#FF4D9D);color:#fff;padding:16px 20px;border-radius:20px;z-index:8000;box-shadow:0 10px 30px rgba(0,0,0,.45);text-align:center;max-width:92%;font-family:Nunito,sans-serif';
+    box.innerHTML = `<div style="font-weight:900;margin-bottom:6px">${htmlSeguro(payload.deEmoji || '👤')} ${htmlSeguro(payload.deName || payload.deId)} quiere agregarte como amigo</div>
+      <div style="font-size:.82rem;opacity:.9;margin-bottom:10px">Código: ${htmlSeguro(payload.deId)}</div>
+      <button id="hgAcceptFriend" style="background:#fff;color:#16A34A;border:none;padding:9px 18px;border-radius:14px;font-weight:900;cursor:pointer;margin-right:8px">✅ Aceptar</button>
+      <button id="hgRejectFriend" style="background:rgba(255,255,255,.22);color:#fff;border:none;padding:9px 18px;border-radius:14px;font-weight:900;cursor:pointer">❌ Rechazar</button>`;
+    document.body.appendChild(box);
+    try{ if (typeof SFX !== 'undefined') SFX.point(); }catch(e){}
+    const responder = async (aceptado) => {
+      box.remove();
+      iniciarCanalSolicitudesAmigo();
+      const yo = typeof miIdentidadOnline === 'function' ? miIdentidadOnline() : {name:'Jugador', emoji:'👤'};
+      if (aceptado) await agregarAmigoDirecto({ num:payload.deId, alias:payload.deName, avatar:payload.deEmoji });
+      try{
+        await canalSolicitudesAmigo.send({ type:'broadcast', event:'respuesta_solicitud_amigo', payload:{
+          paraId:payload.deId,
+          deId:codigoActualSeguro(),
+          deName:yo.name,
+          deEmoji:yo.emoji,
+          aceptado
+        }});
+      }catch(e){}
+      safeToast(aceptado ? '🤝 Solicitud aceptada' : 'Solicitud rechazada');
+    };
+    box.querySelector('#hgAcceptFriend').onclick = () => responder(true);
+    box.querySelector('#hgRejectFriend').onclick = () => responder(false);
+    setTimeout(() => { if (document.body.contains(box)) box.remove(); }, 30000);
+  }
+  window.recibirSolicitudAmigo = recibirSolicitudAmigo;
+
+  // El nombre antiguo agregarAmigo ahora envía una invitación para agregarse, no agrega directo.
+  window.agregarAmigo = async function(codigo){ return enviarSolicitudAmistad(codigo); };
+
+  // 5) Mantener listeners cuando arranca presencia y cuando carga la página.
+  const oldInicioPresencia = window.iniciarPresenciaGlobal;
+  if (typeof oldInicioPresencia === 'function') {
+    window.iniciarPresenciaGlobal = function(){
+      const r = oldInicioPresencia.apply(this, arguments);
+      setTimeout(iniciarCanalSolicitudesAmigo, 250);
+      return r;
+    };
+  }
+  document.addEventListener('DOMContentLoaded', () => setTimeout(iniciarCanalSolicitudesAmigo, 1200));
+  setTimeout(iniciarCanalSolicitudesAmigo, 2200);
+
+  // 6) Tabla online: botones claros y sin agregar automáticamente antes de jugar.
+  window.refrescarTablaJugadoresOnline = function(){
+    const tb = document.getElementById('tablaJugadoresOnline');
+    if (!tb) return;
+    const yo = codigoActualSeguro();
+    const amigos = typeof getAmigos === 'function' ? getAmigos() : [];
+    const idsAmigos = new Set(amigos.map(a => normalizarCodigoAmigo(a.num)));
+    const lista = Object.entries(typeof conectadosAhora !== 'undefined' ? conectadosAhora : {})
+      .filter(([id]) => normalizarCodigoAmigo(id) && normalizarCodigoAmigo(id) !== yo)
+      .map(([id,u]) => ({ id:normalizarCodigoAmigo(id), ...u }))
+      .sort((a,b) => (String(b.tipo).includes('usuario')?1:0) - (String(a.tipo).includes('usuario')?1:0));
+    if (!lista.length) {
+      tb.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#7A6B9D;border-radius:14px">No hay otros jugadores conectados todavía. Abre la web en otro celular o navegador para probar.</td></tr>';
+      return;
+    }
+    tb.innerHTML = lista.map(u => {
+      const code = normalizarCodigoAmigo(u.id);
+      const esUsuario = code.startsWith('U') && String(u.tipo || 'usuario').toLowerCase() !== 'invitado';
+      const ya = idsAmigos.has(code);
+      return `<tr>
+        <td><div class="lobby-player"><div class="lobby-avatar">${htmlSeguro(u.emoji || '👤')}</div><div><div class="lobby-name">${htmlSeguro(u.name || 'Jugador')}</div><div class="lobby-num">${htmlSeguro(code)}</div></div></div></td>
+        <td>${esUsuario ? '🟢 Usuario' : '🟡 Invitado temporal'}</td>
+        <td>
+          ${esUsuario ? (ya ? '<span style="color:#16A34A;font-weight:900;margin-right:8px">✓ Amigo</span>' : `<button class="lobby-btn lobby-add" data-friend-request="${htmlSeguro(code)}">🤝 Invitar a agregarse</button>`) : '<span style="color:#f59e0b;font-weight:900;margin-right:8px">Invitado</span>'}
+          <button class="lobby-btn lobby-play" data-play-online="${htmlSeguro(code)}">🎮 Invitar a jugar</button>
+        </td>
+      </tr>`;
+    }).join('');
+    tb.querySelectorAll('button[data-friend-request]').forEach(b => {
+      b.onclick = async e => { e.preventDefault(); e.stopPropagation(); await enviarSolicitudAmistad(b.dataset.friendRequest); };
+    });
+    tb.querySelectorAll('button[data-play-online]').forEach(b => {
+      b.onclick = e => { e.preventDefault(); e.stopPropagation(); invitarAmigo(b.dataset.playOnline); };
+    });
+  };
+
+  // 7) Lista de amigos: el botón de jugar también dice invitar a jugar.
+  const oldRefLista = window.refrescarListaAmigos;
+  window.refrescarListaAmigos = function(){
+    if (typeof oldRefLista === 'function') oldRefLista();
+    document.querySelectorAll('button[data-inv]').forEach(btn => {
+      btn.textContent = '🎮 Invitar a jugar';
+      btn.title = 'Invitar a jugar';
+    });
+  };
+
+  // 8) Yanken Po real: la mano cambia según la elección. Ya no queda fija en ✊.
+  function buildYankenPoGame(root, game){
+    let p1 = null, p2 = null, s1 = 0, s2 = 0, ronda = 1;
+    const opciones = {
+      piedra:{ emoji:'✊', nombre:'Piedra' },
+      papel:{ emoji:'✋', nombre:'Papel' },
+      tijera:{ emoji:'✌️', nombre:'Tijera' }
+    };
+    function gana(a,b){
+      if (a === b) return 0;
+      if ((a==='piedra' && b==='tijera') || (a==='papel' && b==='piedra') || (a==='tijera' && b==='papel')) return 1;
+      return 2;
+    }
+    function render(msg='Cada jugador elige piedra, papel o tijera. La mano cambia cuando eliges.'){
+      const ocultar2 = p2 ? opciones[p2].emoji : '❔';
+      root.innerHTML = `
+        <div style="background:#0a0a14;color:white;border-radius:22px;padding:18px;text-align:center;min-height:440px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div style="background:#1a1a2e;border-radius:18px;padding:14px;border:2px solid #7C3AED">
+              <div style="font-size:4.6rem;line-height:1">${p1 ? opciones[p1].emoji : '🤔'}</div>
+              <b>Jugador 1</b><div style="font-size:1.7rem;color:#FFD600;font-weight:900">${s1}</div>
+              <div style="font-size:.8rem;color:#c4b5fd">${p1 ? opciones[p1].nombre : 'Elige una mano'}</div>
+            </div>
+            <div style="background:#1a1a2e;border-radius:18px;padding:14px;border:2px solid #16A34A">
+              <div style="font-size:4.6rem;line-height:1">${ocultar2}</div>
+              <b>Jugador 2</b><div style="font-size:1.7rem;color:#FFD600;font-weight:900">${s2}</div>
+              <div style="font-size:.8rem;color:#bbf7d0">${p2 ? opciones[p2].nombre : 'Elige una mano'}</div>
+            </div>
+          </div>
+          <h2 style="font-family:'Fredoka One',cursive;margin:8px 0">✊✋✌️ Yanken Po</h2>
+          <p style="color:#ddd;margin:8px auto 12px;max-width:620px">${htmlSeguro(msg)}</p>
+          <div style="background:#15152a;border-radius:16px;padding:12px;margin:12px 0;color:#ddd;font-weight:800">
+            Regla: Piedra gana a Tijera, Tijera gana a Papel y Papel gana a Piedra. Gana quien llegue a 3 rondas.
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start">
+            <div>
+              <div style="font-weight:900;margin-bottom:8px;color:#c4b5fd">Jugador 1</div>
+              <button class="btn-primary yk" data-p="1" data-v="piedra">✊ Piedra</button>
+              <button class="btn-primary yk" data-p="1" data-v="papel">✋ Papel</button>
+              <button class="btn-primary yk" data-p="1" data-v="tijera">✌️ Tijera</button>
+            </div>
+            <div>
+              <div style="font-weight:900;margin-bottom:8px;color:#bbf7d0">Jugador 2</div>
+              <button class="btn-primary yk" style="background:linear-gradient(135deg,#16A34A,#06b6d4)" data-p="2" data-v="piedra">✊ Piedra</button>
+              <button class="btn-primary yk" style="background:linear-gradient(135deg,#16A34A,#06b6d4)" data-p="2" data-v="papel">✋ Papel</button>
+              <button class="btn-primary yk" style="background:linear-gradient(135deg,#16A34A,#06b6d4)" data-p="2" data-v="tijera">✌️ Tijera</button>
+            </div>
+          </div>
+          <button id="ykReset" class="btn-secondary" style="background:#222;color:white;margin-top:14px">🔁 Reiniciar partida</button>
+          <div class="game-instructions" style="background:#15152a;color:#ddd;margin-top:18px">Este modo permite entender el juego rápido. La mano cambia: ✊ piedra, ✋ papel, ✌️ tijera.</div>
+        </div>`;
+      root.querySelectorAll('.yk').forEach(b => b.onclick = () => elegir(Number(b.dataset.p), b.dataset.v));
+      root.querySelector('#ykReset').onclick = () => { p1=null;p2=null;s1=0;s2=0;ronda=1;render('Partida reiniciada. Elige una mano.'); };
+    }
+    async function elegir(jugador, valor){
+      if (jugador === 1) p1 = valor; else p2 = valor;
+      if (!p1 || !p2) { render((jugador===1?'Jugador 1':'Jugador 2') + ' ya eligió. Falta el otro jugador.'); return; }
+      const res = gana(p1,p2);
+      let msg = `Ronda ${ronda}: J1 eligió ${opciones[p1].nombre} y J2 eligió ${opciones[p2].nombre}. `;
+      if (res === 0) msg += 'Empate.';
+      if (res === 1) { s1++; msg += 'Gana Jugador 1.'; }
+      if (res === 2) { s2++; msg += 'Gana Jugador 2.'; }
+      ronda++;
+      if (s1 >= 3 || s2 >= 3) {
+        const ganador = s1 > s2 ? 'Jugador 1' : 'Jugador 2';
+        render('🏆 ' + ganador + ' ganó la partida. Recibiste recompensa de misión.');
+        try{ await hgCompletarNivel('piedrapapelonline','Yanken Po Online',10,25); }catch(e){}
+        setTimeout(() => { p1=null;p2=null;s1=0;s2=0;ronda=1;render('Nueva misión iniciada. Elige una mano.'); }, 1400);
+        return;
+      }
+      const mantener1 = p1, mantener2 = p2;
+      render(msg + ' Siguiente ronda en 1 segundo.');
+      p1 = mantener1; p2 = mantener2;
+      setTimeout(() => { p1=null; p2=null; render('Siguiente ronda: elige nuevamente piedra, papel o tijera.'); }, 1000);
+    }
+    render();
+  }
+
+  const oldBuildExtra = window.buildExtraOnlineGame;
+  if (typeof oldBuildExtra === 'function') {
+    window.buildExtraOnlineGame = function(root, game){
+      if (game && game.id === 'piedrapapelonline') return buildYankenPoGame(root, game);
+      return oldBuildExtra.apply(this, arguments);
+    };
+  }
+
+  // Mejora de reglas para Yanken Po.
+  const oldOpenExtra = window.openJuegoExtraOnline;
+  if (typeof oldOpenExtra === 'function') {
+    // No envolvemos de nuevo la pantalla de reglas; solo aseguramos nombre actualizado antes de abrir.
+    window.openJuegoExtraOnline = function(id){
+      asegurarArrayJuegosOnline(); actualizarNombreYanken();
+      return oldOpenExtra.apply(this, arguments);
+    };
+  }
+
+})();
 </script>
 </body>
 </html>
