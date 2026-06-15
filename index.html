@@ -1330,6 +1330,14 @@ async function revisarSesion() {
       actualizarBotonCuenta();
       iniciarPresenciaGlobal();
       iniciarPulsoActividad();
+      // Sesión ya activa al cargar — actualizar contadores inmediatamente
+      setTimeout(async () => {
+        try {
+          if (typeof hkCargarUsuariosRegistrados === 'function') await hkCargarUsuariosRegistrados();
+          if (typeof hkActualizarContadores === 'function') await hkActualizarContadores();
+          if (typeof window.refrescarTablaJugadoresOnline === 'function') window.refrescarTablaJugadoresOnline();
+        } catch(e) {}
+      }, 1200);
     }
     // escuchar cambios de sesión
     c.auth.onAuthStateChange(async (evento, session) => {
@@ -1342,12 +1350,21 @@ async function revisarSesion() {
         await guardarCorreoPerfilActual();
         iniciarPresenciaGlobal();
         iniciarPulsoActividad();
+        actualizarBotonCuenta();
+        // Usuario autenticado — actualizar contadores con sesión real
+        setTimeout(async () => {
+          try {
+            if (typeof hkCargarUsuariosRegistrados === 'function') await hkCargarUsuariosRegistrados();
+            if (typeof hkActualizarContadores === 'function') await hkActualizarContadores();
+            if (typeof window.refrescarTablaJugadoresOnline === 'function') window.refrescarTablaJugadoresOnline();
+          } catch(e) {}
+        }, 1000);
       } else {
         perfilNube = null;
         try { localStorage.removeItem('im_usercode'); } catch(e) {}
         iniciarPresenciaGlobal();
+        actualizarBotonCuenta();
       }
-      actualizarBotonCuenta();
     });
   } catch (e) { console.error('sesion', e); }
 }
@@ -2718,7 +2735,7 @@ function openCuenta() {
   modal.classList.add('open');
   activeGame = 'cuenta';
   document.body.style.overflow = 'hidden';
-  title.textContent = '🔐 Mi Cuenta';
+  title.textContent = tieneSesion() ? '👤 Mi Cuenta y Medallas' : '🔐 Mi Cuenta';
   const sBtn = document.getElementById('soundToggle');
   if (sBtn) sBtn.textContent = soundOn ? '🔊' : '🔇';
   if (!onlineDisponible()) {
@@ -2759,8 +2776,16 @@ function renderLogin() {
     if (!supabaseListo()) { showToast('⏳ Conectando al servidor... espera un momento e intenta de nuevo'); return; }
     showToast('Ingresando...');
     const r = await iniciarSesion(em, pw);
-    if (r.error) showToast('❌ ' + r.error);
-    else { SFX.win(); showToast('🎉 ¡Bienvenido!'); renderPanelUsuario(); }
+    if (r.error) { showToast('❌ ' + r.error); return; }
+    SFX.win();
+    showToast('🎉 ¡Bienvenido ' + (perfilNube && perfilNube.nombre ? perfilNube.nombre : '') + '!');
+    renderPanelUsuario();
+    // Ahora hay sesión autenticada — actualizar contadores (la sesión permite leer perfiles)
+    setTimeout(async () => {
+      if (typeof hkCargarUsuariosRegistrados === 'function') await hkCargarUsuariosRegistrados();
+      if (typeof hkActualizarContadores === 'function') await hkActualizarContadores();
+      if (typeof window.refrescarTablaJugadoresOnline === 'function') window.refrescarTablaJugadoresOnline();
+    }, 800);
   });
   document.getElementById('irRegistro').onclick = e => { e.preventDefault(); renderRegistro(); };
   document.getElementById('olvideLink').onclick = e => { e.preventDefault(); renderRecuperar(); };
@@ -2828,6 +2853,11 @@ function renderRegistro() {
       launchConfetti();
       showToast('🎉 ¡Bienvenido/a ' + nom + '! Cuenta creada.');
       renderPanelUsuario();
+      setTimeout(async () => {
+        if (typeof hkCargarUsuariosRegistrados === 'function') await hkCargarUsuariosRegistrados();
+        if (typeof hkActualizarContadores === 'function') await hkActualizarContadores();
+        if (typeof window.refrescarTablaJugadoresOnline === 'function') window.refrescarTablaJugadoresOnline();
+      }, 800);
     }
   });
   document.getElementById('irLogin').onclick = e => { e.preventDefault(); renderLogin(); };
@@ -2917,37 +2947,44 @@ function renderPanelUsuario() {
   const body2 = document.getElementById('modalBody');
   if (!body2) return;
   const p = perfilNube || {};
-  // Nombre: siempre priorizar DB sobre localStorage
   const nombre = p.nombre || (usuarioActual && usuarioActual.email && !usuarioActual.email.endsWith('@usuarios.hugokids.app')
     ? usuarioActual.email.split('@')[0] : null) || 'Mi cuenta';
   const avatar = p.avatar || miIdentidadOnline().emoji;
-  const nLogros = (Array.isArray(p.logros) ? p.logros.length : getBadges().length);
   const miNum = p.numero_amigo || getGuestId();
   const correoMostrar = (usuarioActual && usuarioActual.email && !usuarioActual.email.endsWith('@usuarios.hugokids.app'))
     ? usuarioActual.email : null;
+  const owned = getBadges();
+  const allBadges = typeof BADGES !== 'undefined' ? Object.keys(BADGES) : [];
+  const nLogros = owned.length;
+
   body2.innerHTML = `
-    <div class="game-container" style="background:#0a0a14;padding:22px;min-height:300px">
+    <div class="game-container" style="background:#0a0a14;padding:20px;min-height:300px">
+
+      <!-- CABECERA: avatar + nombre -->
       <div style="text-align:center;margin-bottom:16px">
-        <div style="font-size:3rem" id="miAvatarShow">${avatar}</div>
-        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.4rem;margin-top:6px">${nombre}</div>
-        <div style="color:#6B7280;font-size:0.72rem;margin-top:2px">El nombre de usuario es único y no se puede cambiar</div>
-        <div style="color:#16A34A;font-size:0.82rem;margin-top:6px">✅ Sesión iniciada · Tus logros se guardan</div>
+        <div style="font-size:3.5rem" id="miAvatarShow">${avatar}</div>
+        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.5rem;margin-top:6px">${nombre}</div>
+        <div style="color:#6B7280;font-size:0.72rem;margin-top:2px">Nombre único · No se puede cambiar</div>
+        <div style="color:#16A34A;font-size:0.82rem;margin-top:4px">✅ Sesión iniciada · Tus logros se guardan</div>
       </div>
 
-      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:360px;margin:0 auto 12px">
+      <!-- SELECTOR DE AVATAR -->
+      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:400px;margin:0 auto 12px">
         <div style="color:#c4b5fd;font-size:0.78rem;font-weight:800;text-align:center;margin-bottom:10px">🎨 Elige tu avatar:</div>
         <div id="cuentaAvatars" style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px"></div>
       </div>
 
-      <div style="background:#13131f;border-radius:14px;padding:16px;max-width:360px;margin:0 auto 12px">
-        <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">🏅 Medallas</span><strong>${nLogros}/10</strong></div>
-        <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">👥 Mi número</span><strong style="color:#16A34A">#${miNum}</strong></div>
-        ${correoMostrar ? `<div style="display:flex;justify-content:space-between;color:#fff"><span style="color:#aaa">📧 Correo</span><strong style="font-size:0.78rem;color:#93c5fd">${correoMostrar}</strong></div>` : ''}
+      <!-- DATOS -->
+      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:400px;margin:0 auto 12px">
+        <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">🏅 Medallas</span><strong>${nLogros}/${allBadges.length||10}</strong></div>
+        <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:${correoMostrar?'8px':'0'}"><span style="color:#aaa">👥 Mi código</span><strong style="color:#16A34A">#${miNum}</strong></div>
+        ${correoMostrar ? `<div style="display:flex;justify-content:space-between;color:#fff"><span style="color:#aaa">📧 Correo</span><strong style="font-size:0.75rem;color:#93c5fd">${correoMostrar}</strong></div>` : ''}
       </div>
 
-      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:360px;margin:0 auto 12px">
+      <!-- AMIGOS -->
+      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:400px;margin:0 auto 12px">
         <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:4px">👥 Mis Amigos</div>
-        <div style="color:#aaa;font-size:0.72rem;text-align:center;margin-bottom:10px">Agrega amigos por su número para invitarlos a jugar</div>
+        <div style="color:#aaa;font-size:0.72rem;text-align:center;margin-bottom:10px">Agrega amigos por su código para invitarlos a jugar</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
           <input id="amigoInput" type="text" inputmode="text" maxlength="20" placeholder="Código amigo: U123456" style="flex:1;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;text-align:center;outline:none">
           <button id="addAmigoBtn" style="background:#16A34A;border:none;color:#fff;padding:9px 16px;border-radius:10px;font-weight:800;cursor:pointer">➕</button>
@@ -2955,25 +2992,44 @@ function renderPanelUsuario() {
         <div id="listaAmigos"></div>
       </div>
 
-      <div style="max-width:360px;margin:0 auto;display:flex;flex-direction:column;gap:10px">
-        ${esAdmin() ? `<button id="btnAdmin" style="width:100%;background:linear-gradient(135deg,#f59e0b,#b91c1c);border:none;color:#fff;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">🛡️ Panel de Administrador</button>` : ''}
-        <button id="btnVerLogros" style="width:100%;background:#7C3AED;border:none;color:#fff;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">🏅 Ver mis medallas</button>
-        <button id="btnSalir" style="width:100%;background:rgba(220,38,38,0.2);border:2px solid #dc2626;color:#f87171;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">Cerrar sesión</button>
-      </div>
-    </div>
-    <div class="game-instructions">Elige tu avatar aquí. Tu nombre de usuario es fijo e identifica tu cuenta.</div>`;
+      <!-- MEDALLAS (inline) -->
+      ${allBadges.length ? `
+      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:400px;margin:0 auto 12px">
+        <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:10px">🏅 Mis Medallas</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          ${allBadges.map(id => {
+            const b = BADGES[id]; const has = owned.includes(id);
+            return `<div style="background:${has?'rgba(255,214,0,0.12)':'rgba(255,255,255,0.03)'};border:1.5px solid ${has?'#FFD600':'rgba(255,255,255,0.06)'};border-radius:12px;padding:10px;text-align:center;${has?'':'opacity:0.5'}">
+              <div style="font-size:1.6rem;filter:${has?'none':'grayscale(1)'}">${has?b.emoji:'🔒'}</div>
+              <div style="color:#fff;font-weight:800;font-size:0.78rem;margin-top:4px">${b.name}</div>
+              <div style="color:#aaa;font-size:0.66rem;line-height:1.2">${b.desc}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : ''}
 
-  // Selector de avatar — UN solo lugar para cambiarlo
+      <!-- ACCIONES -->
+      <div style="max-width:400px;margin:0 auto;display:flex;flex-direction:column;gap:10px">
+        ${esAdmin() ? `<button id="btnAdmin" style="width:100%;background:linear-gradient(135deg,#f59e0b,#b91c1c);border:none;color:#fff;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">🛡️ Panel de Administrador</button>` : ''}
+        <button id="btnSalir" style="width:100%;background:rgba(220,38,38,0.18);border:2px solid #dc2626;color:#f87171;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">Cerrar sesión</button>
+      </div>
+    </div>`;
+
+  // Selector de avatar
   const ap = document.getElementById('cuentaAvatars');
   if (ap) AVATARS.forEach(av => {
     const b = document.createElement('button');
     b.textContent = av;
     const selected = av === avatar;
-    b.style.cssText = `aspect-ratio:1;background:${selected?'#16A34A':'#1a1a2e'};border:2px solid ${selected?'#fff':'transparent'};border-radius:8px;font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent`;
-    const pick = e => {
+    b.style.cssText = `aspect-ratio:1;background:${selected?'#16A34A':'#1a1a2e'};border:2px solid ${selected?'#FFD600':'transparent'};border-radius:8px;font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:all 0.15s`;
+    const pick = async e => {
       e.preventDefault(); e.stopPropagation();
       setGuestAvatar(av);
-      guardarPerfilNube(); updatePlayerBadge(); SFX.click(); renderPanelUsuario();
+      if (perfilNube) perfilNube.avatar = av;
+      SFX.click();
+      renderPanelUsuario();
+      guardarPerfilNube();
+      updatePlayerBadge();
     };
     b.addEventListener('touchstart', pick, {passive:false});
     b.addEventListener('click', pick);
@@ -2993,7 +3049,6 @@ function renderPanelUsuario() {
   }
   refrescarListaAmigos();
   if (esAdmin()) bindBtn('btnAdmin', renderPanelAdmin);
-  bindBtn('btnVerLogros', () => openProfile());
   bindBtn('btnSalir', async () => { await cerrarSesion(); SFX.click(); showToast('Sesión cerrada'); renderLogin(); });
 }
 
@@ -3254,10 +3309,16 @@ function openProfile() {
   modal.classList.add('open');
   activeGame = 'profile';
   document.body.style.overflow = 'hidden';
-  title.textContent = '👤 Perfil y Medallas';
   const sBtn = document.getElementById('soundToggle');
   if (sBtn) sBtn.textContent = soundOn ? '🔊' : '🔇';
-  renderProfile();
+  // Si hay sesión activa, mostrar el panel unificado de Mi Cuenta
+  if (typeof tieneSesion === 'function' && tieneSesion()) {
+    title.textContent = '👤 Mi Cuenta y Medallas';
+    renderPanelUsuario();
+  } else {
+    title.textContent = '👤 Perfil y Medallas';
+    renderProfile();
+  }
 }
 function renderProfile() {
   const body = document.getElementById('modalBody');
