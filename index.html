@@ -7035,6 +7035,112 @@ if(_hgOriginalOpenGame){
   }
 }
 
+
+
+/* ══════════════════════════════════════════════════════════
+   MEJORA 2026: PANTALLA DE REGLAS + AUDIO + MÁS JUEGOS ONLINE
+   ══════════════════════════════════════════════════════════ */
+(function(){
+  const NUEVOS_JUEGOS_REGLAS = [
+    {id:'tanquesonline', emoji:'💥', name:'Tanques Online', desc:'Dispara por turnos y derriba al rival'},
+    {id:'arqueriaonline', emoji:'🏹', name:'Arquería Online', desc:'Apunta mejor que tu amigo'},
+    {id:'tesoroonline', emoji:'💎', name:'Tesoro por Turnos', desc:'Encuentra cofres y evita trampas'},
+    {id:'quizonline', emoji:'🧠', name:'Quiz Batalla Online', desc:'Contesta primero y gana puntos'},
+    {id:'laberintoonline', emoji:'🌀', name:'Laberinto Online', desc:'Llega a la meta antes que tu rival'},
+    {id:'cocinaonline', emoji:'🍔', name:'Cocina Rápida Online', desc:'Prepara pedidos contra reloj'},
+    {id:'saltosonline', emoji:'🦘', name:'Saltos Online', desc:'Sube plataformas y supera a tu amigo'},
+    {id:'mascotasonline', emoji:'🐶', name:'Mascotas Online', desc:'Cuida tu mascota y gana energía'}
+  ];
+
+  // Agrega más tarjetas estilo Poki / HugoKids.
+  function hgAddMoreOnlineCards(){
+    if(typeof JUEGOS_EXTRA_ONLINE !== 'undefined'){
+      NUEVOS_JUEGOS_REGLAS.forEach(g=>{
+        if(!JUEGOS_EXTRA_ONLINE.some(x=>x.id===g.id)) JUEGOS_EXTRA_ONLINE.push(g);
+      });
+    }
+    if(typeof hgInjectExtraOnlineGames === 'function') hgInjectExtraOnlineGames();
+  }
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(hgAddMoreOnlineCards,700));
+  setTimeout(hgAddMoreOnlineCards,1200);
+
+  const REGLAS = {
+    snake: ['Mueve la serpiente con flechas o botones.', 'Come frutas para subir puntos.', 'No choques con paredes ni con tu cuerpo.', 'Completa el nivel y gana monedas para comprar equipo.'],
+    breakout: ['Mueve la barra para rebotar la pelota.', 'Rompe todos los bloques.', 'Cada nivel aumenta la velocidad.', 'Al terminar el nivel final recibes recompensa.'],
+    memory: ['Voltea dos cartas por turno.', 'Encuentra todos los pares.', 'Menos intentos dan más puntos.', 'Completa 5 niveles para ganar una medalla.'],
+    racing: ['Esquiva autos y obstáculos.', 'Aguanta hasta llegar a la meta.', 'Cada nivel tiene más velocidad.', 'Gana monedas para mejorar casco o vehículo.'],
+    pong: ['Jugador 1 y jugador 2 controlan sus paletas.', 'Evita que la pelota pase tu lado.', 'Gana quien llegue primero al puntaje objetivo.', 'La victoria sube nivel y da recompensa.'],
+    tictactoe: ['Coloca X u O por turnos.', 'Gana formando 3 en línea.', 'Sirve para pensar estrategias.', 'Las victorias suman puntos y monedas.'],
+    quiz: ['Lee la pregunta.', 'Elige la respuesta correcta.', 'Responde rápido para más puntos.', 'Completa rondas para desbloquear recompensa.'],
+    default: ['Lee el objetivo antes de empezar.', 'Juega hasta completar la misión del nivel.', 'Al terminar registra tu nivel.', 'Las monedas sirven para comprar avatar, equipo o poderes.']
+  };
+
+  function hgGameName(id){
+    const card=document.querySelector(`.game-card[data-name*="${String(id).toLowerCase()}"] .game-name`);
+    if(card) return card.textContent.trim();
+    if(typeof JUEGOS_EXTRA_ONLINE !== 'undefined'){
+      const g=JUEGOS_EXTRA_ONLINE.find(x=>x.id===id); if(g) return g.name;
+    }
+    const title=document.getElementById('modalTitle')?.textContent?.replace(/^\S+\s/,'');
+    return title || 'Juego';
+  }
+
+  function hgRulesFor(id){
+    if(typeof JUEGOS_EXTRA_ONLINE !== 'undefined' && JUEGOS_EXTRA_ONLINE.some(x=>x.id===id)){
+      return ['Este juego es para 2 jugadores.', 'Primero invita a un amigo conectado o juega en modo local.', 'Cada ronda da puntos según el nivel.', 'Gana 5 niveles para recibir recompensa final.'];
+    }
+    return REGLAS[id] || REGLAS.default;
+  }
+
+  function hgSpeakRules(nombre, reglas){
+    try{
+      window.speechSynthesis.cancel();
+      const texto = `Reglas de ${nombre}. ` + reglas.join('. ');
+      const u = new SpeechSynthesisUtterance(texto);
+      u.lang='es-ES'; u.rate=0.92; u.pitch=1.08;
+      window.speechSynthesis.speak(u);
+    }catch(e){ showToast?.('Tu navegador no permitió reproducir el audio.'); }
+  }
+
+  function hgShowRulesScreen(id, startFn){
+    stopAllGames?.();
+    const modal=document.getElementById('modalOverlay'), body=document.getElementById('modalBody'), title=document.getElementById('modalTitle');
+    if(!modal || !body || !title){ startFn(); return; }
+    modal.classList.add('open');
+    modal.classList.remove('fs');
+    document.body.style.overflow='hidden';
+    const nombre=hgGameName(id);
+    const reglas=hgRulesFor(id);
+    title.textContent='📘 Reglas y modo de juego';
+    body.innerHTML=`
+      <div style="background:linear-gradient(135deg,#1e1b4b,#7c3aed);color:white;border-radius:24px;padding:22px;text-align:center;border:3px solid #FFD600;box-shadow:0 10px 30px rgba(0,0,0,.25)">
+        <div style="font-size:3.5rem;margin-bottom:6px">🎮</div>
+        <h2 style="font-family:'Fredoka One',cursive;margin:0 0 8px">${nombre}</h2>
+        <p style="opacity:.92;margin-bottom:16px">Escucha o lee las reglas antes de iniciar.</p>
+        <div style="background:rgba(255,255,255,.12);border-radius:18px;padding:14px;text-align:left;max-width:720px;margin:0 auto 16px">
+          ${reglas.map((r,i)=>`<div style="padding:8px 4px;font-weight:800">${i+1}. ${r}</div>`).join('')}
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <button id="hgListenRules" class="btn-primary" style="background:linear-gradient(135deg,#06b6d4,#16A34A)">🔊 Escuchar reglas</button>
+          <button id="hgStartAfterRules" class="btn-primary">▶ Iniciar juego</button>
+        </div>
+        <div style="margin-top:14px;font-size:.9rem;background:rgba(0,0,0,.25);padding:10px;border-radius:14px">🏆 Meta: completar 5 niveles para ganar monedas, puntos y recompensa final.</div>
+      </div>`;
+    body.querySelector('#hgListenRules').onclick=()=>hgSpeakRules(nombre, reglas);
+    body.querySelector('#hgStartAfterRules').onclick=()=>{ try{window.speechSynthesis.cancel()}catch(e){} startFn(); };
+    setTimeout(()=>hgSpeakRules(nombre, reglas),300);
+  }
+
+  // Guarda las funciones actuales y las envuelve para que siempre muestren reglas antes de iniciar.
+  const _playNormal = window.openGame;
+  const _playExtra = window.openJuegoExtraOnline;
+  if(typeof _playNormal === 'function'){
+    window.openGame=function(id){ hgShowRulesScreen(id,()=>_playNormal(id)); };
+  }
+  if(typeof _playExtra === 'function'){
+    window.openJuegoExtraOnline=function(id){ hgShowRulesScreen(id,()=>_playExtra(id)); };
+  }
+})();
 </script>
 </body>
 </html>
