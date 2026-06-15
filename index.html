@@ -548,8 +548,91 @@
     box-shadow: 0 8px 24px rgba(108,58,255,0.4); max-width: 90%; text-align: center;
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
+
+
+  /* ──── OPTIMIZACIÓN CELULAR ──── */
+  @media (max-width: 768px) {
+    html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+    body { overflow-x: hidden; }
+    button, .game-card, .cat-pill, .featured-card, input, textarea, select {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #particles, .star { display: none !important; }
+    .fade-up { opacity: 1 !important; transform: none !important; }
+    .game-card:hover, .cat-pill:hover, .featured-card:hover, .btn-primary:hover, .btn-secondary:hover {
+      transform: none !important;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.15) !important;
+    }
+    * { scroll-behavior: auto !important; }
+    .game-grid { content-visibility: auto; contain-intrinsic-size: 1000px; }
+    .modal-overlay { padding: 0 !important; align-items: stretch !important; justify-content: stretch !important; }
+    .modal { width: 100vw !important; height: 100dvh !important; max-width: 100vw !important; max-height: 100dvh !important; border-radius: 0 !important; border-width: 0 !important; }
+    .modal-header { flex-shrink: 0; position: sticky; top: 0; z-index: 5; }
+    .modal-body { height: calc(100dvh - 58px) !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch; padding: 10px !important; }
+    .game-container { border-radius: 14px !important; }
+    .stats { gap: 8px !important; padding: 12px 8px 20px !important; }
+    .stat { padding: 8px 10px !important; min-width: 88px; }
+    .stat-num { font-size: 1.35rem !important; }
+    .stat-label { font-size: .68rem !important; }
+    .lobby-table { min-width: 520px; }
+    .lobby-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    input, textarea { font-size: 16px !important; }
+    .touch-controls { position: sticky; bottom: 8px; z-index: 3; }
+  }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+// Modo móvil liviano: evita doble toque, reduce animaciones y protege contra errores que bloquean botones.
+window.HK_IS_MOBILE = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+window.HK_LAST_TAP = 0;
+window.addEventListener('error', function(e){ console.warn('HugoKids error controlado:', e.message); });
+window.addEventListener('unhandledrejection', function(e){ console.warn('HugoKids promesa controlada:', e.reason); });
+
+function hkIsTypingTarget(el){
+  return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+}
+
+// En celular, evita que un botón con touchstart + click ejecute dos veces la misma acción.
+document.addEventListener('touchstart', function(e){
+  window.HK_LAST_TAP = Date.now();
+}, {capture:true, passive:true});
+
+document.addEventListener('click', function(e){
+  if (!window.HK_IS_MOBILE) return;
+  const el = e.target && e.target.closest ? e.target.closest('button,[data-inv],[data-del],[data-add-online],[data-play-online]') : null;
+  if (!el) return;
+  // Los botones con onclick también usan toque rápido; solo se permite el click programático.
+  if (el.hasAttribute('onclick') && window.HK_PROGRAMMATIC_CLICK) return;
+  if (Date.now() - (window.HK_LAST_TAP || 0) < 650) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+}, true);
+
+// Convierte las tarjetas con onclick en toque rápido y estable en celulares.
+document.addEventListener('DOMContentLoaded', function(){
+  if (!window.HK_IS_MOBILE) return;
+  document.body.classList.add('hk-mobile');
+  document.querySelectorAll('.game-card[onclick], .featured-card[onclick], .cat-pill[onclick], button[onclick]').forEach(function(el){
+    if (el.dataset.hkFastTap) return;
+    el.dataset.hkFastTap = '1';
+    el.addEventListener('touchend', function(ev){
+      if (hkIsTypingTarget(ev.target)) return;
+      ev.preventDefault();
+      if (el.dataset.hkBusy === '1') return;
+      el.dataset.hkBusy = '1';
+      setTimeout(function(){ el.dataset.hkBusy = '0'; }, 550);
+      window.HK_PROGRAMMATIC_CLICK = true;
+      el.click();
+      setTimeout(function(){ window.HK_PROGRAMMATIC_CLICK = false; }, 0);
+    }, {passive:false});
+  });
+});
+</script>
+
 </head>
 <body>
 
@@ -1800,10 +1883,11 @@ function iniciarPulsoActividad() {
   if (_pulsoActividad) clearInterval(_pulsoActividad);
   marcarActividadUsuario();
   cargarJugadoresOnlineDesdePerfiles();
+  const espera = window.HK_IS_MOBILE ? 60000 : 15000;
   _pulsoActividad = setInterval(() => {
     marcarActividadUsuario();
     cargarJugadoresOnlineDesdePerfiles();
-  }, 15000);
+  }, espera);
 }
 async function cargarJugadoresOnlineDesdePerfiles() {
   const c = getSupabase();
@@ -1832,6 +1916,24 @@ async function cargarJugadoresOnlineDesdePerfiles() {
     if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline();
     if (typeof refrescarListaAmigos === 'function') refrescarListaAmigos();
   } catch(e) { console.warn('online perfiles', e); }
+}
+
+
+// Evita muchas consultas seguidas a Supabase en celular, que era una causa del congelamiento.
+if (typeof cargarJugadoresOnlineDesdePerfiles === 'function') {
+  const _hkCargarJugadoresOriginal = cargarJugadoresOnlineDesdePerfiles;
+  let _hkCargarJugadoresActivo = false;
+  let _hkCargarJugadoresUltima = 0;
+  cargarJugadoresOnlineDesdePerfiles = async function(force = false) {
+    const ahora = Date.now();
+    const minimo = window.HK_IS_MOBILE ? 12000 : 4500;
+    if (!force && (_hkCargarJugadoresActivo || (ahora - _hkCargarJugadoresUltima) < minimo)) return;
+    _hkCargarJugadoresActivo = true;
+    _hkCargarJugadoresUltima = ahora;
+    try { return await _hkCargarJugadoresOriginal.apply(this, arguments); }
+    catch(e) { console.warn('Carga usuarios online controlada', e); }
+    finally { _hkCargarJugadoresActivo = false; }
+  };
 }
 
 // ── SISTEMA DE AMIGOS POR CÓDIGO PERMANENTE ──
@@ -2105,7 +2207,8 @@ function salirSalaOnline() {
 // ── FLOATING EMOJIS ──
 const pContainer = document.getElementById('particles');
 const floatEmojis = ['⭐','🎮','🕹️','🎯','🏆','✨','🎲','🍭','🌟','🎈','🚀','💫'];
-for (let i = 0; i < 24; i++) {
+const cantidadParticulas = window.HK_IS_MOBILE ? 0 : 24;
+for (let i = 0; i < cantidadParticulas; i++) {
   const s = document.createElement('div');
   s.className = 'star';
   s.textContent = floatEmojis[Math.floor(Math.random()*floatEmojis.length)];
@@ -2115,14 +2218,18 @@ for (let i = 0; i < 24; i++) {
     --d:${(Math.random()*6+5).toFixed(1)}s;
     animation-delay:${(Math.random()*5).toFixed(1)}s;
   `;
-  pContainer.appendChild(s);
+  if (pContainer) pContainer.appendChild(s);
 }
 
 // ── SCROLL ANIMATIONS ──
-const observer = new IntersectionObserver(entries => {
-  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-}, { threshold: 0.1 });
-document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+if (window.HK_IS_MOBILE || !('IntersectionObserver' in window)) {
+  document.querySelectorAll('.fade-up').forEach(el => el.classList.add('visible'));
+} else {
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+}
 
 // ── TOAST ──
 function showToast(msg) {
@@ -2549,7 +2656,11 @@ function makeActionButton(label, onTap) {
 
 // ── MODAL ──
 let activeGame = null;
+let _hkOpeningGame = false;
 function openGame(id) {
+  if (_hkOpeningGame) return;
+  _hkOpeningGame = true;
+  setTimeout(() => { _hkOpeningGame = false; }, 650);
   stopAllGames();
   const modal = document.getElementById('modalOverlay');
   const body = document.getElementById('modalBody');
@@ -2625,6 +2736,8 @@ function openGame(id) {
 
 // Solicitar pantalla completa real del navegador (con respaldo visual si no se puede)
 function requestFullscreen() {
+  // En celular se usa pantalla completa visual. Forzar fullscreen real puede congelar algunos navegadores.
+  if (window.HK_IS_MOBILE) return;
   try {
     const el = document.documentElement;
     if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
@@ -2653,7 +2766,11 @@ function actualizarBotonCuenta() {
   }
 }
 
+let _hkOpeningCuenta = false;
 function openCuenta() {
+  if (_hkOpeningCuenta) return;
+  _hkOpeningCuenta = true;
+  setTimeout(() => { _hkOpeningCuenta = false; }, 650);
   stopAllGames();
   const modal = document.getElementById('modalOverlay');
   const body = document.getElementById('modalBody');
@@ -3391,10 +3508,10 @@ try { const t = localStorage.getItem('imrec_theme'); if (t && THEMES.includes(t)
 // Mostrar el jugador actual en la navbar al cargar
 setTimeout(() => { if (typeof updatePlayerBadge === 'function') updatePlayerBadge(); }, 0);
 // Iniciar sesión primero y luego presencia, para no tratar como invitado G a quien ya inició sesión.
-setTimeout(() => { if (onlineDisponible()) revisarSesion(); }, 900);
-setTimeout(() => { if (onlineDisponible()) iniciarPresenciaGlobal(); }, 1600);
-setTimeout(() => { if (onlineDisponible()) cargarJugadoresOnlineDesdePerfiles(); }, 1900);
-setTimeout(() => { if (onlineDisponible()) registrarVisita(); }, 2200);
+setTimeout(() => { if (onlineDisponible()) revisarSesion(); }, window.HK_IS_MOBILE ? 500 : 900);
+setTimeout(() => { if (onlineDisponible()) iniciarPresenciaGlobal(); }, window.HK_IS_MOBILE ? 1800 : 1600);
+setTimeout(() => { if (onlineDisponible()) cargarJugadoresOnlineDesdePerfiles(true); }, window.HK_IS_MOBILE ? 3200 : 1900);
+setTimeout(() => { if (onlineDisponible()) registrarVisita(); }, window.HK_IS_MOBILE ? 4500 : 2200);
 
 
 // ═══════════════════════════════════════════
@@ -10204,6 +10321,15 @@ if(_hgOriginalOpenGame){
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
   setInterval(() => loadAll(true), 30000);
 })();
+</script>
+
+
+<script>
+document.addEventListener('visibilitychange', function(){
+  if (document.hidden && window.HK_IS_MOBILE && typeof stopAllGames === 'function' && document.getElementById('modalOverlay') && !document.getElementById('modalOverlay').classList.contains('open')) {
+    try { stopAllGames(); } catch(e) {}
+  }
+});
 </script>
 
 </body>
