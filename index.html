@@ -9803,188 +9803,139 @@ if(_hgOriginalOpenGame){
 })();
 </script>
 
-
-
 <script>
-/* =========================================================
-   FIX FINAL 2026-06: CONTADOR Y TABLA DE USUARIOS SUPABASE
-   - Cuenta TODOS los registros reales de public.perfiles.
-   - Muestra usuarios aunque estén fuera de línea.
-   - Nombres en MAYÚSCULA al registrar y al mostrar.
-   - No permite nombres repetidos.
-   - Botones de online solo activos si el usuario está conectado.
-========================================================= */
+/* ══════════════════════════════════════════════════════════
+   HUGOKIDS FIX ESTABLE: cuenta, usuarios, contadores y tabla
+   Evita congelamientos: carga datos con control, sin bucles pesados.
+   ══════════════════════════════════════════════════════════ */
 (function(){
-  const HK_FIX = window.HK_FIX = window.HK_FIX || {};
+  const HK = { profiles: [], loading: false, lastLoad: 0, booted: false };
 
-  function toast(msg){
-    try { if (typeof showToast === 'function') return showToast(msg); } catch(e){}
-    try { if (typeof hgToast === 'function') return hgToast(msg); } catch(e){}
-    alert(msg);
-  }
-  function supa(){
-    try { if (typeof getSupabase === 'function') { const c = getSupabase(); if (c) return c; } } catch(e){}
-    try {
-      if (!window.__hkSupaFix && window.supabase && window.SUPABASE_URL && window.SUPABASE_KEY) {
-        window.__hkSupaFix = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-      }
-      if (window.__hkSupaFix) return window.__hkSupaFix;
-    } catch(e){}
-    try {
-      if (!window.__hkSupaFix && window.supabase && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
-        window.__hkSupaFix = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      }
-      return window.__hkSupaFix || null;
-    } catch(e){ return null; }
-  }
+  function sb(){ try { return getSupabase(); } catch(e) { return null; } }
+  function toast(m){ try { showToast(m); } catch(e) { alert(m); } }
+  function html(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
   function upperName(v){ return String(v || '').trim().replace(/\s+/g,' ').toUpperCase(); }
-  function esc(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
-  function codeOf(p){
-    let raw = String((p && (p.codigo_publico || p.codigo || p.id_publico)) || '').trim().toUpperCase().replace(/\s+/g,'');
-    if (!raw && p && p.numero_amigo !== undefined && p.numero_amigo !== null) raw = 'U' + String(p.numero_amigo).trim();
+  function emailOk(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim()); }
+  function codeFrom(p){
+    let raw = String((p && (p.codigo_publico || p.codigo || p.num || p.id_publico)) || '').trim().toUpperCase();
+    if (!raw && p && p.numero_amigo != null) raw = 'U' + String(p.numero_amigo).trim();
+    raw = raw.replace(/\s+/g,'');
     if (/^\d+$/.test(raw)) raw = 'U' + raw;
-    raw = raw.replace(/^U+/, 'U');
+    raw = raw.replace(/^UU+/, 'U');
     return raw;
   }
-  function myCode(){
-    try { if (typeof getGuestId === 'function') return codeOf({codigo_publico:getGuestId()}); } catch(e){}
-    try { return codeOf({codigo_publico:localStorage.getItem('im_usercode')}); } catch(e){}
-    return '';
+  function myCode(){ try { return codeFrom({ codigo_publico: getGuestId() }); } catch(e) { return ''; } }
+  function signed(){ try { return !!usuarioActual; } catch(e) { return false; } }
+  function friendCodes(){
+    const out = new Set();
+    try { (getAmigos() || []).forEach(a => { const c = codeFrom(a); if (c) out.add(c); }); } catch(e) {}
+    try { const p = perfilNube; if (p && Array.isArray(p.amigos)) p.amigos.forEach(a => { const c = codeFrom(a); if (c) out.add(c); }); } catch(e) {}
+    return out;
   }
-  function isOnline(u){
-    const code = codeOf(u);
-    try {
-      const map = (typeof conectadosAhora !== 'undefined' && conectadosAhora) ? conectadosAhora : (window.conectadosAhora || {});
-      if (map && (map[code] || map[String(code || '')])) return true;
-    } catch(e){}
-    const at = u && (u.ultima_actividad || u.at);
+  function isOnline(p){
+    const c = codeFrom(p);
+    try { if (typeof conectadosAhora !== 'undefined' && conectadosAhora && conectadosAhora[c]) return true; } catch(e) {}
+    const at = p && (p.ultima_actividad || p.at);
     if (!at) return false;
     const t = new Date(at).getTime();
-    return Number.isFinite(t) && Date.now() - t <= 3 * 60 * 1000;
+    return Number.isFinite(t) && (Date.now() - t) <= 3 * 60 * 1000;
   }
-  function myFriends(){
+  function setText(id, value){ const el = document.getElementById(id); if (el) el.textContent = String(value); }
+
+  async function refreshSession(){
+    const c = sb(); if (!c) return null;
     try {
-      if (typeof getAmigos === 'function') {
-        const a = getAmigos();
-        if (Array.isArray(a)) return a.map(x => codeOf({codigo_publico:x.num || x.codigo || x.id})).filter(Boolean);
+      const { data } = await c.auth.getSession();
+      if (data && data.session && data.session.user) {
+        usuarioActual = data.session.user;
+        window.usuarioActual = data.session.user;
       }
-    } catch(e){}
+    } catch(e) {}
+    try { return usuarioActual || null; } catch(e) { return null; }
+  }
+
+  async function fetchProfiles(force){
+    const now = Date.now();
+    if (!force && HK.profiles.length && (now - HK.lastLoad) < 8000) return HK.profiles;
+    if (HK.loading) return HK.profiles;
+    const c = sb(); if (!c) return HK.profiles;
+    HK.loading = true;
     try {
-      const p = window.perfilNube || (typeof perfilNube !== 'undefined' ? perfilNube : null);
-      if (p && Array.isArray(p.amigos)) return p.amigos.map(x => codeOf({codigo_publico:x.num || x.codigo || x.id})).filter(Boolean);
-    } catch(e){}
-    return [];
-  }
-  function setCounter(id, value){ const el = document.getElementById(id); if (el) el.textContent = String(value); }
-
-  async function waitSupabase(maxMs){
-    const start = Date.now();
-    while (Date.now() - start < (maxMs || 6000)) {
-      const c = supa();
-      if (c) return c;
-      await new Promise(r => setTimeout(r, 150));
-    }
-    return null;
-  }
-
-  async function fetchProfiles(){
-    const c = await waitSupabase(8000);
-    if (!c) return [];
-    let r = await c.from('perfiles').select('id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta,ultima_actividad,amigos,correo,monedas,puntos,oro,trofeos').limit(1000);
-    if (r.error) {
-      console.warn('HugoKids: error leyendo perfiles con columnas específicas:', r.error.message);
-      r = await c.from('perfiles').select('*').limit(1000);
-    }
-    if (r.error || !Array.isArray(r.data)) {
-      console.warn('HugoKids: no se pudo leer public.perfiles:', r.error && r.error.message);
-      return [];
-    }
-    const list = r.data
-      .filter(p => String(p.tipo_cuenta || 'usuario').toLowerCase() !== 'invitado')
-      .map(p => {
-        const codigo = codeOf(p);
+      let r = await c.from('perfiles')
+        .select('id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta,ultima_actividad,amigos,correo,monedas,puntos,oro,trofeos,logros,medallas,records,comprados,titulo')
+        .order('nombre', { ascending: true })
+        .limit(500);
+      if (r.error) r = await c.from('perfiles').select('*').limit(500);
+      if (r.error) {
+        console.warn('HugoKids perfiles:', r.error.message);
+        return HK.profiles;
+      }
+      const data = Array.isArray(r.data) ? r.data : [];
+      HK.profiles = data.map(p => {
+        const codigo = codeFrom(p);
         return {
           ...p,
-          id_real: p.id,
           codigo,
           codigo_publico: codigo,
           nombre: upperName(p.nombre || ('JUGADOR ' + (codigo || '').replace('U',''))),
           avatar: p.avatar || '👤',
-          tipo_cuenta: 'usuario'
+          tipo_cuenta: String(p.tipo_cuenta || 'usuario').toLowerCase() === 'invitado' ? 'invitado' : 'usuario'
         };
-      })
-      .filter(p => p.codigo && p.codigo.startsWith('U'));
-    window.hkUsuariosRegistrados = list.map(p => ({
-      id:p.codigo,
-      codigo:p.codigo,
-      name:p.nombre,
-      nombre:p.nombre,
-      emoji:p.avatar,
-      avatar:p.avatar,
-      tipo:'usuario',
-      tipo_cuenta:'usuario',
-      ultima_actividad:p.ultima_actividad,
-      fuente:'perfiles'
-    }));
-    return list;
+      }).filter(p => p.codigo && p.codigo.startsWith('U') && p.tipo_cuenta === 'usuario');
+      window.hkUsuariosRegistrados = HK.profiles.map(p => ({
+        id: p.codigo,
+        codigo: p.codigo,
+        name: p.nombre,
+        nombre: p.nombre,
+        emoji: p.avatar,
+        avatar: p.avatar,
+        tipo: 'usuario',
+        tipo_cuenta: 'usuario',
+        ultima_actividad: p.ultima_actividad,
+        fuente: 'perfiles'
+      }));
+      setText('registeredCount', HK.profiles.length);
+      return HK.profiles;
+    } catch(e) {
+      console.warn('HugoKids fetchProfiles:', e);
+      return HK.profiles;
+    } finally {
+      HK.loading = false;
+      HK.lastLoad = Date.now();
+    }
   }
-  HK_FIX.fetchProfiles = fetchProfiles;
 
-  async function refreshCountersAndUsers(){
-    const profiles = await fetchProfiles();
-    setCounter('registeredCount', profiles.length);
-
+  async function refreshVisitors(){
+    const c = sb(); if (!c) return;
     try {
-      const c = supa();
-      if (c) {
-        const v = await c.from('visitas').select('id').limit(100000);
-        if (!v.error && Array.isArray(v.data)) setCounter('visitorCount', v.data.length);
-      }
-    } catch(e){}
-
-    renderUsersTable(profiles);
-    return profiles;
+      let r = await c.from('visitas').select('id', { count: 'exact', head: true });
+      if (!r.error && typeof r.count === 'number') { setText('visitorCount', r.count); return; }
+      r = await c.from('visitas').select('id').limit(100000);
+      if (!r.error && Array.isArray(r.data)) setText('visitorCount', r.data.length);
+    } catch(e) {}
   }
-  HK_FIX.refreshCountersAndUsers = refreshCountersAndUsers;
-  window.hkActualizarContadores = refreshCountersAndUsers;
-  window.hkCargarUsuariosRegistrados = async function(){
-    const p = await refreshCountersAndUsers();
-    return window.hkUsuariosRegistrados || [];
-  };
 
-  function renderUsersTable(profiles){
+  function renderPlayersTable(list){
     const tb = document.getElementById('tablaJugadoresOnline');
     if (!tb) return;
-    const yo = myCode();
-    const amigos = new Set(myFriends());
-    let rows = (profiles || []).filter(p => p.codigo && p.codigo !== yo);
-
-    try {
-      const map = (typeof conectadosAhora !== 'undefined' && conectadosAhora) ? conectadosAhora : (window.conectadosAhora || {});
-      Object.entries(map || {}).forEach(([code, u]) => {
-        const c = codeOf({codigo_publico:code});
-        if (!c || c === yo || !c.startsWith('U')) return;
-        if (!rows.some(x => x.codigo === c)) {
-          rows.push({codigo:c,codigo_publico:c,nombre:upperName((u && u.name) || 'JUGADOR'),avatar:(u && u.emoji) || '👤',tipo_cuenta:'usuario',ultima_actividad:(u && u.at) || new Date().toISOString()});
-        }
+    const me = myCode();
+    const amigos = friendCodes();
+    const rows = (list || HK.profiles || [])
+      .filter(p => p.codigo && p.codigo !== me)
+      .sort((a,b) => {
+        const ao = isOnline(a) ? 1 : 0, bo = isOnline(b) ? 1 : 0;
+        if (bo !== ao) return bo - ao;
+        const af = amigos.has(a.codigo) ? 1 : 0, bf = amigos.has(b.codigo) ? 1 : 0;
+        if (bf !== af) return bf - af;
+        return String(a.nombre || '').localeCompare(String(b.nombre || ''));
       });
-    } catch(e){}
-
-    rows.sort((a,b) => {
-      const ao = isOnline(a) ? 1 : 0, bo = isOnline(b) ? 1 : 0;
-      if (bo !== ao) return bo - ao;
-      const af = amigos.has(a.codigo) ? 1 : 0, bf = amigos.has(b.codigo) ? 1 : 0;
-      if (bf !== af) return bf - af;
-      return String(a.nombre || '').localeCompare(String(b.nombre || ''));
-    });
-
-    const onlineTotal = rows.filter(isOnline).length + (yo && yo.startsWith('U') ? 1 : 0);
-    const onlineEl = document.getElementById('onlineCount');
-    if (onlineEl) onlineEl.textContent = '🟢 ' + onlineTotal;
+    const onlineTotal = rows.filter(isOnline).length + (me && me.startsWith('U') ? 1 : 0);
+    const onEl = document.getElementById('onlineCount');
+    if (onEl) onEl.textContent = '🟢 ' + onlineTotal;
 
     if (!rows.length) {
       tb.innerHTML = `<tr><td colspan="3" style="text-align:center;color:#7A6B9D;border-radius:14px">
-        Hay ${profiles.length} usuario(s) registrado(s), pero no hay otro usuario para mostrar en esta sesión.
+        Hay ${HK.profiles.length} usuario(s) registrado(s), pero no hay otros usuarios para mostrar.
       </td></tr>`;
       return;
     }
@@ -9992,122 +9943,266 @@ if(_hgOriginalOpenGame){
     tb.innerHTML = rows.map(u => {
       const on = isOnline(u);
       const friend = amigos.has(u.codigo);
-      const friendTxt = friend ? '<div style="color:#7C3AED;font-size:.76rem;font-weight:900;margin-top:2px">🤝 Mi amigo</div>' : '';
-      const playDisabled = on ? '' : 'disabled';
-      const addDisabled = (!on || friend) ? 'disabled' : '';
+      const canUseOnline = signed() && on;
       return `<tr>
         <td>
           <div class="lobby-player">
-            <div class="lobby-avatar">${esc(u.avatar || '👤')}</div>
+            <div class="lobby-avatar">${html(u.avatar || '👤')}</div>
             <div>
-              <div class="lobby-name">${esc(u.nombre || 'JUGADOR')}</div>
-              <div class="lobby-num">${esc(u.codigo)} · Usuario registrado</div>
-              ${friendTxt}
+              <div class="lobby-name">${html(u.nombre || 'JUGADOR')}</div>
+              <div class="lobby-num">${html(u.codigo)} · Usuario registrado</div>
+              ${friend ? '<div style="color:#7C3AED;font-size:.76rem;font-weight:900;margin-top:2px">🤝 Mi amigo</div>' : ''}
             </div>
           </div>
         </td>
         <td><span style="font-weight:900;color:${on ? '#16A34A' : '#6B7280'}">${on ? '🟢 En línea' : '⚫ Fuera de línea'}</span></td>
         <td>
-          <button data-hk-add="${esc(u.codigo)}" ${addDisabled} class="lobby-btn lobby-add" style="opacity:${addDisabled?'.55':'1'};cursor:${addDisabled?'not-allowed':'pointer'}">🤝 Invitar a agregarse</button>
-          <button data-hk-play="${esc(u.codigo)}" ${playDisabled} class="lobby-btn lobby-play" style="opacity:${playDisabled?'.55':'1'};cursor:${playDisabled?'not-allowed':'pointer'}">🎮 Invitar a jugar</button>
+          <button data-hk-add="${html(u.codigo)}" ${(!signed() || friend) ? 'disabled' : ''} class="lobby-btn lobby-add" style="opacity:${(!signed() || friend) ? '.55' : '1'};cursor:${(!signed() || friend) ? 'not-allowed' : 'pointer'}">🤝 Invitar a agregarse</button>
+          <button data-hk-play="${html(u.codigo)}" ${canUseOnline ? '' : 'disabled'} class="lobby-btn lobby-play" style="opacity:${canUseOnline ? '1' : '.55'};cursor:${canUseOnline ? 'pointer' : 'not-allowed'}">🎮 Invitar a jugar</button>
         </td>
       </tr>`;
     }).join('');
 
     tb.querySelectorAll('button[data-hk-add]').forEach(btn => {
       if (btn.disabled) return;
-      btn.onclick = function(e){ e.preventDefault(); e.stopPropagation(); try { (window.enviarSolicitudAmistad || window.agregarAmigo)(btn.dataset.hkAdd); } catch(err){ toast('No se pudo enviar la invitación.'); } };
+      btn.onclick = async e => {
+        e.preventDefault(); e.stopPropagation();
+        const code = btn.dataset.hkAdd;
+        try {
+          if (typeof enviarSolicitudAmistad === 'function') await enviarSolicitudAmistad(code);
+          else if (typeof agregarAmigo === 'function') await agregarAmigo(code);
+          else toast('No se encontró la función de solicitud de amistad.');
+        } catch(err) { toast('No se pudo enviar la invitación.'); }
+      };
     });
     tb.querySelectorAll('button[data-hk-play]').forEach(btn => {
       if (btn.disabled) return;
-      btn.onclick = function(e){ e.preventDefault(); e.stopPropagation(); try { window.invitarAmigo(btn.dataset.hkPlay); } catch(err){ toast('No se pudo invitar a jugar.'); } };
+      btn.onclick = e => {
+        e.preventDefault(); e.stopPropagation();
+        try { invitarAmigo(btn.dataset.hkPlay); } catch(err) { toast('No se pudo invitar a jugar.'); }
+      };
     });
   }
 
-  // Refuerza la función pública que usa el resto de la página.
-  window.refrescarTablaJugadoresOnline = async function(){
-    const profiles = await fetchProfiles();
-    setCounter('registeredCount', profiles.length);
-    renderUsersTable(profiles);
+  async function loadAll(force){
+    const profiles = await fetchProfiles(force);
+    renderPlayersTable(profiles);
+    await refreshVisitors();
+    return profiles;
+  }
+
+  window.hkActualizarContadores = async () => loadAll(true);
+  window.hkCargarUsuariosRegistrados = async () => { await loadAll(true); return window.hkUsuariosRegistrados || []; };
+  window.refrescarTablaJugadoresOnline = function(){
+    renderPlayersTable(HK.profiles);
+    if (!HK.profiles.length || Date.now() - HK.lastLoad > 8000) setTimeout(() => loadAll(true), 0);
+  };
+  window.cargarJugadoresOnlineDesdePerfiles = async function(){
+    await loadAll(true);
   };
 
-  // Registro: mayúscula + no repetir nombre + perfil completo en public.perfiles.
-  const oldRegistrar = window.registrarCuenta || (typeof registrarCuenta === 'function' ? registrarCuenta : null);
-  window.registrarCuenta = async function(email, password, nombre){
-    const c = await waitSupabase(8000);
-    if (!c) return { error:'No hay conexión con Supabase.' };
+  async function nombreDisponible(nombre){
+    const c = sb(); if (!c) return true;
     const nom = upperName(nombre);
+    try {
+      const r = await c.from('perfiles').select('id,nombre').ilike('nombre', nom).limit(1);
+      return !(r.data && r.data.length);
+    } catch(e) { return true; }
+  }
+
+  window.registrarCuenta = async function(email, password, nombre){
+    const c = sb(); if (!c) return { error: 'No hay conexión con Supabase.' };
     const em = String(email || '').trim().toLowerCase();
-    if (!nom || nom.length < 3) return { error:'Escribe un nombre de usuario de mínimo 3 letras.' };
-    if (!password || String(password).length < 6) return { error:'La contraseña debe tener mínimo 6 caracteres.' };
+    const nom = upperName(nombre);
+    if (!nom || nom.length < 3) return { error: 'El nombre debe tener mínimo 3 letras.' };
+    if (!emailOk(em)) return { error: 'Escribe un correo válido.' };
+    if (!password || String(password).length < 6) return { error: 'La contraseña debe tener mínimo 6 caracteres.' };
+    if (!(await nombreDisponible(nom))) return { error: 'Ese nombre de usuario ya existe. Elige otro.' };
 
     try {
-      const exists = await c.from('perfiles').select('id,nombre').ilike('nombre', nom).limit(1);
-      if (!exists.error && exists.data && exists.data.length) return { error:'Ese nombre de usuario ya existe. Elige otro nombre.' };
-    } catch(e){}
-
-    try {
-      const sign = await c.auth.signUp({ email: em, password: String(password), options:{ data:{ nombre:nom } } });
+      const sign = await c.auth.signUp({ email: em, password: String(password), options: { data: { nombre: nom } } });
       if (sign.error) return { error: (typeof traducirError === 'function') ? traducirError(sign.error.message) : sign.error.message };
-      if (sign.data && sign.data.user) {
-        const id = sign.data.user.id;
-        const num = (typeof numeroDesdeId === 'function') ? numeroDesdeId(id) : String(Math.floor(100000 + Math.random()*900000));
-        const cod = 'U' + String(num).replace(/^U/, '');
-        const perfil = {
-          id,
+      const user = sign.data && sign.data.user;
+      if (user) {
+        usuarioActual = user; window.usuarioActual = user;
+        const num = (typeof numeroDesdeId === 'function') ? numeroDesdeId(user.id) : String(Math.floor(100000 + Math.random() * 900000));
+        const codigo = 'U' + String(num).replace(/^U/, '');
+        const avatar = (typeof getGuestAvatar === 'function') ? getGuestAvatar() : '👤';
+        const completo = {
+          id: user.id,
           nombre: nom,
           correo: em,
-          avatar: (typeof getGuestAvatar === 'function') ? getGuestAvatar() : '👤',
+          avatar,
           numero_amigo: String(num).replace(/^U/, ''),
-          codigo_publico: cod,
-          tipo_cuenta:'usuario',
-          monedas:0,
-          puntos:0,
-          oro:0,
-          trofeos:0,
-          logros:[],
-          medallas:[],
-          records:{},
-          amigos:[],
-          comprados:[],
-          titulo:'',
-          ultima_actividad:new Date().toISOString()
+          codigo_publico: codigo,
+          tipo_cuenta: 'usuario',
+          ultima_actividad: new Date().toISOString(),
+          monedas: 0,
+          puntos: 0,
+          oro: 0,
+          trofeos: 0,
+          logros: [],
+          medallas: [],
+          records: {},
+          amigos: [],
+          comprados: [],
+          titulo: ''
         };
-        const ins = await c.from('perfiles').upsert(perfil, { onConflict:'id' }).select('*').maybeSingle();
+        let ins = await c.from('perfiles').upsert(completo, { onConflict: 'id' }).select('*').maybeSingle();
         if (ins.error) {
-          const m = String(ins.error.message || '').toLowerCase();
-          if (m.includes('duplicate') || m.includes('unique')) return { error:'Ese nombre ya existe. Elige otro.' };
-          console.warn('No se pudo crear perfil completo:', ins.error.message);
+          const basico = {
+            id: user.id,
+            nombre: nom,
+            avatar,
+            numero_amigo: String(num).replace(/^U/, ''),
+            codigo_publico: codigo,
+            tipo_cuenta: 'usuario',
+            ultima_actividad: new Date().toISOString(),
+            logros: [],
+            records: {},
+            amigos: []
+          };
+          ins = await c.from('perfiles').upsert(basico, { onConflict: 'id' }).select('*').maybeSingle();
         }
-        try { window.usuarioActual = sign.data.user; usuarioActual = sign.data.user; } catch(e){}
-        try { localStorage.setItem('im_usercode', cod); localStorage.removeItem('im_guestid'); } catch(e){}
-        await refreshCountersAndUsers();
+        if (ins.error) return { error: 'La cuenta se creó en Auth, pero no se pudo guardar el perfil. Revisa las políticas RLS de perfiles.' };
+        try { localStorage.setItem('im_usercode', codigo); localStorage.removeItem('im_guestid'); } catch(e) {}
+        try { setGuestName(nom); setGuestAvatar(avatar); } catch(e) {}
+        perfilNube = ins.data || completo; window.perfilNube = perfilNube;
+        await loadAll(true);
       }
-      return { ok:true };
+      return { ok: true };
     } catch(e) {
-      if (oldRegistrar) return oldRegistrar(email, password, nom);
-      return { error:'Error al crear cuenta: ' + (e.message || e) };
+      return { error: 'Error al crear cuenta: ' + (e && e.message ? e.message : e) };
     }
   };
-  try { registrarCuenta = window.registrarCuenta; } catch(e){}
+  try { registrarCuenta = window.registrarCuenta; } catch(e) {}
 
-  function forceUpperInputs(){
-    document.querySelectorAll('#regNombre,input[name="nombre"],input[placeholder*="nombre" i]').forEach(inp => {
-      if (inp.dataset.hkUpperName) return;
-      inp.dataset.hkUpperName = '1';
-      inp.addEventListener('input', () => { inp.value = upperName(inp.value); });
-    });
+  window.iniciarSesion = async function(email, password){
+    const c = sb(); if (!c) return { error: 'No hay conexión con Supabase.' };
+    try {
+      const { data, error } = await c.auth.signInWithPassword({ email: String(email || '').trim().toLowerCase(), password: String(password || '') });
+      if (error) return { error: (typeof traducirError === 'function') ? traducirError(error.message) : error.message };
+      usuarioActual = data.user; window.usuarioActual = data.user;
+      try { await asegurarPerfilUsuario(); } catch(e) {}
+      try { await cargarPerfilNube(); } catch(e) {}
+      await loadAll(true);
+      return { ok: true };
+    } catch(e) { return { error: 'Error al iniciar sesión.' }; }
+  };
+  try { iniciarSesion = window.iniciarSesion; } catch(e) {}
+
+  function modalBase(titulo){
+    try { if (typeof stopAllGames === 'function') stopAllGames(); } catch(e) {}
+    const modal = document.getElementById('modalOverlay');
+    const body = document.getElementById('modalBody');
+    const title = document.getElementById('modalTitle');
+    if (!modal || !body || !title) return null;
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    try { activeGame = 'cuenta'; } catch(e) {}
+    title.textContent = titulo || '🔐 Mi cuenta';
+    return body;
+  }
+  function bindClick(id, fn){
+    const el = document.getElementById(id); if (!el) return;
+    el.onclick = async e => { e.preventDefault(); await fn(e); };
   }
 
-  async function boot(){
-    forceUpperInputs();
-    await refreshCountersAndUsers();
-    setTimeout(refreshCountersAndUsers, 900);
-    setTimeout(refreshCountersAndUsers, 2500);
-    setTimeout(refreshCountersAndUsers, 6000);
+  window.renderLogin = function(){
+    const body = document.getElementById('modalBody'); if (!body) return;
+    body.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:24px;min-height:340px;color:white">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="font-size:2.4rem">🎮</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:1.35rem">Ingresa a HugoKids</div>
+          <div style="color:#86efac;font-size:.84rem;margin-top:6px">Tus amigos, monedas, medallas y trofeos se guardan en Supabase.</div>
+        </div>
+        <div style="max-width:380px;margin:0 auto">
+          <input id="logEmail" type="email" autocomplete="email" placeholder="Correo" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;color:white;font-weight:800;margin-bottom:10px">
+          <div style="position:relative;margin-bottom:8px">
+            <input id="logPass" type="password" autocomplete="current-password" placeholder="Contraseña" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px 46px 12px 12px;color:white;font-weight:800">
+            <button type="button" onclick="togglePasswordVisibility('logPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:0;color:white;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
+          </div>
+          <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;text-decoration:none;font-size:.84rem;font-weight:800">¿Olvidaste usuario o contraseña?</a></div>
+          <button id="btnLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:0;color:white;padding:14px;border-radius:14px;font-weight:900;font-size:1rem;cursor:pointer">Ingresar ▶</button>
+          <div style="text-align:center;color:#aaa;font-size:.86rem;margin-top:14px">¿No tienes cuenta? <a href="#" id="irRegistro" style="color:#FFD600;font-weight:900;text-decoration:none">Crear cuenta</a></div>
+        </div>
+      </div>`;
+    bindClick('btnLogin', async () => {
+      const em = document.getElementById('logEmail').value;
+      const pw = document.getElementById('logPass').value;
+      if (!em || !pw) return toast('⚠️ Escribe correo y contraseña.');
+      toast('Ingresando...');
+      const r = await window.iniciarSesion(em, pw);
+      if (r.error) return toast('❌ ' + r.error);
+      toast('✅ Sesión iniciada.');
+      try { actualizarBotonCuenta(); } catch(e) {}
+      if (typeof renderPanelUsuario === 'function') renderPanelUsuario();
+    });
+    bindClick('irRegistro', () => window.renderRegistro());
+    bindClick('olvideLink', () => { if (typeof renderRecuperar === 'function') renderRecuperar(); });
+  };
+  try { renderLogin = window.renderLogin; } catch(e) {}
+
+  window.renderRegistro = function(){
+    const body = document.getElementById('modalBody'); if (!body) return;
+    body.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:24px;min-height:360px;color:white">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="font-size:2.4rem">✨</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:1.35rem">Crear cuenta nueva</div>
+          <div style="color:#FFD600;font-size:.84rem;margin-top:6px">El nombre será ÚNICO y se guardará en MAYÚSCULA.</div>
+        </div>
+        <div style="max-width:380px;margin:0 auto">
+          <input id="regNombre" type="text" maxlength="16" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="NOMBRE DE USUARIO" style="text-transform:uppercase;width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;color:white;font-weight:900;margin-bottom:10px">
+          <input id="regEmail" type="email" autocomplete="email" placeholder="Correo" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;color:white;font-weight:800;margin-bottom:10px">
+          <div style="position:relative;margin-bottom:14px">
+            <input id="regPass" type="password" autocomplete="new-password" placeholder="Contraseña mínimo 6 caracteres" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px 46px 12px 12px;color:white;font-weight:800">
+            <button type="button" onclick="togglePasswordVisibility('regPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:0;color:white;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
+          </div>
+          <button id="btnRegistro" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:0;color:white;padding:14px;border-radius:14px;font-weight:900;font-size:1rem;cursor:pointer">Crear mi cuenta ▶</button>
+          <div style="text-align:center;color:#aaa;font-size:.86rem;margin-top:14px">¿Ya tienes cuenta? <a href="#" id="irLogin" style="color:#FFD600;font-weight:900;text-decoration:none">Ingresar</a></div>
+        </div>
+      </div>`;
+    const name = document.getElementById('regNombre');
+    if (name) name.addEventListener('input', () => { name.value = upperName(name.value); });
+    bindClick('btnRegistro', async () => {
+      const nom = upperName(document.getElementById('regNombre').value);
+      const em = document.getElementById('regEmail').value;
+      const pw = document.getElementById('regPass').value;
+      if (!nom || !em || !pw) return toast('⚠️ Completa todos los campos.');
+      toast('Creando cuenta...');
+      const r = await window.registrarCuenta(em, pw, nom);
+      if (r.error) return toast('❌ ' + r.error);
+      toast('🎉 Cuenta creada y perfil guardado.');
+      try { actualizarBotonCuenta(); } catch(e) {}
+      if (typeof renderPanelUsuario === 'function') renderPanelUsuario();
+    });
+    bindClick('irLogin', () => window.renderLogin());
+  };
+  try { renderRegistro = window.renderRegistro; } catch(e) {}
+
+  window.openCuenta = function(){
+    const body = modalBase('🔐 Mi cuenta');
+    if (!body) return;
+    refreshSession().then(() => {
+      if (signed() && typeof renderPanelUsuario === 'function') renderPanelUsuario();
+      else window.renderLogin();
+    });
+  };
+  try { openCuenta = window.openCuenta; } catch(e) {}
+
+  function boot(){
+    if (HK.booted) return;
+    HK.booted = true;
+    const b = document.getElementById('cuentaBtn');
+    if (b) b.onclick = e => { e.preventDefault(); window.openCuenta(); };
+    refreshSession().finally(() => loadAll(true));
+    setTimeout(() => loadAll(true), 1500);
+    setTimeout(() => loadAll(true), 5000);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
-  setInterval(() => { forceUpperInputs(); refreshCountersAndUsers(); }, 10000);
+  setInterval(() => loadAll(true), 30000);
 })();
 </script>
 
