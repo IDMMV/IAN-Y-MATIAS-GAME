@@ -1385,6 +1385,7 @@ async function registrarCuenta(email, password, nombre) {
       await c.from('perfiles').insert({
         id: data.user.id, nombre: nombre.trim(), avatar: yo.emoji,
         numero_amigo: numUnico, codigo_publico: codigoUsuario, tipo_cuenta: 'usuario',
+        correo: correoReal,
         logros: getBadges(), records: {}, amigos: getAmigos()
       });
       await cargarPerfilNube();
@@ -1400,13 +1401,18 @@ async function iniciarSesion(usuarioOCorreo, password) {
   // Si no parece correo, buscar el perfil por nombre y reconstruir email interno
   if (!correoValido(emailParaLogin)) {
     try {
-      const { data } = await c.from('perfiles').select('nombre,numero_amigo').ilike('nombre', usuarioOCorreo.trim()).limit(1);
+      const { data } = await c.from('perfiles').select('nombre,numero_amigo,correo').ilike('nombre', usuarioOCorreo.trim()).limit(1);
       if (!data || data.length === 0) return { error: 'No encontramos ese nombre de usuario. Verifica que esté bien escrito.' };
-      // Reconstruir el email interno (mismo patrón usado al registrar con nombre de usuario)
-      const nombreLimpio = data[0].nombre.toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 20) || 'USER';
-      emailParaLogin = nombreLimpio.toLowerCase() + '@usuarios.hugokids.app';
-      // Guardar el email que vamos a intentar para el mensaje de error contextual
-      if (typeof window !== 'undefined') window._hkLastUsernameAttempt = { nombre: data[0].nombre, emailInterno: emailParaLogin };
+      const perfil = data[0];
+      // Si tiene correo real (usuario del sistema antiguo), usarlo directamente
+      if (perfil.correo && correoValido(perfil.correo)) {
+        emailParaLogin = perfil.correo.trim().toLowerCase();
+      } else {
+        // Reconstruir email interno (sistema nuevo)
+        const nombreLimpio = perfil.nombre.toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 20) || 'USER';
+        emailParaLogin = nombreLimpio.toLowerCase() + '@usuarios.hugokids.app';
+      }
+      if (typeof window !== 'undefined') window._hkLastUsernameAttempt = { nombre: perfil.nombre, emailInterno: emailParaLogin };
     } catch (e) {
       return { error: 'Error buscando usuario. Intenta con tu correo directamente.' };
     }
@@ -1452,7 +1458,13 @@ async function recuperarPassword(email) {
 // Guarda el correo en perfiles para que luego se pueda recuperar/recordar el usuario.
 // Si aún no agregaste la columna correo en Supabase, no rompe la app: solo lo ignora.
 async function guardarCorreoPerfilActual() {
-  // Columna 'correo' no existe en perfiles — función desactivada
+  const c = getSupabase();
+  if (!c || !usuarioActual || !usuarioActual.email) return;
+  // Solo guardar si es correo real (no el interno @usuarios.hugokids.app)
+  if (usuarioActual.email.endsWith('@usuarios.hugokids.app')) return;
+  try {
+    await c.from('perfiles').update({ correo: usuarioActual.email }).eq('id', usuarioActual.id);
+  } catch(e) {}
 }
 
 // Busca la cuenta por código U, nombre de jugador o correo guardado.
@@ -1479,17 +1491,18 @@ async function buscarUsuarioRecuperacion(dato) {
     } catch (e) { return { error: e }; }
   }
 
-  const columnas = 'id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta';
+  const columnas = 'id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta,correo';
   const modos = [];
   if (code && code.startsWith('U')) modos.push('codigo');
   if (numero && numero.length >= 3) modos.push('numero');
-  modos.push('nombre');  // siempre buscar por nombre
+  if (esCorreo) modos.push('correo');
+  modos.push('nombre');
 
   for (const modo of modos) {
     const r = await intentar(columnas, modo);
-    if (r.data && r.data.length) return { ok: true, cuentas: r.data, columnaCorreoExiste: false };
+    if (r.data && r.data.length) return { ok: true, cuentas: r.data, columnaCorreoExiste: true };
   }
-  return { ok: false, cuentas: [], columnaCorreoExiste: false, error: 'No encontré una cuenta con ese dato.' };
+  return { ok: false, cuentas: [], columnaCorreoExiste: true, error: 'No encontré una cuenta con ese dato.' };
 }
 
 async function cerrarSesion() {
@@ -8950,8 +8963,7 @@ if(_hgOriginalOpenGame){
 
   // Avatar selector ya está en renderPanelUsuario — no se necesita interceptor.
 
-  // Registro: delega a la función principal que ya tiene email opcional
-  window.renderRegistro = function(){ if(typeof renderRegistro==='function') renderRegistro(); };
+  // renderRegistro: la función global ya existe, no se necesita wrapper
 
   // Asegurar que Pirámide también aparezca en el arreglo extra si el navegador llegó a cargar el script anterior.
   try{
