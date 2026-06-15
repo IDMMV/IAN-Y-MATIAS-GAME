@@ -1385,7 +1385,6 @@ async function registrarCuenta(email, password, nombre) {
       await c.from('perfiles').insert({
         id: data.user.id, nombre: nombre.trim(), avatar: yo.emoji,
         numero_amigo: numUnico, codigo_publico: codigoUsuario, tipo_cuenta: 'usuario',
-        correo: correoReal,
         logros: getBadges(), records: {}, amigos: getAmigos()
       });
       await cargarPerfilNube();
@@ -1398,22 +1397,30 @@ async function registrarCuenta(email, password, nombre) {
 async function iniciarSesion(usuarioOCorreo, password) {
   const c = getSupabase(); if (!c) return { error: 'No se pudo conectar al servidor. Revisa tu internet e intenta de nuevo.' };
   let emailParaLogin = usuarioOCorreo.trim().toLowerCase();
-  // Si no parece correo, buscar el email interno por nombre en perfiles
+  // Si no parece correo, buscar el perfil por nombre y reconstruir email interno
   if (!correoValido(emailParaLogin)) {
     try {
-      const { data } = await c.from('perfiles').select('correo, nombre').ilike('nombre', usuarioOCorreo.trim()).limit(1);
+      const { data } = await c.from('perfiles').select('nombre,numero_amigo').ilike('nombre', usuarioOCorreo.trim()).limit(1);
       if (!data || data.length === 0) return { error: 'No encontramos ese nombre de usuario. Verifica que esté bien escrito.' };
-      const perfil = data[0];
-      // Si tiene correo real usa ese, sino reconstruye el interno
-      const nombreLimpio = perfil.nombre.toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 20) || 'USER';
-      emailParaLogin = (perfil.correo && correoValido(perfil.correo)) ? perfil.correo : (nombreLimpio.toLowerCase() + '@usuarios.hugokids.app');
+      // Reconstruir el email interno (mismo patrón usado al registrar con nombre de usuario)
+      const nombreLimpio = data[0].nombre.toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 20) || 'USER';
+      emailParaLogin = nombreLimpio.toLowerCase() + '@usuarios.hugokids.app';
+      // Guardar el email que vamos a intentar para el mensaje de error contextual
+      if (typeof window !== 'undefined') window._hkLastUsernameAttempt = { nombre: data[0].nombre, emailInterno: emailParaLogin };
     } catch (e) {
-      return { error: 'Error buscando usuario. Intenta con tu correo.' };
+      return { error: 'Error buscando usuario. Intenta con tu correo directamente.' };
     }
   }
   try {
     const { data, error } = await c.auth.signInWithPassword({ email: emailParaLogin, password });
-    if (error) return { error: traducirError(error.message) };
+    if (error) {
+      // Si falló con email interno, puede ser usuario creado con el sistema anterior (email real)
+      const attempt = typeof window !== 'undefined' ? window._hkLastUsernameAttempt : null;
+      if (attempt && emailParaLogin === attempt.emailInterno) {
+        return { error: '⚠️ Tu cuenta "' + attempt.nombre + '" fue creada con correo. Por favor ingresa con tu correo y contraseña.' };
+      }
+      return { error: traducirError(error.message) };
+    }
     usuarioActual = data.user;
     await asegurarPerfilUsuario();
     if (perfilNube && perfilNube.bloqueado) {
@@ -1445,13 +1452,7 @@ async function recuperarPassword(email) {
 // Guarda el correo en perfiles para que luego se pueda recuperar/recordar el usuario.
 // Si aún no agregaste la columna correo en Supabase, no rompe la app: solo lo ignora.
 async function guardarCorreoPerfilActual() {
-  const c = getSupabase();
-  if (!c || !usuarioActual || !usuarioActual.email) return;
-  try {
-    await c.from('perfiles').update({ correo: usuarioActual.email }).eq('id', usuarioActual.id);
-  } catch (e) {
-    console.warn('No se pudo guardar correo en perfiles. Ejecuta el SQL de la columna correo.', e && e.message ? e.message : e);
-  }
+  // Columna 'correo' no existe en perfiles — función desactivada
 }
 
 // Busca la cuenta por código U, nombre de jugador o correo guardado.
@@ -1478,24 +1479,17 @@ async function buscarUsuarioRecuperacion(dato) {
     } catch (e) { return { error: e }; }
   }
 
-  const columnasConCorreo = 'id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta,correo';
-  const columnasBase = 'id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta';
+  const columnas = 'id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta';
   const modos = [];
   if (code && code.startsWith('U')) modos.push('codigo');
   if (numero && numero.length >= 3) modos.push('numero');
-  if (esCorreo) modos.push('correo');
-  modos.push('nombre');
+  modos.push('nombre');  // siempre buscar por nombre
 
-  let columnaCorreoExiste = true;
   for (const modo of modos) {
-    let r = await intentar(columnasConCorreo, modo);
-    if (r.error) {
-      columnaCorreoExiste = false;
-      r = await intentar(columnasBase, modo);
-    }
-    if (r.data && r.data.length) return { ok: true, cuentas: r.data, columnaCorreoExiste };
+    const r = await intentar(columnas, modo);
+    if (r.data && r.data.length) return { ok: true, cuentas: r.data, columnaCorreoExiste: false };
   }
-  return { ok: false, cuentas: [], columnaCorreoExiste, error: 'No encontré una cuenta con ese dato.' };
+  return { ok: false, cuentas: [], columnaCorreoExiste: false, error: 'No encontré una cuenta con ese dato.' };
 }
 
 async function cerrarSesion() {
@@ -2857,7 +2851,7 @@ function renderPanelUsuario() {
   const nLogros = (Array.isArray(p.logros) ? p.logros.length : getBadges().length);
   const miNum = p.numero_amigo || getGuestId();
   const correoMostrar = (usuarioActual && usuarioActual.email && !usuarioActual.email.endsWith('@usuarios.hugokids.app'))
-    ? usuarioActual.email : '(sin correo de recuperación)';
+    ? usuarioActual.email : null;
   body.innerHTML = `
     <div class="game-container" style="background:#0a0a14;padding:22px;min-height:300px">
       <div style="text-align:center;margin-bottom:16px">
@@ -2875,7 +2869,7 @@ function renderPanelUsuario() {
       <div style="background:#13131f;border-radius:14px;padding:16px;max-width:360px;margin:0 auto 12px">
         <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">🏅 Medallas</span><strong>${nLogros}/10</strong></div>
         <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">👥 Mi número</span><strong style="color:#16A34A">#${miNum}</strong></div>
-        <div style="display:flex;justify-content:space-between;color:#fff"><span style="color:#aaa">📧 Correo</span><strong style="font-size:0.78rem;color:#93c5fd">${correoMostrar}</strong></div>
+        ${correoMostrar ? `<div style="display:flex;justify-content:space-between;color:#fff"><span style="color:#aaa">📧 Correo</span><strong style="font-size:0.78rem;color:#93c5fd">${correoMostrar}</strong></div>` : ''}
       </div>
 
       <div style="background:#13131f;border-radius:14px;padding:14px;max-width:360px;margin:0 auto 12px">
@@ -3220,8 +3214,12 @@ function renderProfile() {
       ${editable ? `
       <div style="background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);border-radius:16px;padding:14px;margin-bottom:18px">
         <div style="color:#fff;font-weight:800;margin-bottom:8px;text-align:center">✏️ Personaliza tu perfil</div>
-        <input id="nameInput" type="text" maxlength="14" value="${nombreInputSeguro}" placeholder="Tu nombre"
-          style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:11px 14px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;font-size:1rem;outline:none;margin-bottom:12px;text-align:center">
+        ${esCuenta
+          ? `<div style="width:100%;box-sizing:border-box;background:#111827;border:2px solid rgba(255,255,255,0.08);border-radius:12px;padding:11px 14px;color:#9ca3af;font-family:'Fredoka One',cursive;font-size:1.1rem;margin-bottom:4px;text-align:center">${nombreSeguro}</div>
+             <div style="color:#6B7280;font-size:0.7rem;text-align:center;margin-bottom:10px">El nombre de usuario no se puede cambiar</div>`
+          : `<input id="nameInput" type="text" maxlength="14" value="${nombreInputSeguro}" placeholder="Tu nombre"
+               style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:11px 14px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;font-size:1rem;outline:none;margin-bottom:12px;text-align:center">`
+        }
         <div style="color:#aaa;font-size:0.78rem;text-align:center;margin-bottom:8px">Elige tu personaje:</div>
         <div id="avatarPicker" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">
           ${AVATARS.map(av => `<button type="button" data-av="${av}" style="aspect-ratio:1;background:${av===p.emoji?p.color:'#1a1a2e'};border:2px solid ${av===p.emoji?'#fff':'transparent'};border-radius:10px;font-size:1.4rem;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation">${av}</button>`).join('')}
@@ -3252,11 +3250,8 @@ function renderProfile() {
     <div class="game-instructions">Escribe tu nombre y elige tu personaje. Tu avatar se guarda en tu cuenta y se usará en la tabla online, chat e invitaciones.</div>`;
 
   function guardarCambiosPerfil() {
-    const ni = document.getElementById('nameInput');
-    const nombreActual = ni ? ni.value : p.name;
+    // Nombre NO se modifica para usuarios registrados (es único e inmutable)
     if (esCuenta) {
-      setGuestName(nombreActual || 'Mi cuenta');
-      if (perfilNube) perfilNube.nombre = nombreActual || perfilNube.nombre || 'Mi cuenta';
       guardarPerfilNube();
     } else if (currentPlayer === 'invitado') {
       setGuestName(nombreActual || ('Invitado #' + getGuestId()));
@@ -3267,10 +3262,10 @@ function renderProfile() {
   }
 
   const nameInput = document.getElementById('nameInput');
-  if (nameInput) {
+  if (nameInput && !esCuenta) {
     nameInput.addEventListener('input', () => {
       const grande = document.getElementById('perfilNombreGrande');
-      if (grande) grande.textContent = nameInput.value || 'Mi cuenta';
+      if (grande) grande.textContent = nameInput.value || '';
       guardarCambiosPerfil();
     });
   }
@@ -3283,8 +3278,8 @@ function renderProfile() {
       const nombreActual = ni ? ni.value : p.name;
       if (esCuenta) {
         setGuestAvatar(av);
-        setGuestName(nombreActual || 'Mi cuenta');
-        if (perfilNube) { perfilNube.avatar = av; perfilNube.nombre = nombreActual || perfilNube.nombre || 'Mi cuenta'; }
+        // No modificar nombre — es único e inmutable
+        if (perfilNube) { perfilNube.avatar = av; }
         await guardarPerfilNube();
       } else if (currentPlayer === 'invitado') {
         setGuestAvatar(av);
