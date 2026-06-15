@@ -425,6 +425,37 @@
   .creators { margin-top: 8px; font-weight: 700; }
   .creators span { color: var(--accent); }
 
+
+
+  /* ──── LOBBY ONLINE / AMIGOS ──── */
+  .online-lobby {
+    padding: 0 24px 34px; position: relative; z-index: 1;
+    max-width: 1200px; margin: 0 auto;
+  }
+  .lobby-card {
+    background: rgba(255,255,255,0.96); border: 4px solid rgba(255,214,0,0.95);
+    border-radius: 26px; padding: 18px; box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+  }
+  .lobby-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .lobby-title { font-family:'Fredoka One',cursive; font-size:1.35rem; color:var(--primary-dark); }
+  .lobby-mini { color:var(--muted); font-weight:800; font-size:0.82rem; }
+  .lobby-table { width:100%; border-collapse:separate; border-spacing:0 8px; }
+  .lobby-table th { text-align:left; color:var(--muted); font-size:0.75rem; text-transform:uppercase; letter-spacing:.6px; padding:0 10px; }
+  .lobby-table td { background:#F8F5FF; padding:10px; font-weight:800; vertical-align:middle; }
+  .lobby-table tr td:first-child { border-radius:14px 0 0 14px; }
+  .lobby-table tr td:last-child { border-radius:0 14px 14px 0; text-align:right; }
+  .lobby-player { display:flex; align-items:center; gap:10px; min-width:0; }
+  .lobby-avatar { width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:white; font-size:1.45rem; box-shadow:0 4px 10px rgba(0,0,0,.12); }
+  .lobby-name { color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
+  .lobby-num { color:#16A34A; font-size:.75rem; }
+  .lobby-btn { border:none; border-radius:12px; padding:8px 12px; font-family:Nunito,sans-serif; font-weight:900; cursor:pointer; margin-left:5px; }
+  .lobby-add { background:#7C3AED; color:white; }
+  .lobby-play { background:#16A34A; color:white; }
+  .lobby-warn { background:#F59E0B; color:white; }
+  @media (max-width:600px){
+    .online-lobby{padding:0 14px 24px}.lobby-card{padding:12px;border-radius:20px}.lobby-table th:nth-child(2),.lobby-table td:nth-child(2){display:none}.lobby-btn{padding:7px 9px;font-size:.76rem}.lobby-name{max-width:120px}
+  }
+
   /* ──── RESPONSIVE ──── */
   @media (max-width: 600px) {
     nav {
@@ -565,6 +596,27 @@
   <div class="stat"><div class="stat-num">7</div><div class="stat-label">Categorías</div></div>
   <div class="stat"><div class="stat-num" id="onlineCount" style="color:#16A34A">🟢 1</div><div class="stat-label">En línea</div></div>
   <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Diversión</div></div>
+</div>
+
+
+
+<!-- LOBBY ONLINE -->
+<div class="online-lobby" id="onlineLobby">
+  <div class="lobby-card">
+    <div class="lobby-head">
+      <div>
+        <div class="lobby-title">👥 Jugadores en línea</div>
+        <div class="lobby-mini">Agrega amigos permanentes o envía solicitud para jugar.</div>
+      </div>
+      <button class="lobby-btn lobby-warn" onclick="openCuenta()">🔐 Mi cuenta</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="lobby-table">
+        <thead><tr><th>Jugador</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody id="tablaJugadoresOnline"><tr><td colspan="3" style="text-align:center;color:#7A6B9D;border-radius:14px">Conectando jugadores...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <!-- CATEGORIES -->
@@ -1183,10 +1235,12 @@ async function registrarCuenta(email, password, nombre) {
     if (data.user) {
       const yo = miIdentidadOnline();
       const numUnico = numeroDesdeId(data.user.id);
-      try { localStorage.setItem('im_guestid', numUnico); } catch (e) {}
+      const codigoUsuario = 'U' + numUnico;
+      try { localStorage.setItem('im_usercode', codigoUsuario); localStorage.removeItem('im_guestid'); } catch (e) {}
       await c.from('perfiles').insert({
         id: data.user.id, nombre: nombre || yo.name, avatar: yo.emoji,
-        numero_amigo: numUnico, logros: getBadges(), records: {}, amigos: getAmigos()
+        numero_amigo: numUnico, codigo_publico: codigoUsuario, tipo_cuenta: 'usuario',
+        logros: getBadges(), records: {}, amigos: getAmigos()
       });
       await cargarPerfilNube();
     }
@@ -1244,7 +1298,7 @@ async function cargarPerfilNube() {
       // aplicar logros y datos de la nube al estado local
       if (data.nombre) setGuestName(data.nombre);
       if (data.avatar) setGuestAvatar(data.avatar);
-      if (data.numero_amigo) { try { localStorage.setItem('im_guestid', data.numero_amigo); } catch(e){} }
+      if (data.codigo_publico || data.numero_amigo) { try { localStorage.setItem('im_usercode', data.codigo_publico || ('U' + data.numero_amigo)); localStorage.removeItem('im_guestid'); } catch(e){} }
       if (Array.isArray(data.logros)) { try { localStorage.setItem(badgeKey(), JSON.stringify(data.logros)); } catch(e){} }
       if (Array.isArray(data.amigos)) { try { localStorage.setItem('im_amigos', JSON.stringify(data.amigos)); } catch(e){} }
       if (typeof updatePlayerBadge === 'function') updatePlayerBadge();
@@ -1342,16 +1396,32 @@ async function gastarMonedas(cantidad, itemId) {
   return true;
 }
 
-// ── Identidad automática de invitado online (número único + avatar) ──
+// ── Identidad online: usuarios = código permanente Uxxxxxx / invitados = código temporal Gxxxxxx ──
+function normalizarCodigoAmigo(valor) {
+  let v = String(valor || '').trim().toUpperCase().replace(/\s+/g,'');
+  if (!v) return '';
+  if (/^[UG][0-9]{3,}$/.test(v)) return v;
+  const n = v.replace(/[^0-9]/g,'');
+  return n ? ('U' + n) : '';
+}
+function getUserCode() {
+  if (perfilNube && (perfilNube.codigo_publico || perfilNube.numero_amigo)) return String(perfilNube.codigo_publico || ('U' + perfilNube.numero_amigo)).toUpperCase();
+  try { const c = localStorage.getItem('im_usercode'); if (c) return String(c).toUpperCase(); } catch (e) {}
+  return '';
+}
 function getGuestId() {
+  const userCode = getUserCode();
+  if (typeof tieneSesion === 'function' && tieneSesion() && userCode) return userCode;
   let id = null;
-  try { id = localStorage.getItem('im_guestid'); } catch (e) {}
+  try { id = sessionStorage.getItem('im_guestid_session'); } catch (e) {}
   if (!id) {
-    id = String(Math.floor(1000 + Math.random() * 9000)); // número de 4 cifras
-    try { localStorage.setItem('im_guestid', id); } catch (e) {}
+    id = 'G' + String(Math.floor(100000 + Math.random() * 900000));
+    try { sessionStorage.setItem('im_guestid_session', id); } catch (e) {}
   }
   return id;
 }
+function soyInvitadoTemporal() { return String(getGuestId()).startsWith('G'); }
+function soyUsuarioRegistrado() { return !!(typeof tieneSesion === 'function' && tieneSesion() && String(getGuestId()).startsWith('U')); }
 function getGuestName() {
   let n = null;
   try { n = localStorage.getItem('im_guestname'); } catch (e) {}
@@ -1378,12 +1448,13 @@ function iniciarPresenciaGlobal() {
       conectadosAhora = {};
       Object.keys(estado).forEach(k => {
         const meta = (estado[k] && estado[k][0]) || {};
-        conectadosAhora[meta.id || k] = { name: meta.name || 'Jugador', emoji: meta.emoji || '👤' };
+        conectadosAhora[meta.id || k] = { name: meta.name || 'Jugador', emoji: meta.emoji || '👤', tipo: meta.tipo || (String(meta.id || k).startsWith('U') ? 'usuario' : 'invitado') };
       });
       const total = Object.keys(estado).length;
       const el = document.getElementById('onlineCount');
       if (el) el.textContent = '🟢 ' + Math.max(1, total);
       if (typeof refrescarListaAmigos === 'function') refrescarListaAmigos();
+      if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline();
     });
     // recibir invitaciones de amigos
     canalPresencia.on('broadcast', { event: 'invitacion' }, ({ payload }) => {
@@ -1392,7 +1463,7 @@ function iniciarPresenciaGlobal() {
     canalPresencia.subscribe(async (estado) => {
       if (estado === 'SUBSCRIBED') {
         const yo = miIdentidadOnline();
-        await canalPresencia.track({ id: getGuestId(), name: yo.name, emoji: yo.emoji, at: Date.now() });
+        await canalPresencia.track({ id: getGuestId(), name: yo.name, emoji: yo.emoji, tipo: soyUsuarioRegistrado() ? 'usuario' : 'invitado', at: Date.now() });
       }
     });
   } catch (e) { console.error('presencia', e); }
@@ -1401,33 +1472,51 @@ function iniciarPresenciaGlobal() {
 function actualizarPresencia() {
   if (!canalPresencia) return;
   const yo = miIdentidadOnline();
-  try { canalPresencia.track({ id: getGuestId(), name: yo.name, emoji: yo.emoji, at: Date.now() }); } catch (e) {}
+  try { canalPresencia.track({ id: getGuestId(), name: yo.name, emoji: yo.emoji, tipo: soyUsuarioRegistrado() ? 'usuario' : 'invitado', at: Date.now() }); } catch (e) {}
 }
 
-// ── SISTEMA DE AMIGOS POR NÚMERO ──
+// ── SISTEMA DE AMIGOS POR CÓDIGO PERMANENTE ──
 function getAmigos() {
   try { const v = localStorage.getItem('im_amigos'); if (v) return JSON.parse(v); } catch (e) {}
   return [];
 }
-function agregarAmigo(num) {
-  num = String(num).replace(/[^0-9]/g,'');
-  if (num.length < 3) { showToast('Número no válido'); return false; }
-  if (num === getGuestId()) { showToast('¡Ese es tu propio número!'); return false; }
+async function buscarUsuarioPorCodigo(codigo) {
+  const c = getSupabase();
+  if (!c) return { error: 'No hay conexión con Supabase' };
+  codigo = normalizarCodigoAmigo(codigo);
+  if (!codigo || !codigo.startsWith('U')) return { error: 'Solo puedes agregar códigos de usuarios registrados. Los invitados empiezan con G y cambian cada vez.' };
+  const numero = codigo.replace(/[^0-9]/g, '');
+  try {
+    let r = await c.from('perfiles').select('id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta').or(`codigo_publico.eq.${codigo},numero_amigo.eq.${numero}`).maybeSingle();
+    if (r.error) return { error: 'No se pudo buscar ese código' };
+    if (!r.data) return { error: 'No existe un usuario con ese código en Supabase' };
+    const realCode = String(r.data.codigo_publico || ('U' + r.data.numero_amigo)).toUpperCase();
+    if (realCode === getGuestId()) return { error: 'Ese es tu propio código' };
+    return { data: { num: realCode, alias: r.data.nombre || ('Amigo #' + realCode), avatar: r.data.avatar || '👤' } };
+  } catch (e) { return { error: 'Error buscando en Supabase' }; }
+}
+async function agregarAmigo(num) {
+  if (!soyUsuarioRegistrado()) { showToast('🔐 Solo usuarios con cuenta pueden agregar amigos permanentes'); openCuenta(); return false; }
+  const encontrado = await buscarUsuarioPorCodigo(num);
+  if (encontrado.error) { showToast(encontrado.error); return false; }
+  const amigo = encontrado.data;
   const a = getAmigos();
-  if (a.find(x => x.num === num)) { showToast('Ya tienes a ese amigo'); return false; }
-  a.push({ num, alias: '' });
+  if (a.find(x => String(x.num).toUpperCase() === amigo.num)) { showToast('Ya tienes a ese amigo'); return false; }
+  a.push(amigo);
   try { localStorage.setItem('im_amigos', JSON.stringify(a)); } catch (e) {}
-  // guardar en la nube si hay sesión (así no se pierde)
-  if (typeof tieneSesion === 'function' && tieneSesion() && typeof guardarPerfilNube === 'function') guardarPerfilNube();
+  if (typeof guardarPerfilNube === 'function') await guardarPerfilNube();
+  showToast('✅ Amigo agregado: ' + amigo.alias);
   return true;
 }
 function quitarAmigo(num) {
-  const a = getAmigos().filter(x => x.num !== num);
+  const code = normalizarCodigoAmigo(num);
+  const a = getAmigos().filter(x => String(x.num).toUpperCase() !== code);
   try { localStorage.setItem('im_amigos', JSON.stringify(a)); } catch (e) {}
   if (typeof tieneSesion === 'function' && tieneSesion() && typeof guardarPerfilNube === 'function') guardarPerfilNube();
 }
 // Enviar invitación a un amigo (por su número)
 function invitarAmigo(num) {
+  num = normalizarCodigoAmigo(num);
   if (!canalPresencia) { showToast('Conéctate primero'); return; }
   const yo = miIdentidadOnline();
   const sala = generarCodigoSala();
@@ -2322,7 +2411,7 @@ function renderPanelUsuario() {
         <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:4px">👥 Mis Amigos</div>
         <div style="color:#aaa;font-size:0.72rem;text-align:center;margin-bottom:10px">Agrega amigos por su número para invitarlos a jugar</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
-          <input id="amigoInput" type="text" inputmode="numeric" maxlength="6" placeholder="N° de tu amigo" style="flex:1;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;text-align:center;outline:none">
+          <input id="amigoInput" type="text" inputmode="numeric" maxlength="12" placeholder="Código amigo: U123456" style="flex:1;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;text-align:center;outline:none">
           <button id="addAmigoBtn" style="background:#16A34A;border:none;color:#fff;padding:9px 16px;border-radius:10px;font-weight:800;cursor:pointer">➕</button>
         </div>
         <div id="listaAmigos"></div>
@@ -2357,10 +2446,10 @@ function renderPanelUsuario() {
   // amigos
   const addBtn = document.getElementById('addAmigoBtn');
   if (addBtn) {
-    const add = e => {
+    const add = async e => {
       e.preventDefault(); e.stopPropagation();
       const inp = document.getElementById('amigoInput');
-      if (inp && agregarAmigo(inp.value)) { guardarPerfilNube(); SFX.click(); renderPanelUsuario(); }
+      if (inp && await agregarAmigo(inp.value)) { guardarPerfilNube(); SFX.click(); renderPanelUsuario(); }
     };
     addBtn.addEventListener('touchstart', add, {passive:false});
     addBtn.addEventListener('click', add);
@@ -2663,9 +2752,9 @@ function renderProfile() {
       </div>` : ''}
       <div style="background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.25);border-radius:14px;padding:14px;margin-bottom:18px">
         <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:4px">👥 Mis Amigos</div>
-        <div style="color:#aaa;font-size:0.72rem;text-align:center;margin-bottom:10px">Tu número es <strong style="color:#16A34A">#${getGuestId()}</strong> · Agrega amigos por su número para invitarlos a jugar</div>
+        <div style="color:#aaa;font-size:0.72rem;text-align:center;margin-bottom:10px">Tu código es <strong style="color:${soyUsuarioRegistrado() ? '#16A34A' : '#f59e0b'}">#${getGuestId()}</strong> · ${soyUsuarioRegistrado() ? 'Agrega usuarios registrados por su código permanente' : 'Invitado temporal: crea cuenta para agregar amigos'}</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
-          <input id="amigoInput" type="text" inputmode="numeric" maxlength="4" placeholder="N° amigo (ej: 1043)" style="flex:1;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;text-align:center;outline:none">
+          <input id="amigoInput" type="text" inputmode="numeric" maxlength="12" placeholder="Código amigo: U123456" style="flex:1;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;text-align:center;outline:none">
           <button id="addAmigoBtn" style="background:#16A34A;border:none;color:#fff;padding:9px 16px;border-radius:10px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent">➕</button>
         </div>
         <div id="listaAmigos"></div>
@@ -2714,16 +2803,52 @@ function renderProfile() {
   // conectar sistema de amigos
   const addBtn = document.getElementById('addAmigoBtn');
   if (addBtn) {
-    const add = e => {
+    const add = async e => {
       e.preventDefault(); e.stopPropagation();
       const inp = document.getElementById('amigoInput');
-      if (inp && agregarAmigo(inp.value)) { SFX.click(); renderProfile(); }
+      if (inp && await agregarAmigo(inp.value)) { SFX.click(); renderProfile(); }
     };
     addBtn.addEventListener('touchstart', add, {passive:false});
     addBtn.addEventListener('click', add);
   }
   refrescarListaAmigos();
 }
+// Dibuja la tabla principal con todos los jugadores conectados
+function refrescarTablaJugadoresOnline() {
+  const tb = document.getElementById('tablaJugadoresOnline');
+  if (!tb) return;
+  const mi = getGuestId();
+  const amigos = getAmigos();
+  const idsAmigos = new Set(amigos.map(a => String(a.num)));
+  const lista = Object.keys(conectadosAhora || {})
+    .filter(id => String(id) !== String(mi))
+    .map(id => ({ id:String(id), ...(conectadosAhora[id] || {}) }));
+  if (!lista.length) {
+    tb.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#7A6B9D;border-radius:14px">No hay otros jugadores conectados ahora. Cuando entren aparecerán aquí.</td></tr>';
+    return;
+  }
+  tb.innerHTML = lista.map(u => {
+    const ya = idsAmigos.has(normalizarCodigoAmigo(u.id));
+    const esUsuario = String(u.id).startsWith('U');
+    const safeName = escapeHtml(u.name || ('Jugador #' + u.id));
+    const safeEmoji = escapeHtml(u.emoji || '👤');
+    return `<tr>
+      <td><div class="lobby-player"><div class="lobby-avatar">${safeEmoji}</div><div><div class="lobby-name">${safeName}</div><div class="lobby-num">#${u.id} · ${esUsuario ? 'Usuario' : 'Invitado temporal'}</div></div></div></td>
+      <td style="color:#16A34A">🟢 En línea</td>
+      <td>
+        ${esUsuario ? (ya ? '<span style="color:#16A34A;font-weight:900;margin-right:8px">✓ Amigo</span>' : `<button class="lobby-btn lobby-add" data-add-online="${u.id}">➕ Agregar</button>`) : '<span style="color:#f59e0b;font-weight:900;margin-right:8px">Invitado</span>'}
+        <button class="lobby-btn lobby-play" data-play-online="${u.id}">⚔️ Solicitar juego</button>
+      </td>
+    </tr>`;
+  }).join('');
+  tb.querySelectorAll('button[data-add-online]').forEach(b => {
+    b.onclick = async e => { e.preventDefault(); if (await agregarAmigo(b.dataset.addOnline)) { SFX.click(); refrescarTablaJugadoresOnline(); refrescarListaAmigos(); } };
+  });
+  tb.querySelectorAll('button[data-play-online]').forEach(b => {
+    b.onclick = async e => { e.preventDefault(); const code = normalizarCodigoAmigo(b.dataset.playOnline); if (String(code).startsWith('U') && !idsAmigos.has(code)) await agregarAmigo(code); invitarAmigo(code); refrescarTablaJugadoresOnline(); };
+  });
+}
+
 // Dibuja la lista de amigos con su estado en línea y botón invitar
 function refrescarListaAmigos() {
   const cont = document.getElementById('listaAmigos');
@@ -2731,9 +2856,9 @@ function refrescarListaAmigos() {
   const amigos = getAmigos();
   if (!amigos.length) { cont.innerHTML = '<div style="color:#666;font-size:0.78rem;text-align:center">Aún no tienes amigos agregados</div>'; return; }
   cont.innerHTML = amigos.map(a => {
-    const on = conectadosAhora[a.num];
-    const nombre = on ? on.name : ('Amigo #' + a.num);
-    const emoji = on ? on.emoji : '👤';
+    const on = conectadosAhora[String(a.num).toUpperCase()];
+    const nombre = on ? on.name : (a.alias || ('Amigo #' + a.num));
+    const emoji = on ? on.emoji : (a.avatar || '👤');
     return `<div style="display:flex;align-items:center;gap:8px;background:#13131f;border-radius:10px;padding:8px;margin-bottom:6px">
       <span style="font-size:1.3rem">${emoji}</span>
       <div style="flex:1;min-width:0">
@@ -4497,7 +4622,7 @@ function crearJuegoOnline(cfg) {
         <div style="background:${tema};border-radius:16px;padding:16px;text-align:center;margin-bottom:16px;max-width:340px;margin-left:auto;margin-right:auto">
           <div style="color:#fff;font-size:0.85rem;opacity:0.9">¡Bienvenido! Eres el</div>
           <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.8rem">Jugador #${num}</div>
-          <div style="color:#fff;font-size:0.78rem;opacity:0.9">Comparte tu número con tus amigos para reconocerse</div>
+          <div style="color:#fff;font-size:0.78rem;opacity:0.9">Comparte tu código U con tus amigos para reconocerse</div>
         </div>
         <div style="max-width:340px;margin:0 auto">
           <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:8px">✏️ ¿Cómo te llamas?</div>
@@ -4507,7 +4632,7 @@ function crearJuegoOnline(cfg) {
           <button id="bvContinuar" style="width:100%;background:${tema};border:none;color:#fff;padding:16px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;font-size:1.05rem;cursor:pointer;-webkit-tap-highlight-color:transparent">¡Listo, vamos a jugar! ▶</button>
         </div>
       </div>
-      <div class="game-instructions">Tu número <strong>#${num}</strong> te identifica. Dile tu número a tus amigos para saber quién es quién.</div>`;
+      <div class="game-instructions">Tu código <strong>#${getGuestId()}</strong> te identifica. Si eres invitado será temporal; si tienes cuenta será permanente.</div>`;
     // nombre
     const ni = document.getElementById('bvNombre');
     if (ni) ni.addEventListener('input', () => {
@@ -4668,7 +4793,7 @@ function pantallaBienvenidaOnline(container, emoji, titulo, tema, onContinuar) {
         <div style="background:${tema};border-radius:16px;padding:16px;text-align:center;margin-bottom:16px;max-width:340px;margin-left:auto;margin-right:auto">
           <div style="color:#fff;font-size:0.85rem;opacity:0.9">¡Bienvenido! Eres el</div>
           <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.8rem">Jugador #${num}</div>
-          <div style="color:#fff;font-size:0.78rem;opacity:0.9">Comparte tu número con tus amigos para reconocerse</div>
+          <div style="color:#fff;font-size:0.78rem;opacity:0.9">Comparte tu código U con tus amigos para reconocerse</div>
         </div>
         <div style="max-width:340px;margin:0 auto">
           <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:8px">✏️ ¿Cómo te llamas?</div>
@@ -4678,7 +4803,7 @@ function pantallaBienvenidaOnline(container, emoji, titulo, tema, onContinuar) {
           <button id="bvContinuar" style="width:100%;background:${tema};border:none;color:#fff;padding:16px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;font-size:1.05rem;cursor:pointer;-webkit-tap-highlight-color:transparent">¡Listo, vamos a jugar! ▶</button>
         </div>
       </div>
-      <div class="game-instructions">Tu número <strong>#${num}</strong> te identifica. Dile tu número a tus amigos para saber quién es quién.</div>`;
+      <div class="game-instructions">Tu código <strong>#${getGuestId()}</strong> te identifica. Si eres invitado será temporal; si tienes cuenta será permanente.</div>`;
     const ni = document.getElementById('bvNombre');
     if (ni) ni.addEventListener('input', () => {
       if (currentPlayer === 'invitado') setGuestName(ni.value || ('Invitado #' + getGuestId()));
@@ -6768,6 +6893,148 @@ function buildTorre(container) {
   }
   loop();
 }
+
+
+/* ══════════════════════════════════════════════════════════
+   MEJORA 2026: MISIÓN, NIVELES, RECOMPENSA Y MÁS JUEGOS 2P
+   ══════════════════════════════════════════════════════════ */
+const JUEGOS_EXTRA_ONLINE = [
+  {id:'futbolonline', emoji:'⚽', name:'Fútbol Penal Online', desc:'Turnos para patear y atajar'},
+  {id:'cartasonline', emoji:'🃏', name:'Cartas Mayor Online', desc:'Gana quien saque la carta mayor'},
+  {id:'matematicasduelo', emoji:'➕', name:'Duelo Matemático Online', desc:'Responde rápido contra un amigo'},
+  {id:'memoriaonline', emoji:'🧠', name:'Memoria Online', desc:'Busca pares por turnos'},
+  {id:'carreraonline', emoji:'🏁', name:'Carrera de Dados Online', desc:'Avanza hasta la meta'},
+  {id:'piedrapapelonline', emoji:'✊', name:'Piedra Papel Tijera Online', desc:'Rondas rápidas con amigo'}
+];
+
+function hgInjectExtraOnlineGames(){
+  const grid=document.getElementById('gameGrid');
+  if(!grid || document.getElementById('card-futbolonline')) return;
+  JUEGOS_EXTRA_ONLINE.forEach(g=>{
+    const card=document.createElement('div');
+    card.className='game-card fade-up visible';
+    card.id='card-'+g.id;
+    card.dataset.cat='online multi';
+    card.dataset.name=(g.name+' '+g.desc).toLowerCase();
+    card.onclick=()=>openJuegoExtraOnline(g.id);
+    card.innerHTML=`
+      <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#06b6d4,#7C3AED)"></div><span class="game-thumb-emoji">${g.emoji}</span></div>
+      <div class="game-badge badge-new">🌐 Online</div>
+      <div class="game-info"><div class="game-name">${g.name}</div><div class="game-meta"><span class="game-cat cat-online">2 jugadores</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>`;
+    grid.appendChild(card);
+  });
+  const gc=document.getElementById('gameCount'); if(gc) gc.textContent=(document.querySelectorAll('.game-card').length)+' juegos';
+  const stat=document.querySelector('.stats .stat .stat-num');
+}
+
+document.addEventListener('DOMContentLoaded',()=>setTimeout(hgInjectExtraOnlineGames,400));
+
+function hgGetProgress(){
+  try{return JSON.parse(localStorage.getItem('hg_game_progress')||'{}')}catch(e){return {}}
+}
+function hgSaveProgress(p){try{localStorage.setItem('hg_game_progress',JSON.stringify(p))}catch(e){}}
+function hgNivelActual(gameId){const p=hgGetProgress(); return Math.min(5, Math.max(1, (p[gameId]?.nivel)||1));}
+async function hgCompletarNivel(gameId, nombre, baseMonedas=8, basePuntos=20){
+  const p=hgGetProgress(); const cur=p[gameId]||{nivel:1, finales:0};
+  const final = cur.nivel>=5;
+  const monedas = final ? baseMonedas*6 : baseMonedas*cur.nivel;
+  const puntos = final ? basePuntos*6 : basePuntos*cur.nivel;
+  if(typeof darRecompensa==='function') await darRecompensa(monedas,puntos, final?'🏆 Recompensa final '+nombre:'Nivel '+cur.nivel+' '+nombre);
+  if(final){ cur.finales=(cur.finales||0)+1; cur.nivel=1; if(typeof awardBadge==='function') awardBadge('first_win'); }
+  else cur.nivel++;
+  p[gameId]=cur; hgSaveProgress(p); hgMostrarFinalNivel(nombre, final, monedas, puntos, cur.nivel);
+}
+function hgMostrarFinalNivel(nombre, final, monedas, puntos, siguiente){
+  const box=document.createElement('div');
+  box.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:7000;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Nunito,sans-serif';
+  box.innerHTML=`<div style="background:white;border:5px solid #FFD600;border-radius:28px;max-width:430px;width:100%;padding:28px;text-align:center;color:#2D1B4E;box-shadow:0 20px 70px rgba(0,0,0,.45)">
+    <div style="font-size:4rem">${final?'🏆':'⭐'}</div>
+    <h2 style="font-family:'Fredoka One',cursive;margin:8px 0">${final?'¡Nivel final terminado!':'¡Nivel superado!'}</h2>
+    <p style="font-weight:800">${nombre}</p>
+    <div style="background:#FFF4D6;border-radius:18px;padding:14px;margin:14px 0;font-weight:900;font-size:1.2rem">+${monedas} 🪙 &nbsp; +${puntos} ⭐</div>
+    <p style="color:#7A6B9D;font-weight:700">${final?'Se reinicia la misión para volver a ganar premios.':'Siguiente nivel: '+siguiente+' de 5'}</p>
+    <button style="margin-top:12px;background:linear-gradient(135deg,#7C3AED,#FF4D9D);color:white;border:none;border-radius:20px;padding:12px 26px;font-weight:900;cursor:pointer">Continuar</button>
+  </div>`;
+  box.querySelector('button').onclick=()=>box.remove(); document.body.appendChild(box);
+}
+
+function hgMissionPanel(gameId, nombre, objetivo){
+  const n=hgNivelActual(gameId);
+  return `<div style="background:linear-gradient(135deg,#1e1b4b,#4c1d95);color:white;border:2px solid #FFD600;border-radius:18px;padding:14px;margin-bottom:14px;text-align:center">
+    <div style="font-family:'Fredoka One',cursive;font-size:1.2rem">🎯 Misión: ${nombre}</div>
+    <div style="font-weight:800;margin:5px 0">Nivel ${n} de 5</div>
+    <div style="font-size:.9rem;opacity:.9">${objetivo}</div>
+    <div style="margin-top:8px;background:rgba(255,255,255,.18);border-radius:12px;overflow:hidden;height:12px"><div style="background:#FFD600;width:${n*20}%;height:100%"></div></div>
+  </div>`;
+}
+
+function openJuegoExtraOnline(id){
+  stopAllGames();
+  const modal=document.getElementById('modalOverlay'), body=document.getElementById('modalBody'), title=document.getElementById('modalTitle');
+  modal.classList.add('open','fs'); document.body.style.overflow='hidden'; requestFullscreen();
+  const game=JUEGOS_EXTRA_ONLINE.find(x=>x.id===id)||JUEGOS_EXTRA_ONLINE[0];
+  title.textContent=game.emoji+' '+game.name;
+  body.innerHTML = hgMissionPanel(id, game.name, 'Juega con un amigo. Al ganar 5 niveles recibes una recompensa final.') + `<div id="extraGameBox"></div>`;
+  buildExtraOnlineGame(document.getElementById('extraGameBox'), game);
+}
+
+function buildExtraOnlineGame(root, game){
+  let score1=0, score2=0, turno=1, ronda=1;
+  const nivel=()=>hgNivelActual(game.id);
+  function render(msg='Elige una acción para empezar'){
+    root.innerHTML=`
+    <div style="background:#0a0a14;color:white;border-radius:20px;padding:18px;text-align:center;min-height:420px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div style="background:#1a1a2e;border-radius:16px;padding:14px"><div style="font-size:2.4rem">🧒</div><b>Jugador 1</b><div style="font-size:1.8rem;color:#FFD600">${score1}</div></div>
+        <div style="background:#1a1a2e;border-radius:16px;padding:14px"><div style="font-size:2.4rem">👧</div><b>Jugador 2</b><div style="font-size:1.8rem;color:#FFD600">${score2}</div></div>
+      </div>
+      <div style="font-size:3.8rem;margin:18px">${game.emoji}</div>
+      <h2 style="font-family:'Fredoka One',cursive">${game.name}</h2>
+      <p style="color:#ccc;margin:8px 0 18px">${msg}</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button id="p1Action" class="btn-primary">Jugador 1</button>
+        <button id="p2Action" class="btn-primary" style="background:linear-gradient(135deg,#16A34A,#06b6d4)">Jugador 2</button>
+        <button id="resetExtra" class="btn-secondary" style="background:#222;color:white">Reiniciar</button>
+      </div>
+      <div class="game-instructions" style="background:#15152a;color:#ddd;margin-top:18px">Modo local listo para jugar. Para conectarlo con Supabase en tiempo real, usa las salas y solicitudes que ya estás creando.</div>
+    </div>`;
+    root.querySelector('#p1Action').onclick=()=>play(1);
+    root.querySelector('#p2Action').onclick=()=>play(2);
+    root.querySelector('#resetExtra').onclick=()=>{score1=0;score2=0;ronda=1;render('Nueva partida')};
+  }
+  function play(player){
+    const puntos = Math.floor(Math.random()*6)+1+nivel();
+    if(player===1) score1+=puntos; else score2+=puntos;
+    ronda++;
+    if(score1>=20 || score2>=20){
+      const ganador=score1>score2?'Jugador 1':'Jugador 2';
+      const nombre=game.name;
+      render(`🏆 Ganó ${ganador}. Recompensa entregada.`);
+      hgCompletarNivel(game.id,nombre,10,25);
+      setTimeout(()=>{score1=0;score2=0;ronda=1;render('Siguiente partida')},900);
+    } else render(`${player===1?'Jugador 1':'Jugador 2'} ganó ${puntos} puntos. Ronda ${ronda}`);
+  }
+  render();
+}
+
+// Panel de misión también para juegos existentes: no cambia el juego, pero da una finalidad visible.
+const _hgOriginalOpenGame = typeof openGame === 'function' ? openGame : null;
+if(_hgOriginalOpenGame){
+  openGame = function(id){
+    _hgOriginalOpenGame(id);
+    setTimeout(()=>{
+      const body=document.getElementById('modalBody'); if(!body || body.querySelector('.hg-existing-mission')) return;
+      const nombres={snake:'Snake Pro',breakout:'Breakout Blast',memory:'Memory Flip',maze:'Maze Escape',racing:'Speed Racer',pong:'Pong Battle',tictactoe:'Tres en Raya',flappy:'Flappy Bird',catch:'Atrapa Frutas',jump:'Salta y Sube',simon:'Simón Dice','2048':'2048',quiz:'Quiz Genio',reaction:'Duelo Reflejos',treasure:'Caza Tesoros',platform:'Súper Salto',defender:'Defensa Espacial',dungeon:'Mazmorra Mágica'};
+      if(!nombres[id]) return;
+      const panel=document.createElement('div'); panel.className='hg-existing-mission';
+      panel.innerHTML=hgMissionPanel(id,nombres[id],'Completa el objetivo del juego. Puedes registrar el nivel cuando termines la partida.');
+      const btn=document.createElement('button'); btn.className='btn-primary'; btn.style.cssText='display:block;margin:-6px auto 14px;padding:10px 20px'; btn.textContent='🎁 Registrar nivel terminado';
+      btn.onclick=()=>hgCompletarNivel(id,nombres[id],8,20);
+      panel.appendChild(btn); body.insertBefore(panel, body.firstChild);
+    },250);
+  }
+}
+
 </script>
 </body>
 </html>
