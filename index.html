@@ -1714,6 +1714,31 @@ function getGuestAvatar() {
 }
 function setGuestAvatar(a) { try { localStorage.setItem('im_guestavatar', a); } catch (e) {} }
 
+// Actualiza visualmente el perfil cuando cambia nombre/avatar.
+// Antes no existía esta función y al tocar un avatar podía detenerse el cambio por error JS.
+function updatePlayerBadge() {
+  try {
+    const yo = miIdentidadOnline();
+    const cuentaBtn = document.getElementById('cuentaBtn');
+    if (cuentaBtn && typeof tieneSesion === 'function' && tieneSesion()) {
+      cuentaBtn.textContent = (yo.emoji || '👤') + ' ' + String(yo.name || 'Mi cuenta').slice(0, 12);
+    }
+    const avatarShow = document.getElementById('miAvatarShow');
+    if (avatarShow) avatarShow.textContent = yo.emoji || '👤';
+    if (typeof actualizarPresencia === 'function') actualizarPresencia();
+  } catch (e) {
+    console.warn('updatePlayerBadge', e && e.message ? e.message : e);
+  }
+}
+
+function getStoredNameRaw() {
+  try { return localStorage.getItem('im_guestname'); } catch (e) { return null; }
+}
+function getStoredAvatarRaw() {
+  try { return localStorage.getItem('im_guestavatar'); } catch (e) { return null; }
+}
+
+
 // ── CONTADOR + LISTA DE CONECTADOS (Supabase Presence global) ──
 let canalPresencia = null;
 let conectadosAhora = {}; // id -> {name, emoji}
@@ -1899,6 +1924,16 @@ let onRivalSalio = null;        // callback cuando el rival se va
 // Identidad que se usa en el modo ONLINE (nombre + avatar)
 // Si el perfil es "invitado", usa el nombre/avatar de invitado automático único.
 function miIdentidadOnline() {
+  // Si hay cuenta iniciada, el nombre/avatar principal debe ser el de la cuenta,
+  // no el perfil local p1/p2. Así el avatar seleccionado se guarda y se muestra en online.
+  if (typeof tieneSesion === 'function' && tieneSesion()) {
+    const nombreLocal = getStoredNameRaw ? getStoredNameRaw() : null;
+    const avatarLocal = getStoredAvatarRaw ? getStoredAvatarRaw() : null;
+    return {
+      name: nombreLocal || (perfilNube && perfilNube.nombre) || (usuarioActual && usuarioActual.email ? usuarioActual.email.split('@')[0] : 'Mi cuenta'),
+      emoji: avatarLocal || (perfilNube && perfilNube.avatar) || '👤'
+    };
+  }
   if (currentPlayer === 'invitado') {
     return { name: getGuestName(), emoji: getGuestAvatar() };
   }
@@ -2653,7 +2688,7 @@ function renderLogin() {
           <input id="logPass" type="password" placeholder="Tu contraseña" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
           <button type="button" onclick="togglePasswordVisibility('logPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:none;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
         </div>
-        <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;font-size:0.8rem;text-decoration:none">¿Olvidaste usuario o contraseña?</a></div>
+        <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;font-size:0.8rem;text-decoration:none">¿Olvidaste tu contraseña?</a></div>
         <button id="btnLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:14px">Ingresar ▶</button>
         <div style="text-align:center;color:#aaa;font-size:0.85rem">¿No tienes cuenta? <a href="#" id="irRegistro" style="color:#FFD600;font-weight:800;text-decoration:none">Crear cuenta</a></div>
       </div>
@@ -3123,35 +3158,43 @@ function renderProfile() {
   if (!body) return;
   const all = Object.keys(BADGES);
   const owned = getBadges();
-  const p = PLAYERS[currentPlayer];
-  const editable = currentPlayer !== 'invitado';
+  const esCuenta = (typeof tieneSesion === 'function' && tieneSesion());
+  const yoOnline = miIdentidadOnline();
+  const pLocal = PLAYERS[currentPlayer] || { name:'Invitado', emoji:'👤', color:'#7C3AED' };
+  const p = esCuenta
+    ? { name: yoOnline.name || 'Mi cuenta', emoji: yoOnline.emoji || '👤', color:'#2563EB' }
+    : pLocal;
+  const editable = esCuenta || currentPlayer !== 'invitado';
+  const nombreSeguro = escapeHtml(p.name || 'Mi cuenta');
+  const nombreInputSeguro = String(p.name || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   body.innerHTML = `
     <div class="game-container" style="background:#0a0a14;padding:18px;min-height:300px">
       <div style="text-align:center;margin-bottom:14px">
-        <div style="font-size:3rem">${p.emoji}</div>
-        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.4rem">${p.name}</div>
+        <div style="font-size:3rem" id="perfilAvatarGrande">${escapeHtml(p.emoji || '👤')}</div>
+        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.4rem" id="perfilNombreGrande">${nombreSeguro}</div>
         <div style="color:#aaa;font-size:0.85rem">${owned.length} de ${all.length} medallas</div>
       </div>
-      ${(typeof tieneSesion==='function' && tieneSesion()) ? `
+      ${esCuenta ? `
       <div style="background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.3);border-radius:12px;padding:10px;text-align:center;margin-bottom:16px;color:#16A34A;font-size:0.85rem;font-weight:700">✅ Estás usando tu cuenta. Tus logros se guardan automáticamente.</div>
       ` : `
       <div style="background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);border-radius:12px;padding:10px;text-align:center;margin-bottom:16px;color:#c4b5fd;font-size:0.82rem">💡 Crea una cuenta para guardar tus logros y jugar con amigos en cualquier dispositivo.</div>`}
       ${editable ? `
       <div style="background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);border-radius:16px;padding:14px;margin-bottom:18px">
         <div style="color:#fff;font-weight:800;margin-bottom:8px;text-align:center">✏️ Personaliza tu perfil</div>
-        <input id="nameInput" type="text" maxlength="14" value="${p.name.replace(/"/g,'&quot;')}" placeholder="Tu nombre"
+        <input id="nameInput" type="text" maxlength="14" value="${nombreInputSeguro}" placeholder="Tu nombre"
           style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:11px 14px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;font-size:1rem;outline:none;margin-bottom:12px;text-align:center">
         <div style="color:#aaa;font-size:0.78rem;text-align:center;margin-bottom:8px">Elige tu personaje:</div>
         <div id="avatarPicker" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">
-          ${AVATARS.map(av => `<button data-av="${av}" style="aspect-ratio:1;background:${av===p.emoji?PLAYERS[currentPlayer].color:'#1a1a2e'};border:2px solid ${av===p.emoji?'#fff':'transparent'};border-radius:10px;font-size:1.4rem;cursor:pointer;-webkit-tap-highlight-color:transparent">${av}</button>`).join('')}
+          ${AVATARS.map(av => `<button type="button" data-av="${av}" style="aspect-ratio:1;background:${av===p.emoji?p.color:'#1a1a2e'};border:2px solid ${av===p.emoji?'#fff':'transparent'};border-radius:10px;font-size:1.4rem;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation">${av}</button>`).join('')}
         </div>
+        <div style="color:#c4b5fd;font-size:0.72rem;text-align:center;margin-top:8px">Toca un avatar para seleccionarlo. Se guarda automáticamente.</div>
       </div>` : ''}
       <div style="background:rgba(22,163,74,0.08);border:1px solid rgba(22,163,74,0.25);border-radius:14px;padding:14px;margin-bottom:18px">
         <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:4px">👥 Mis Amigos</div>
         <div style="color:#aaa;font-size:0.72rem;text-align:center;margin-bottom:10px">Tu código es <strong style="color:${soyUsuarioRegistrado() ? '#16A34A' : '#f59e0b'}">#${getGuestId()}</strong> · ${soyUsuarioRegistrado() ? 'Agrega usuarios registrados por su código permanente' : 'Invitado temporal: crea cuenta para agregar amigos'}</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
           <input id="amigoInput" type="text" inputmode="text" maxlength="20" placeholder="Código amigo: U123456" style="flex:1;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;text-align:center;outline:none">
-          <button id="addAmigoBtn" style="background:#16A34A;border:none;color:#fff;padding:9px 16px;border-radius:10px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent">➕</button>
+          <button id="addAmigoBtn" type="button" style="background:#16A34A;border:none;color:#fff;padding:9px 16px;border-radius:10px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent">➕</button>
         </div>
         <div id="listaAmigos"></div>
       </div>
@@ -3167,45 +3210,67 @@ function renderProfile() {
         }).join('')}
       </div>
     </div>
-    <div class="game-instructions">Escribe tu nombre y elige tu personaje. Cada jugador guarda sus récords y medallas por separado. ¡Compitan entre ustedes!</div>`;
-  // conectar selector de jugador
-  body.querySelectorAll('button[data-pl]').forEach(btn => {
-    const pick = e => { e.preventDefault(); e.stopPropagation(); setPlayer(btn.dataset.pl); SFX.click(); renderProfile(); updatePlayerBadge(); };
-    btn.addEventListener('touchstart', pick, {passive:false});
-    btn.addEventListener('click', pick);
-  });
-  // conectar campo de nombre
+    <div class="game-instructions">Escribe tu nombre y elige tu personaje. Tu avatar se guarda en tu cuenta y se usará en la tabla online, chat e invitaciones.</div>`;
+
+  function guardarCambiosPerfil() {
+    const ni = document.getElementById('nameInput');
+    const nombreActual = ni ? ni.value : p.name;
+    if (esCuenta) {
+      setGuestName(nombreActual || 'Mi cuenta');
+      if (perfilNube) perfilNube.nombre = nombreActual || perfilNube.nombre || 'Mi cuenta';
+      guardarPerfilNube();
+    } else if (currentPlayer === 'invitado') {
+      setGuestName(nombreActual || ('Invitado #' + getGuestId()));
+    } else {
+      updatePlayerProfile(currentPlayer, nombreActual, null);
+    }
+    updatePlayerBadge();
+  }
+
   const nameInput = document.getElementById('nameInput');
   if (nameInput) {
     nameInput.addEventListener('input', () => {
-      updatePlayerProfile(currentPlayer, nameInput.value, null);
-      updatePlayerBadge();
+      const grande = document.getElementById('perfilNombreGrande');
+      if (grande) grande.textContent = nameInput.value || 'Mi cuenta';
+      guardarCambiosPerfil();
     });
-    nameInput.addEventListener('blur', () => { renderProfile(); });
   }
-  // conectar selector de avatar
+
   body.querySelectorAll('button[data-av]').forEach(btn => {
-    const pick = e => {
+    const pick = async e => {
       e.preventDefault(); e.stopPropagation();
-      updatePlayerProfile(currentPlayer, null, btn.dataset.av);
-      SFX.click(); updatePlayerBadge();
-      // guardar el nombre actual del input antes de re-render
-      const ni = document.getElementById('nameInput'); if (ni) updatePlayerProfile(currentPlayer, ni.value, null);
+      const av = btn.dataset.av;
+      const ni = document.getElementById('nameInput');
+      const nombreActual = ni ? ni.value : p.name;
+      if (esCuenta) {
+        setGuestAvatar(av);
+        setGuestName(nombreActual || 'Mi cuenta');
+        if (perfilNube) { perfilNube.avatar = av; perfilNube.nombre = nombreActual || perfilNube.nombre || 'Mi cuenta'; }
+        await guardarPerfilNube();
+      } else if (currentPlayer === 'invitado') {
+        setGuestAvatar(av);
+        if (nombreActual) setGuestName(nombreActual);
+      } else {
+        updatePlayerProfile(currentPlayer, nombreActual, av);
+      }
+      if (typeof SFX !== 'undefined') SFX.click();
+      updatePlayerBadge();
+      showToast('Avatar seleccionado ' + av);
       renderProfile();
     };
-    btn.addEventListener('touchstart', pick, {passive:false});
     btn.addEventListener('click', pick);
+    btn.addEventListener('touchend', pick, {passive:false});
   });
-  // conectar sistema de amigos
+
   const addBtn = document.getElementById('addAmigoBtn');
   if (addBtn) {
     const add = async e => {
       e.preventDefault(); e.stopPropagation();
       const inp = document.getElementById('amigoInput');
-      if (inp && await agregarAmigo(inp.value)) { SFX.click(); renderProfile(); }
+      if (inp && await agregarAmigo(inp.value)) { if (typeof SFX !== 'undefined') SFX.click(); renderProfile(); }
     };
-    addBtn.addEventListener('touchstart', add, {passive:false});
     addBtn.addEventListener('click', add);
+    addBtn.addEventListener('touchend', add, {passive:false});
   }
   refrescarListaAmigos();
 }
