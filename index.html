@@ -1366,39 +1366,56 @@ function correoValido(email) {
 
 async function registrarCuenta(email, password, nombre) {
   const c = getSupabase(); if (!c) return { error: 'No se pudo conectar al servidor. Revisa tu internet e intenta de nuevo.' };
-  if (!correoValido(email)) return { error: 'Escribe un correo real válido (ej: nombre@gmail.com)' };
   if (!password || password.length < 6) return { error: 'La contraseña debe tener al menos 6 caracteres' };
+  if (!nombre || nombre.trim().length < 2) return { error: 'El nombre debe tener al menos 2 caracteres' };
+  const nombreLimpio = nombre.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 20) || 'USER';
+  const emailFinal = (email && correoValido(email)) ? email.trim().toLowerCase() : (nombreLimpio.toLowerCase() + '@usuarios.hugokids.app');
+  const correoReal = (email && correoValido(email)) ? email.trim().toLowerCase() : null;
   try {
-    const { data, error } = await c.auth.signUp({ email, password });
+    const check = await c.from('perfiles').select('id').ilike('nombre', nombre.trim()).limit(1);
+    if (check.data && check.data.length > 0) return { error: 'Ese nombre ya está en uso. Elige otro nombre.' };
+    const { data, error } = await c.auth.signUp({ email: emailFinal, password });
     if (error) return { error: traducirError(error.message) };
     usuarioActual = data.user;
-    // crear su perfil en la tabla con número ÚNICO basado en su ID
     if (data.user) {
       const yo = miIdentidadOnline();
       const numUnico = numeroDesdeId(data.user.id);
       const codigoUsuario = 'U' + numUnico;
       try { localStorage.setItem('im_usercode', codigoUsuario); localStorage.removeItem('im_guestid'); } catch (e) {}
       await c.from('perfiles').insert({
-        id: data.user.id, nombre: nombre || yo.name, avatar: yo.emoji,
+        id: data.user.id, nombre: nombre.trim(), avatar: yo.emoji,
         numero_amigo: numUnico, codigo_publico: codigoUsuario, tipo_cuenta: 'usuario',
+        correo: correoReal,
         logros: getBadges(), records: {}, amigos: getAmigos()
       });
       await cargarPerfilNube();
-      await guardarCorreoPerfilActual();
     }
     return { ok: true };
-  } catch (e) { return { error: 'Error al crear cuenta' }; }
+  } catch (e) { return { error: 'Error al crear cuenta: ' + (e.message || '') }; }
 }
 
-// Iniciar sesión
-async function iniciarSesion(email, password) {
+// Iniciar sesión — acepta nombre de usuario O correo + contraseña
+async function iniciarSesion(usuarioOCorreo, password) {
   const c = getSupabase(); if (!c) return { error: 'No se pudo conectar al servidor. Revisa tu internet e intenta de nuevo.' };
+  let emailParaLogin = usuarioOCorreo.trim().toLowerCase();
+  // Si no parece correo, buscar el email interno por nombre en perfiles
+  if (!correoValido(emailParaLogin)) {
+    try {
+      const { data } = await c.from('perfiles').select('correo, nombre').ilike('nombre', usuarioOCorreo.trim()).limit(1);
+      if (!data || data.length === 0) return { error: 'No encontramos ese nombre de usuario. Verifica que esté bien escrito.' };
+      const perfil = data[0];
+      // Si tiene correo real usa ese, sino reconstruye el interno
+      const nombreLimpio = perfil.nombre.toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 20) || 'USER';
+      emailParaLogin = (perfil.correo && correoValido(perfil.correo)) ? perfil.correo : (nombreLimpio.toLowerCase() + '@usuarios.hugokids.app');
+    } catch (e) {
+      return { error: 'Error buscando usuario. Intenta con tu correo.' };
+    }
+  }
   try {
-    const { data, error } = await c.auth.signInWithPassword({ email, password });
+    const { data, error } = await c.auth.signInWithPassword({ email: emailParaLogin, password });
     if (error) return { error: traducirError(error.message) };
     usuarioActual = data.user;
     await asegurarPerfilUsuario();
-    await guardarCorreoPerfilActual();
     if (perfilNube && perfilNube.bloqueado) {
       await cerrarSesion();
       return { error: 'Tu cuenta está bloqueada. Contacta al administrador.' };
@@ -2688,12 +2705,12 @@ function renderLogin() {
       <div style="text-align:center;margin-bottom:16px">
         <div style="font-size:2.4rem">🎮</div>
         <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem">Ingresa a tu cuenta</div>
-        <div style="color:#16A34A;font-size:0.82rem;margin-top:4px">✨ Si tienes cuenta, se guardan tus logros en cualquier dispositivo</div>
+        <div style="color:#16A34A;font-size:0.82rem;margin-top:4px">✨ Usa tu nombre de usuario o tu correo</div>
       </div>
       <div style="max-width:340px;margin:0 auto">
-        <input id="logEmail" type="email" placeholder="Tu correo" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
+        <input id="logEmail" type="text" placeholder="Tu nombre de usuario o correo" autocomplete="username" autocorrect="off" autocapitalize="off" spellcheck="false" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
         <div style="position:relative;margin-bottom:6px">
-          <input id="logPass" type="password" placeholder="Tu contraseña" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
+          <input id="logPass" type="password" placeholder="Tu contraseña" autocomplete="current-password" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
           <button type="button" onclick="togglePasswordVisibility('logPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:none;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
         </div>
         <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;font-size:0.8rem;text-decoration:none">¿Olvidaste tu contraseña?</a></div>
@@ -2701,11 +2718,11 @@ function renderLogin() {
         <div style="text-align:center;color:#aaa;font-size:0.85rem">¿No tienes cuenta? <a href="#" id="irRegistro" style="color:#FFD600;font-weight:800;text-decoration:none">Crear cuenta</a></div>
       </div>
     </div>
-    <div class="game-instructions">Puedes jugar sin cuenta, pero con una cuenta tus logros y amigos te siguen a cualquier dispositivo.</div>`;
+    <div class="game-instructions">Ingresa con tu nombre de usuario o tu correo. Si no tienes cuenta, crea una — ¡es gratis!</div>`;
   bindBtn('btnLogin', async () => {
     const em = document.getElementById('logEmail').value.trim();
     const pw = document.getElementById('logPass').value;
-    if (!em || !pw) { showToast('⚠️ Escribe tu correo y contraseña'); return; }
+    if (!em || !pw) { showToast('⚠️ Escribe tu usuario (o correo) y contraseña'); return; }
     if (!supabaseListo()) { showToast('⏳ Conectando al servidor... espera un momento e intenta de nuevo'); return; }
     showToast('Ingresando...');
     const r = await iniciarSesion(em, pw);
@@ -2719,33 +2736,42 @@ function renderLogin() {
 function renderRegistro() {
   const body = document.getElementById('modalBody');
   body.innerHTML = `
-    <div class="game-container" style="background:#0a0a14;padding:22px;min-height:320px">
+    <div class="game-container" style="background:#0a0a14;padding:22px;min-height:350px">
       <div style="text-align:center;margin-bottom:16px">
         <div style="font-size:2.4rem">✨</div>
         <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem">Crear cuenta nueva</div>
+        <div style="color:#c4b5fd;font-size:0.82rem;margin-top:4px">Elige un nombre único para identificarte</div>
       </div>
       <div style="max-width:340px;margin:0 auto">
-        <input id="regNombre" type="text" maxlength="14" placeholder="Tu nombre" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
-        <input id="regEmail" type="email" placeholder="Tu correo (puede ser de un papá)" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
-        <div style="position:relative;margin-bottom:14px">
-          <input id="regPass" type="password" placeholder="Contraseña (mínimo 6 letras)" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
+        <input id="regNombre" type="text" maxlength="20" placeholder="Tu nombre de usuario (ej: JOSE, IAN2026)" autocomplete="username" autocorrect="off" autocapitalize="characters" spellcheck="false" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none;text-transform:uppercase">
+        <input id="regEmail" type="email" placeholder="Tu correo (opcional — para recuperar contraseña)" autocomplete="email" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
+        <div style="position:relative;margin-bottom:6px">
+          <input id="regPass" type="password" placeholder="Contraseña (mínimo 6 caracteres)" autocomplete="new-password" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
           <button type="button" onclick="togglePasswordVisibility('regPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:none;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
         </div>
+        <div style="color:#6B7280;font-size:0.75rem;margin-bottom:12px;text-align:center">El correo es opcional. Solo se usa si olvidas tu contraseña.</div>
         <button id="btnRegistro" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:14px">Crear mi cuenta ▶</button>
         <div style="text-align:center;color:#aaa;font-size:0.85rem">¿Ya tienes cuenta? <a href="#" id="irLogin" style="color:#FFD600;font-weight:800;text-decoration:none">Ingresar</a></div>
       </div>
     </div>
-    <div class="game-instructions">Con tu cuenta se guardan tus logros, medallas y amigos para siempre, en cualquier dispositivo.</div>`;
+    <div class="game-instructions">Tu nombre de usuario es único y permanente. El correo es opcional pero recomendado para recuperar contraseña.</div>`;
+  // Forzar mayúsculas en nombre
+  document.getElementById('regNombre').addEventListener('input', function() {
+    const pos = this.selectionStart;
+    this.value = this.value.toUpperCase().replace(/[^A-Z0-9_\-]/g, '');
+    this.setSelectionRange(pos, pos);
+  });
   bindBtn('btnRegistro', async () => {
     const nom = document.getElementById('regNombre').value.trim();
     const em = document.getElementById('regEmail').value.trim();
     const pw = document.getElementById('regPass').value;
-    if (!nom || !em || !pw) { showToast('⚠️ Completa todos los campos'); return; }
+    if (!nom) { showToast('⚠️ Escribe un nombre de usuario'); return; }
+    if (!pw || pw.length < 6) { showToast('⚠️ La contraseña debe tener al menos 6 caracteres'); return; }
     if (!supabaseListo()) { showToast('⏳ Conectando al servidor... intenta de nuevo'); return; }
     showToast('Creando cuenta...');
-    const r = await registrarCuenta(em, pw, nom);
+    const r = await registrarCuenta(em || null, pw, nom);
     if (r.error) showToast('❌ ' + r.error);
-    else { SFX.win(); launchConfetti(); showToast('🎉 ¡Cuenta creada!'); renderPanelUsuario(); }
+    else { SFX.win(); launchConfetti(); showToast('🎉 ¡Cuenta creada! Bienvenido/a ' + nom); renderPanelUsuario(); }
   });
   document.getElementById('irLogin').onclick = e => { e.preventDefault(); renderLogin(); };
 }
@@ -8661,13 +8687,15 @@ if(_hgOriginalOpenGame){
   async function hkActualizarContadores(){
     const c = typeof getSupabase === 'function' ? getSupabase() : null;
     if (!c) return;
+    // Contar usuarios registrados desde perfiles
     try{
-      const r = await c.from('perfiles').select('*', { count:'exact', head:true });
-      if (!r.error && typeof r.count === 'number') hkSetText('registeredCount', String(r.count));
+      const { data } = await c.from('perfiles').select('id').limit(500);
+      if (data && Array.isArray(data)) hkSetText('registeredCount', String(data.length));
     }catch(e){}
+    // Visitas desde tabla stats
     try{
-      const v = await c.from('visitas').select('*', { count:'exact', head:true });
-      if (!v.error && typeof v.count === 'number') hkSetText('visitorCount', String(v.count));
+      const sv = await c.from('stats').select('value').eq('key','total_visitas').maybeSingle();
+      if (sv && sv.data && sv.data.value) hkSetText('visitorCount', String(sv.data.value));
     }catch(e){}
   }
   window.hkActualizarContadores = hkActualizarContadores;
@@ -8946,42 +8974,8 @@ if(_hgOriginalOpenGame){
   }
   new MutationObserver(hkLimpiarAvatarPanelCuenta).observe(document.body, {childList:true, subtree:true});
 
-  // Registro limpio: sin selector de avatar. El avatar se elige después en Perfil y Medallas.
-  window.renderRegistro = function(){
-    const body = document.getElementById('modalBody');
-    if(!body) return;
-    body.innerHTML = `
-    <div class="game-container" style="background:#0a0a14;padding:22px;min-height:320px">
-      <div style="text-align:center;margin-bottom:16px">
-        <div style="font-size:2.4rem">✨</div>
-        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem">Crear cuenta nueva</div>
-        <div style="color:#c4b5fd;font-size:.82rem;margin-top:6px">Luego podrás elegir tu avatar en Perfil y Medallas.</div>
-      </div>
-      <div style="max-width:340px;margin:0 auto">
-        <input id="regNombre" type="text" maxlength="14" placeholder="Tu nombre" autocomplete="name" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
-        <input id="regEmail" type="email" placeholder="Tu correo" autocomplete="email" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
-        <div style="position:relative;margin-bottom:14px">
-          <input id="regPass" type="password" placeholder="Contraseña (mínimo 6 letras)" autocomplete="new-password" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
-          <button type="button" onclick="togglePasswordVisibility('regPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:none;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
-        </div>
-        <button id="btnRegistro" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:14px">Crear mi cuenta ▶</button>
-        <div style="text-align:center;color:#aaa;font-size:0.85rem">¿Ya tienes cuenta? <a href="#" id="irLogin" style="color:#FFD600;font-weight:800;text-decoration:none">Ingresar</a></div>
-      </div>
-    </div>
-    <div class="game-instructions"><strong>Diseño recomendado:</strong> crear cuenta solo pide nombre, correo y contraseña. El avatar se personaliza en Perfil y Medallas para no repetir opciones.</div>`;
-    bindBtn('btnRegistro', async () => {
-      const nom = document.getElementById('regNombre').value.trim();
-      const em = document.getElementById('regEmail').value.trim();
-      const pw = document.getElementById('regPass').value;
-      if (!nom || !em || !pw) { showToast('⚠️ Completa todos los campos'); return; }
-      if (!supabaseListo()) { showToast('⏳ Conectando al servidor... intenta de nuevo'); return; }
-      showToast('Creando cuenta...');
-      const r = await registrarCuenta(em, pw, nom);
-      if (r.error) showToast('❌ ' + r.error);
-      else { try{SFX.win(); launchConfetti();}catch(e){} showToast('🎉 ¡Cuenta creada!'); renderPanelUsuario(); }
-    });
-    const l = document.getElementById('irLogin'); if(l) l.onclick = e => { e.preventDefault(); renderLogin(); };
-  };
+  // Registro: delega a la función principal que ya tiene email opcional
+  window.renderRegistro = function(){ if(typeof renderRegistro==='function') renderRegistro(); };
 
   // Asegurar que Pirámide también aparezca en el arreglo extra si el navegador llegó a cargar el script anterior.
   try{
@@ -9014,8 +9008,8 @@ if(_hgOriginalOpenGame){
     var c = sb(); if (!c) return;
     try {
       // Usuarios registrados
-      var ur = await c.from('perfiles').select('*', {count:'exact', head:true});
-      if (ur && typeof ur.count === 'number') set('registeredCount', fmt(ur.count));
+      var perfilesData = await c.from('perfiles').select('id').limit(500);
+      if (perfilesData && perfilesData.data) set('registeredCount', fmt(perfilesData.data.length));
     } catch(e) {}
     try {
       // Visitas totales
