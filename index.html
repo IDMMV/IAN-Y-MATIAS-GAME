@@ -1374,23 +1374,37 @@ async function registrarCuenta(email, password, nombre) {
   try {
     const check = await c.from('perfiles').select('id').ilike('nombre', nombre.trim()).limit(1);
     if (check.data && check.data.length > 0) return { error: 'Ese nombre ya está en uso. Elige otro nombre.' };
-    const { data, error } = await c.auth.signUp({ email: emailFinal, password });
+    const { data, error } = await c.auth.signUp({
+      email: emailFinal,
+      password,
+      options: {
+        data: { nombre: nombre.trim() },
+        emailRedirectTo: window.location.origin + window.location.pathname
+      }
+    });
     if (error) return { error: traducirError(error.message) };
     usuarioActual = data.user;
+    // Detectar si Supabase requiere confirmación de correo
+    const requiereConfirmacion = data.user && !data.session;
     if (data.user) {
       const yo = miIdentidadOnline();
       const numUnico = numeroDesdeId(data.user.id);
       const codigoUsuario = 'U' + numUnico;
       try { localStorage.setItem('im_usercode', codigoUsuario); localStorage.removeItem('im_guestid'); } catch (e) {}
-      await c.from('perfiles').insert({
-        id: data.user.id, nombre: nombre.trim(), avatar: yo.emoji,
-        numero_amigo: numUnico, codigo_publico: codigoUsuario, tipo_cuenta: 'usuario',
-        correo: correoReal,
-        logros: getBadges(), records: {}, amigos: getAmigos()
-      });
-      await cargarPerfilNube();
+      try {
+        await c.from('perfiles').insert({
+          id: data.user.id, nombre: nombre.trim(), avatar: yo.emoji,
+          numero_amigo: numUnico, codigo_publico: codigoUsuario, tipo_cuenta: 'usuario',
+          correo: correoReal,
+          logros: getBadges(), records: {}, amigos: getAmigos()
+        });
+      } catch(insertErr) {}
+      if (!requiereConfirmacion) await cargarPerfilNube();
     }
-    return { ok: true };
+    if (requiereConfirmacion && correoReal) {
+      return { ok: true, confirmacion: true, correo: correoReal };
+    }
+    return { ok: true, confirmacion: false };
   } catch (e) { return { error: 'Error al crear cuenta: ' + (e.message || '') }; }
 }
 
@@ -1578,7 +1592,7 @@ async function asegurarPerfilUsuario() {
         tipo_cuenta: 'usuario',
         ultima_actividad: new Date().toISOString()
       };
-      if (!data.nombre) cambios.nombre = yo.name;
+      // nombre NO se sobreescribe si ya existe — es único e inmutable
       if (!data.avatar) cambios.avatar = yo.emoji;
       await c.from('perfiles').update(cambios).eq('id', usuarioActual.id);
       data = { ...data, ...cambios };
@@ -1611,8 +1625,9 @@ async function guardarPerfilNube() {
   const c = getSupabase(); if (!c || !usuarioActual) return;
   try {
     const yo = miIdentidadOnline();
+    // nombre NO se actualiza — es único e inmutable desde el registro
     await c.from('perfiles').update({
-      nombre: yo.name, avatar: yo.emoji, logros: getBadges(), amigos: getAmigos()
+      avatar: yo.emoji, logros: getBadges(), amigos: getAmigos()
     }).eq('id', usuarioActual.id);
   } catch (e) {}
 }
@@ -2773,12 +2788,36 @@ function renderRegistro() {
     const em = document.getElementById('regEmail').value.trim();
     const pw = document.getElementById('regPass').value;
     if (!nom) { showToast('⚠️ Escribe un nombre de usuario'); return; }
+    if (em && !correoValido(em)) { showToast('⚠️ El correo no parece válido. Revísalo o déjalo vacío.'); return; }
     if (!pw || pw.length < 6) { showToast('⚠️ La contraseña debe tener al menos 6 caracteres'); return; }
     if (!supabaseListo()) { showToast('⏳ Conectando al servidor... intenta de nuevo'); return; }
     showToast('Creando cuenta...');
     const r = await registrarCuenta(em || null, pw, nom);
-    if (r.error) showToast('❌ ' + r.error);
-    else { SFX.win(); launchConfetti(); showToast('🎉 ¡Cuenta creada! Bienvenido/a ' + nom); renderPanelUsuario(); }
+    if (r.error) { showToast('❌ ' + r.error); return; }
+    SFX.win();
+    if (r.confirmacion) {
+      // Supabase requiere confirmar el correo antes de poder entrar
+      launchConfetti();
+      const body = document.getElementById('modalBody');
+      if (body) body.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:28px;text-align:center;color:#fff;min-height:280px">
+        <div style="font-size:3rem;margin-bottom:12px">📧</div>
+        <div style="font-family:'Fredoka One',cursive;font-size:1.4rem;color:#16A34A;margin-bottom:10px">¡Cuenta creada!</div>
+        <div style="color:#c4b5fd;font-size:0.92rem;line-height:1.6;margin-bottom:18px">
+          Te enviamos un correo de bienvenida a <strong style="color:#FFD600">${r.correo}</strong>.<br>
+          Haz clic en el enlace del correo para activar tu cuenta y poder ingresar.
+        </div>
+        <div style="background:rgba(255,214,0,0.1);border:1px solid rgba(255,214,0,0.3);border-radius:14px;padding:14px;color:#FFD600;font-size:0.85rem;margin-bottom:16px">
+          ⚠️ Si no ves el correo, revisa tu carpeta de <strong>spam o no deseados</strong>.
+        </div>
+        <button id="btnVolverLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-weight:800;cursor:pointer">← Volver al inicio de sesión</button>
+      </div>`;
+      const vl = document.getElementById('btnVolverLogin');
+      if (vl) vl.onclick = () => renderLogin();
+    } else {
+      launchConfetti();
+      showToast('🎉 ¡Bienvenido/a ' + nom + '! Cuenta creada.');
+      renderPanelUsuario();
+    }
   });
   document.getElementById('irLogin').onclick = e => { e.preventDefault(); renderLogin(); };
 }
@@ -8702,13 +8741,28 @@ if(_hgOriginalOpenGame){
     if (!c) return;
     // Contar usuarios registrados desde perfiles
     try{
-      const { data } = await c.from('perfiles').select('id').limit(500);
-      if (data && Array.isArray(data)) hkSetText('registeredCount', String(data.length));
-    }catch(e){}
-    // Visitas desde tabla stats
+      // Primero intentar con count exact (más eficiente)
+      const rc = await c.from('perfiles').select('*', {count:'exact', head:true});
+      if (rc && typeof rc.count === 'number') {
+        hkSetText('registeredCount', String(rc.count));
+      } else {
+        // Fallback: cargar los perfiles ya cargados
+        const n = (window.hkUsuariosRegistrados || []).length;
+        if (n > 0) hkSetText('registeredCount', String(n));
+      }
+    }catch(e){
+      const n = (window.hkUsuariosRegistrados || []).length;
+      if (n > 0) hkSetText('registeredCount', String(n));
+    }
+    // Visitas desde tabla visitas (registros de cada visita)
     try{
-      const sv = await c.from('stats').select('value').eq('key','total_visitas').maybeSingle();
-      if (sv && sv.data && sv.data.value) hkSetText('visitorCount', String(sv.data.value));
+      const vv = await c.from('visitas').select('id', {count:'exact', head:true});
+      if (vv && typeof vv.count === 'number') hkSetText('visitorCount', String(vv.count));
+      else {
+        // Fallback: tabla stats
+        const sv = await c.from('stats').select('value').eq('key','total_visitas').maybeSingle();
+        if (sv && sv.data && sv.data.value) hkSetText('visitorCount', String(sv.data.value));
+      }
     }catch(e){}
   }
   window.hkActualizarContadores = hkActualizarContadores;
@@ -8734,6 +8788,9 @@ if(_hgOriginalOpenGame){
           fuente: 'perfiles'
         };
       }).filter(u => u.codigo && u.codigo.startsWith('U'));
+      // Actualizar contador directamente con los datos que acabamos de cargar
+      const n = window.hkUsuariosRegistrados.length;
+      if (n > 0) hkSetText('registeredCount', String(n));
       return window.hkUsuariosRegistrados;
     }catch(e){ return window.hkUsuariosRegistrados || []; }
   }
@@ -8996,13 +9053,26 @@ if(_hgOriginalOpenGame){
     var c = sb(); if (!c) return;
     try {
       // Usuarios registrados
-      var perfilesData = await c.from('perfiles').select('id').limit(500);
-      if (perfilesData && perfilesData.data) set('registeredCount', fmt(perfilesData.data.length));
+      // Intentar con count exact
+      var rc2 = await c.from('perfiles').select('*', {count:'exact', head:true});
+      if (rc2 && typeof rc2.count === 'number') {
+        set('registeredCount', fmt(rc2.count));
+      } else {
+        // Fallback: usar datos ya cargados
+        var n2 = (window.hkUsuariosRegistrados || []).length;
+        if (n2 > 0) set('registeredCount', fmt(n2));
+      }
     } catch(e) {}
     try {
       // Visitas totales
-      var vr = await c.from('stats').select('value').eq('key','total_visitas').maybeSingle();
-      if (vr && vr.data) set('visitorCount', fmt(vr.data.value));
+      // Primero intentar tabla visitas (registros individuales)
+      var vv = await c.from('visitas').select('id', {count:'exact', head:true});
+      if (vv && typeof vv.count === 'number') {
+        set('visitorCount', fmt(vv.count));
+      } else {
+        var vr = await c.from('stats').select('value').eq('key','total_visitas').maybeSingle();
+        if (vr && vr.data) set('visitorCount', fmt(vr.data.value));
+      }
     } catch(e) {}
     // Actualizar contador de juegos reales
     var totalJuegos = document.querySelectorAll('.game-card').length;
@@ -9015,10 +9085,12 @@ if(_hgOriginalOpenGame){
       var last = parseInt(sessionStorage.getItem('hk_lv') || '0');
       if (Date.now() - last < 30000) return;
       sessionStorage.setItem('hk_lv', Date.now());
+      // Insertar en tabla visitas (una fila por visita)
+      await c.from('visitas').insert({cuando: new Date().toISOString()}).catch(function(){});
+      // También actualizar stats como respaldo
       var r = await c.from('stats').select('value').eq('key','total_visitas').maybeSingle();
       var nuevo = ((r && r.data && r.data.value) || 0) + 1;
-      await c.from('stats').upsert({key:'total_visitas', value:nuevo, updated_at:new Date().toISOString()}, {onConflict:'key'});
-      set('visitorCount', fmt(nuevo));
+      await c.from('stats').upsert({key:'total_visitas', value:nuevo, updated_at:new Date().toISOString()}, {onConflict:'key'}).catch(function(){});
     } catch(e) {}
   }
 
