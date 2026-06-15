@@ -3596,6 +3596,21 @@ setTimeout(() => { if (onlineDisponible()) revisarSesion(); }, 900);
 setTimeout(() => { if (onlineDisponible()) iniciarPresenciaGlobal(); }, 1600);
 setTimeout(() => { if (onlineDisponible()) cargarJugadoresOnlineDesdePerfiles(); }, 1900);
 setTimeout(() => { if (onlineDisponible()) registrarVisita(); }, 2200);
+// Actualizar contador de usuarios registrados al cargar (ahora con RLS correctas)
+setTimeout(async () => {
+  try {
+    const c = typeof getSupabase === 'function' ? getSupabase() : null;
+    if (!c) return;
+    // Contar directamente de perfiles (RLS ahora permite SELECT público)
+    const { data, error } = await c.from('perfiles').select('id');
+    if (!error && data && data.length > 0) {
+      const el = document.getElementById('registeredCount');
+      if (el) el.textContent = String(data.length);
+      // Guardar en stats para acceso rápido futuro
+      c.from('stats').upsert({key:'total_usuarios', value:data.length, updated_at:new Date().toISOString()}, {onConflict:'key'}).catch(()=>{});
+    }
+  } catch(e) {}
+}, 3000);
 
 
 // ═══════════════════════════════════════════
