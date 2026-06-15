@@ -1503,34 +1503,47 @@ async function buscarUsuarioRecuperacion(dato) {
   if (!c) return { error: 'No se pudo conectar al servidor.' };
   if (!texto) return { error: 'Escribe tu nombre, código U o correo.' };
 
-  const esCorreo = correoValido(texto);
-  const code = normalizarCodigoAmigo ? normalizarCodigoAmigo(texto) : texto.toUpperCase();
-  const numero = code && code.startsWith('U') ? code.slice(1) : texto.replace(/\D/g, '');
+  const cols = 'id,nombre,avatar,numero_amigo,codigo_publico,correo';
 
-  async function intentar(columnas, modo) {
+  // 1. Buscar por nombre exacto (case insensitive)
+  try {
+    const r1 = await c.from('perfiles').select(cols).ilike('nombre', texto).limit(5);
+    if (!r1.error && r1.data && r1.data.length) return { ok: true, cuentas: r1.data, columnaCorreoExiste: true };
+  } catch(e) {}
+
+  // 2. Buscar por nombre parcial
+  try {
+    const r2 = await c.from('perfiles').select(cols).ilike('nombre', `%${texto}%`).limit(5);
+    if (!r2.error && r2.data && r2.data.length) return { ok: true, cuentas: r2.data, columnaCorreoExiste: true };
+  } catch(e) {}
+
+  // 3. Buscar por código público (ej: U415083)
+  const textUp = texto.toUpperCase().replace(/\s/g,'');
+  const codigoBuscar = textUp.startsWith('U') ? textUp : null;
+  if (codigoBuscar) {
     try {
-      let q = c.from('perfiles').select(columnas).limit(5);
-      if (modo === 'codigo') q = q.eq('codigo_publico', code);
-      if (modo === 'numero') q = q.eq('numero_amigo', numero);
-      if (modo === 'nombre') q = q.ilike('nombre', `%${texto}%`);
-      if (modo === 'correo') q = q.ilike('correo', texto.toLowerCase());
-      const { data, error } = await q;
-      if (error) return { error };
-      return { data: data || [] };
-    } catch (e) { return { error: e }; }
+      const r3 = await c.from('perfiles').select(cols).eq('codigo_publico', codigoBuscar).limit(5);
+      if (!r3.error && r3.data && r3.data.length) return { ok: true, cuentas: r3.data, columnaCorreoExiste: true };
+    } catch(e) {}
   }
 
-  const columnas = 'id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta,correo';
-  const modos = [];
-  if (code && code.startsWith('U')) modos.push('codigo');
-  if (numero && numero.length >= 3) modos.push('numero');
-  if (esCorreo) modos.push('correo');
-  modos.push('nombre');
-
-  for (const modo of modos) {
-    const r = await intentar(columnas, modo);
-    if (r.data && r.data.length) return { ok: true, cuentas: r.data, columnaCorreoExiste: true };
+  // 4. Buscar por número amigo (solo dígitos)
+  const soloNum = texto.replace(/\D/g,'');
+  if (soloNum.length >= 3) {
+    try {
+      const r4 = await c.from('perfiles').select(cols).eq('numero_amigo', soloNum).limit(5);
+      if (!r4.error && r4.data && r4.data.length) return { ok: true, cuentas: r4.data, columnaCorreoExiste: true };
+    } catch(e) {}
   }
+
+  // 5. Buscar por correo
+  if (correoValido(texto)) {
+    try {
+      const r5 = await c.from('perfiles').select(cols).ilike('correo', texto.toLowerCase()).limit(5);
+      if (!r5.error && r5.data && r5.data.length) return { ok: true, cuentas: r5.data, columnaCorreoExiste: true };
+    } catch(e) {}
+  }
+
   return { ok: false, cuentas: [], columnaCorreoExiste: true, error: 'No encontré una cuenta con ese dato.' };
 }
 
