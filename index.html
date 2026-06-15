@@ -1420,6 +1420,12 @@ async function registrarCuenta(email, password, nombre) {
           logros: getBadges(), records: {}, amigos: getAmigos()
         });
       } catch(insertErr) {}
+      // Actualizar contador de usuarios en stats (tabla con acceso público)
+      try {
+        const cu = await c.from('stats').select('value').eq('key','total_usuarios').maybeSingle();
+        const nuevoTotal = ((cu && cu.data && cu.data.value) || 0) + 1;
+        await c.from('stats').upsert({key:'total_usuarios', value:nuevoTotal, updated_at:new Date().toISOString()}, {onConflict:'key'});
+      } catch(e) {}
       if (!requiereConfirmacion) await cargarPerfilNube();
     }
     if (requiereConfirmacion && correoReal) {
@@ -2780,8 +2786,21 @@ function renderLogin() {
     SFX.win();
     showToast('🎉 ¡Bienvenido ' + (perfilNube && perfilNube.nombre ? perfilNube.nombre : '') + '!');
     renderPanelUsuario();
-    // Ahora hay sesión autenticada — actualizar contadores (la sesión permite leer perfiles)
+    // Ahora hay sesión autenticada — actualizar contadores
     setTimeout(async () => {
+      try {
+        const c2 = typeof getSupabase === 'function' ? getSupabase() : null;
+        if (c2) {
+          // Con sesión autenticada, intentar contar perfiles directamente
+          const rc = await c2.from('perfiles').select('*', {count:'exact', head:true});
+          if (rc && typeof rc.count === 'number' && rc.count > 0) {
+            const el = document.getElementById('registeredCount');
+            if (el) el.textContent = String(rc.count);
+            // Sincronizar en stats para que esté disponible sin autenticación
+            c2.from('stats').upsert({key:'total_usuarios', value:rc.count, updated_at:new Date().toISOString()}, {onConflict:'key'}).catch(()=>{});
+          }
+        }
+      } catch(e) {}
       if (typeof hkCargarUsuariosRegistrados === 'function') await hkCargarUsuariosRegistrados();
       if (typeof hkActualizarContadores === 'function') await hkActualizarContadores();
       if (typeof window.refrescarTablaJugadoresOnline === 'function') window.refrescarTablaJugadoresOnline();
@@ -8835,16 +8854,24 @@ if(_hgOriginalOpenGame){
   async function hkActualizarContadores(){
     const c = typeof getSupabase === 'function' ? getSupabase() : null;
     if (!c) return;
-    // Contar usuarios registrados — requiere política RLS: SELECT TO anon USING (true)
+    // Contar usuarios registrados — primero desde stats (acceso público)
+    // luego intentar directo en perfiles (requiere RLS SELECT policy)
     try{
-      const rc = await c.from('perfiles').select('*', {count:'exact', head:true});
-      if (rc && typeof rc.count === 'number') {
-        hkSetText('registeredCount', String(rc.count));
-      } else if (rc && rc.data && Array.isArray(rc.data)) {
-        hkSetText('registeredCount', String(rc.data.length));
+      // Intento 1: stats table (siempre accesible)
+      const su = await c.from('stats').select('value').eq('key','total_usuarios').maybeSingle();
+      if (su && su.data && su.data.value > 0) {
+        hkSetText('registeredCount', String(su.data.value));
       } else {
-        const n = (window.hkUsuariosRegistrados || []).length;
-        if (n > 0) hkSetText('registeredCount', String(n));
+        // Intento 2: count directo en perfiles (funciona si hay RLS SELECT policy)
+        const rc = await c.from('perfiles').select('*', {count:'exact', head:true});
+        if (rc && typeof rc.count === 'number' && rc.count > 0) {
+          hkSetText('registeredCount', String(rc.count));
+          // Sincronizar el stats con el count real
+          c.from('stats').upsert({key:'total_usuarios', value:rc.count, updated_at:new Date().toISOString()}, {onConflict:'key'}).catch(()=>{});
+        } else {
+          const n = (window.hkUsuariosRegistrados || []).length;
+          if (n > 0) hkSetText('registeredCount', String(n));
+        }
       }
     }catch(e){
       const n = (window.hkUsuariosRegistrados || []).length;
@@ -9149,14 +9176,18 @@ if(_hgOriginalOpenGame){
     var c = sb(); if (!c) return;
     try {
       // Usuarios registrados
-      // Intentar con count exact
-      var rc2 = await c.from('perfiles').select('*', {count:'exact', head:true});
-      if (rc2 && typeof rc2.count === 'number') {
-        set('registeredCount', fmt(rc2.count));
+      // Leer desde stats table (acceso público, sin RLS)
+      var su2 = await c.from('stats').select('value').eq('key','total_usuarios').maybeSingle();
+      if (su2 && su2.data && su2.data.value > 0) {
+        set('registeredCount', fmt(su2.data.value));
       } else {
-        // Fallback: usar datos ya cargados
-        var n2 = (window.hkUsuariosRegistrados || []).length;
-        if (n2 > 0) set('registeredCount', fmt(n2));
+        var rc2 = await c.from('perfiles').select('*', {count:'exact', head:true});
+        if (rc2 && typeof rc2.count === 'number' && rc2.count > 0) {
+          set('registeredCount', fmt(rc2.count));
+        } else {
+          var n2 = (window.hkUsuariosRegistrados || []).length;
+          if (n2 > 0) set('registeredCount', fmt(n2));
+        }
       }
     } catch(e) {}
     try {
