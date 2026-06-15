@@ -1372,8 +1372,12 @@ async function registrarCuenta(email, password, nombre) {
   const emailFinal = (email && correoValido(email)) ? email.trim().toLowerCase() : (nombreLimpio.toLowerCase() + '@usuarios.hugokids.app');
   const correoReal = (email && correoValido(email)) ? email.trim().toLowerCase() : null;
   try {
-    const check = await c.from('perfiles').select('id').ilike('nombre', nombre.trim()).limit(1);
-    if (check.data && check.data.length > 0) return { error: 'Ese nombre ya está en uso. Elige otro nombre.' };
+    // Nota: la verificación de nombre duplicado requiere política RLS pública
+    // Si no hay política SELECT para anon, esta verificación se omite (mejor que bloquear registro)
+    try {
+      const check = await c.from('perfiles').select('id').ilike('nombre', nombre.trim()).limit(1);
+      if (check.data && check.data.length > 0) return { error: 'Ese nombre ya está en uso. Elige otro nombre.' };
+    } catch(e) { /* RLS puede bloquear este select para usuarios anónimos — continuar */ }
     const { data, error } = await c.auth.signUp({
       email: emailFinal,
       password,
@@ -1412,32 +1416,20 @@ async function registrarCuenta(email, password, nombre) {
 async function iniciarSesion(usuarioOCorreo, password) {
   const c = getSupabase(); if (!c) return { error: 'No se pudo conectar al servidor. Revisa tu internet e intenta de nuevo.' };
   let emailParaLogin = usuarioOCorreo.trim().toLowerCase();
-  // Si no parece correo, buscar el perfil por nombre y reconstruir email interno
+  // Si no parece correo, construir el email interno directamente (sin consulta a DB)
+  // Patrón: JOSE40 → jose40@usuarios.hugokids.app
   if (!correoValido(emailParaLogin)) {
-    try {
-      const { data } = await c.from('perfiles').select('nombre,numero_amigo,correo').ilike('nombre', usuarioOCorreo.trim()).limit(1);
-      if (!data || data.length === 0) return { error: 'No encontramos ese nombre de usuario. Verifica que esté bien escrito.' };
-      const perfil = data[0];
-      // Si tiene correo real (usuario del sistema antiguo), usarlo directamente
-      if (perfil.correo && correoValido(perfil.correo)) {
-        emailParaLogin = perfil.correo.trim().toLowerCase();
-      } else {
-        // Reconstruir email interno (sistema nuevo)
-        const nombreLimpio = perfil.nombre.toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 20) || 'USER';
-        emailParaLogin = nombreLimpio.toLowerCase() + '@usuarios.hugokids.app';
-      }
-      if (typeof window !== 'undefined') window._hkLastUsernameAttempt = { nombre: perfil.nombre, emailInterno: emailParaLogin };
-    } catch (e) {
-      return { error: 'Error buscando usuario. Intenta con tu correo directamente.' };
-    }
+    const nombreLimpio = usuarioOCorreo.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 20) || 'USER';
+    emailParaLogin = nombreLimpio.toLowerCase() + '@usuarios.hugokids.app';
+    if (typeof window !== 'undefined') window._hkLastUsernameAttempt = { nombre: usuarioOCorreo.trim(), emailInterno: emailParaLogin };
   }
   try {
     const { data, error } = await c.auth.signInWithPassword({ email: emailParaLogin, password });
     if (error) {
-      // Si falló con email interno, puede ser usuario creado con el sistema anterior (email real)
+      // Si falló con email interno, el usuario puede haber sido creado con el sistema anterior (correo real)
       const attempt = typeof window !== 'undefined' ? window._hkLastUsernameAttempt : null;
       if (attempt && emailParaLogin === attempt.emailInterno) {
-        return { error: '⚠️ Tu cuenta "' + attempt.nombre + '" fue creada con correo. Por favor ingresa con tu correo y contraseña.' };
+        return { error: 'No encontramos la cuenta "' + attempt.nombre + '" o la contraseña es incorrecta. Si te registraste con correo, ingresa con tu correo directamente.' };
       }
       return { error: traducirError(error.message) };
     }
@@ -1498,7 +1490,7 @@ async function buscarUsuarioRecuperacion(dato) {
       if (modo === 'codigo') q = q.eq('codigo_publico', code);
       if (modo === 'numero') q = q.eq('numero_amigo', numero);
       if (modo === 'nombre') q = q.ilike('nombre', `%${texto}%`);
-      if (modo === 'correo') q = q.eq('correo', texto.toLowerCase());
+      if (modo === 'correo') q = q.ilike('correo', texto.toLowerCase());
       const { data, error } = await q;
       if (error) return { error };
       return { data: data || [] };
@@ -2728,6 +2720,7 @@ function renderLogin() {
         <div style="font-size:2.4rem">🎮</div>
         <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem">Ingresa a tu cuenta</div>
         <div style="color:#16A34A;font-size:0.82rem;margin-top:4px">✨ Usa tu nombre de usuario o tu correo</div>
+        <div style="color:#6B7280;font-size:0.72rem;margin-top:2px">Ejemplo: JOSE40 / miCorreo@gmail.com</div>
       </div>
       <div style="max-width:340px;margin:0 auto">
         <input id="logEmail" type="text" placeholder="Tu nombre de usuario o correo" autocomplete="username" autocorrect="off" autocapitalize="off" spellcheck="false" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
@@ -8739,14 +8732,14 @@ if(_hgOriginalOpenGame){
   async function hkActualizarContadores(){
     const c = typeof getSupabase === 'function' ? getSupabase() : null;
     if (!c) return;
-    // Contar usuarios registrados desde perfiles
+    // Contar usuarios registrados — requiere política RLS: SELECT TO anon USING (true)
     try{
-      // Primero intentar con count exact (más eficiente)
       const rc = await c.from('perfiles').select('*', {count:'exact', head:true});
       if (rc && typeof rc.count === 'number') {
         hkSetText('registeredCount', String(rc.count));
+      } else if (rc && rc.data && Array.isArray(rc.data)) {
+        hkSetText('registeredCount', String(rc.data.length));
       } else {
-        // Fallback: cargar los perfiles ya cargados
         const n = (window.hkUsuariosRegistrados || []).length;
         if (n > 0) hkSetText('registeredCount', String(n));
       }
