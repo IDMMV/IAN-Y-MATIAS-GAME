@@ -621,19 +621,8 @@ window.addEventListener('unhandledrejection', function(e){ console.warn('HugoKid
 
 // En móvil se desactivan inicializadores duplicados/pesados que se habían acumulado en versiones anteriores.
 (function(){
-  if (!window.HK_IS_MOBILE) return;
-  const nativeSetTimeout = window.setTimeout.bind(window);
-  window.setTimeout = function(fn, delay){
-    const args = Array.prototype.slice.call(arguments, 2);
-    try {
-      const src = String(fn || '');
-      const heavy = /hgInjectExtraOnlineGames|hgAddMoreOnlineCards|hgFixCategoriasOnline|hgSyncWindowOnline|initHkSupabaseFix/.test(src);
-      if (heavy && Number(delay || 0) < 2500) {
-        return nativeSetTimeout(function(){}, 1);
-      }
-    } catch(e) {}
-    return nativeSetTimeout(fn, delay, ...args);
-  };
+  /* Parche de optimización móvil - los bloqueadores de timers se eliminaron
+     para permitir que revisarSesion() y funciones de sesión corran correctamente */
 })();
 
 document.addEventListener('DOMContentLoaded', function(){
@@ -688,15 +677,48 @@ document.addEventListener('DOMContentLoaded', function(){
 </div>
 
 <!-- STATS -->
-<div class="stats">
-  <div class="stat"><div class="stat-num">51</div><div class="stat-label">Juegos</div></div>
-  <div class="stat"><div class="stat-num">7</div><div class="stat-label">Categorías</div></div>
-  <div class="stat"><div class="stat-num" id="onlineCount" style="color:#16A34A">🟢 1</div><div class="stat-label">En línea</div></div>
-  <div class="stat"><div class="stat-num" id="registeredCount">0</div><div class="stat-label">Usuarios registrados</div></div>
-  <div class="stat"><div class="stat-num" id="visitorCount">0</div><div class="stat-label">Visitantes</div></div>
+<div class="stats" id="statsBar">
+  <div class="stat"><div class="stat-num" id="statJuegos">51</div><div class="stat-label">Juegos</div></div>
+  <div class="stat"><div class="stat-num" id="statCategorias">8</div><div class="stat-label">Categorías</div></div>
+  <div class="stat"><div class="stat-num" id="onlineCount" style="color:#16A34A">🟢 1</div><div class="stat-label">En línea ahora</div></div>
+  <div class="stat"><div class="stat-num" id="registeredCount">—</div><div class="stat-label">Usuarios registrados</div></div>
+  <div class="stat"><div class="stat-num" id="visitorCount">—</div><div class="stat-label">Visitas totales</div></div>
+</div>
+
+<!-- MÉTRICAS EXTENDIDAS -->
+<div id="metricsPanel" style="margin:0 24px 28px;background:rgba(255,255,255,0.95);border-radius:20px;padding:18px 20px;box-shadow:0 4px 20px rgba(124,58,237,0.12);display:none">
+  <div style="font-family:'Fredoka One',cursive;font-size:1.05rem;color:#7C3AED;margin-bottom:12px">📊 Estadísticas de la plataforma</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+    <div style="background:#F0ECFB;border-radius:14px;padding:12px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:800;color:#7C3AED" id="m_usuarios">—</div>
+      <div style="font-size:0.75rem;color:#7A6B9D;font-weight:700">USUARIOS REGISTRADOS</div>
+    </div>
+    <div style="background:#F0FBF4;border-radius:14px;padding:12px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:800;color:#16A34A" id="m_online">—</div>
+      <div style="font-size:0.75rem;color:#7A6B9D;font-weight:700">EN LÍNEA AHORA</div>
+    </div>
+    <div style="background:#FFF8E7;border-radius:14px;padding:12px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:800;color:#FF6B00" id="m_visitas">—</div>
+      <div style="font-size:0.75rem;color:#7A6B9D;font-weight:700">VISITAS TOTALES</div>
+    </div>
+    <div style="background:#FFF0F9;border-radius:14px;padding:12px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:800;color:#FF4D9D" id="m_partidas">—</div>
+      <div style="font-size:0.75rem;color:#7A6B9D;font-weight:700">PARTIDAS JUGADAS</div>
+    </div>
+  </div>
+  <div style="margin-top:14px">
+    <div style="font-size:0.8rem;font-weight:800;color:#7A6B9D;margin-bottom:8px">🏆 JUEGOS MÁS JUGADOS</div>
+    <div id="m_topjuegos" style="display:flex;flex-direction:column;gap:6px">
+      <div style="color:#ccc;font-size:0.85rem">Cargando...</div>
+    </div>
+  </div>
 </div>
 
 
+
+<div style="text-align:center;margin:-10px 0 18px">
+  <button onclick="toggleMetrics()" id="statsToggleBtn" style="background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);color:white;border-radius:20px;padding:7px 20px;font-family:'Nunito',sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;transition:all 0.2s;letter-spacing:0.5px">📊 Ver estadísticas detalladas</button>
+</div>
 
 <!-- LOBBY ONLINE -->
 <div class="online-lobby" id="onlineLobby">
@@ -2670,6 +2692,17 @@ function openGame(id) {
   _hkOpeningGame = true;
   setTimeout(() => { _hkOpeningGame = false; }, 650);
   stopAllGames();
+  // --- Tracking de juego jugado ---
+  try {
+    const counts = JSON.parse(localStorage.getItem('hk_game_plays') || '{}');
+    counts[id] = (counts[id] || 0) + 1;
+    localStorage.setItem('hk_game_plays', JSON.stringify(counts));
+    // Sincronizar con Supabase en segundo plano
+    if (typeof getSupabase === 'function') {
+      const sb = getSupabase();
+      if (sb) sb.from('stats').upsert({key:'game_'+id, value:(counts[id])}, {onConflict:'key'}).then(()=>{}).catch(()=>{});
+    }
+  } catch(e) {}
   const modal = document.getElementById('modalOverlay');
   const body = document.getElementById('modalBody');
   const title = document.getElementById('modalTitle');
@@ -7006,6 +7039,7 @@ function buildMultitud(container) {
   let enemigo = 0;
   let enemyY = -800;
   let estado = 'corriendo'; // corriendo | batalla | fin
+  let _multAnimId = null;
 
   function nuevoNivel() {
     miEquipo = 1; playerX = W/2; scroll = 0; jugando = true; estado = 'corriendo';
@@ -7103,7 +7137,7 @@ function buildMultitud(container) {
       ctx.fillText('' + miEquipo, playerX, H-95);
     }
 
-    if (jugando) requestAnimationFrame(update);
+    if (jugando) _multAnimId = registerAnimation(requestAnimationFrame(update));
   }
 
   function dibujarPuerta(x, y, op) {
@@ -7163,6 +7197,7 @@ function buildRunner(container) {
   let carril = 1, score = 0, coins = 0, vel = 4, jugando = true;
   let obstaculos = [], monedas = [], spawnT = 0;
   let jugadorEmoji = (typeof miIdentidadOnline==='function' ? miIdentidadOnline().emoji : '🏃');
+  let _runAnimId = null;
 
   function mover(dir) {
     carril = Math.max(0, Math.min(2, carril + dir));
@@ -7219,7 +7254,7 @@ function buildRunner(container) {
     });
     score++; setText('runScore', Math.floor(score/3));
     vel = 4 + score/300;
-    if (jugando) requestAnimationFrame(loop);
+    if (jugando) _runAnimId = registerAnimation(requestAnimationFrame(loop));
   }
   function gameOver() {
     jugando = false;
@@ -7364,6 +7399,7 @@ function buildTorre(container) {
   let vida=10, oro=50, ola=1, jugando=true;
   let torres=[], enemigos=[], balas=[], colocando=false;
   let spawnQueue=0, spawnT=0, enOleada=false;
+  let _torreAnimId = null;
 
   function puntoEnCamino(t) {
     // t de 0..1 sobre el camino total
@@ -7459,7 +7495,8 @@ function buildTorre(container) {
       showToast('🎉 ¡Oleada superada! +20🪙');
       if (ola>5 && typeof awardBadge==='function') awardBadge('first_win');
     }
-    requestAnimationFrame(loop);
+    if (!container.isConnected || !jugando) return;
+    _torreAnimId = registerAnimation(requestAnimationFrame(loop));
   }
   function finJuego() {
     jugando=false;
@@ -8363,7 +8400,7 @@ if(_hgOriginalOpenGame){
   function hgSyncWindowOnline(){
     try{ if (typeof conectadosAhora !== 'undefined') window.conectadosAhora = conectadosAhora; }catch(e){}
   }
-  setInterval(hgSyncWindowOnline, 1000);
+  setInterval(hgSyncWindowOnline, 30000);
   document.addEventListener('DOMContentLoaded', () => setTimeout(hgSyncWindowOnline, 800));
 
   // Arregla tarjetas online añadidas por parches anteriores: deben filtrar por categoría online.
@@ -8954,7 +8991,8 @@ if(_hgOriginalOpenGame){
     setTimeout(async () => { await hkCargarUsuariosRegistrados(); await hkActualizarContadores(); window.refrescarTablaJugadoresOnline(); }, 1200);
     setTimeout(async () => { await hkCargarUsuariosRegistrados(); await hkActualizarContadores(); window.refrescarTablaJugadoresOnline(); }, 3200);
   });
-  setInterval(async () => { await hkCargarUsuariosRegistrados(); await hkActualizarContadores(); try{ window.refrescarTablaJugadoresOnline(); window.refrescarListaAmigos(); }catch(e){} }, 20000);
+  /* Poller consolidado: la recarga periódica la maneja HK_CLEAN cada 60s */
+  // setInterval eliminado para evitar 4 pollers paralelos que congelaban móvil
 })();
 
 </script>
@@ -9903,7 +9941,7 @@ if(_hgOriginalOpenGame){
     setTimeout(async () => { try{ await window.hkCargarUsuariosRegistrados(); await window.hkActualizarContadores(); if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline(); }catch(e){} }, 3500);
   });
   try { new MutationObserver(hkActualizarTextoLogin).observe(document.body, {childList:true, subtree:true}); } catch(e){}
-  setInterval(async () => { try{ await window.hkCargarUsuariosRegistrados(); await window.hkActualizarContadores(); }catch(e){} }, 15000);
+  /* Poller 15s eliminado: ya existe el de 60s en HK_CLEAN */
 })();
 </script>
 
@@ -10286,14 +10324,7 @@ if(_hgOriginalOpenGame){
   };
   try { renderRegistro = window.renderRegistro; } catch(e) {}
 
-  window.openCuenta = function(){
-    const body = modalBase('🔐 Mi cuenta');
-    if (!body) return;
-    refreshSession().then(() => {
-      if (signed() && typeof renderPanelUsuario === 'function') renderPanelUsuario();
-      else window.renderLogin();
-    });
-  };
+  /* openCuenta definida en HK_CLEAN - no redefinir aquí */
   try { openCuenta = window.openCuenta; } catch(e) {}
 
   function boot(){
@@ -10302,11 +10333,10 @@ if(_hgOriginalOpenGame){
     const b = document.getElementById('cuentaBtn');
     if (b) b.onclick = e => { e.preventDefault(); window.openCuenta(); };
     refreshSession().finally(() => loadAll(true));
-    setTimeout(() => loadAll(true), 1500);
-    setTimeout(() => loadAll(true), 5000);
+    /* loadAll duplicados eliminados - HK_CLEAN ya lo maneja */
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
-  setInterval(() => loadAll(true), 30000);
+  /* Poller 30s eliminado: ya existe el de 60s en HK_CLEAN */
 })();
 </script>
 
@@ -10514,12 +10544,7 @@ document.addEventListener('visibilitychange', function(){
     bindBtn('hkLogout', async()=>{ await cerrarSesion(); await refrescarTodo(true); toast('Sesión cerrada.'); renderLogin(); });
   }
 
-  window.openCuenta = function(){
-    const body=modalBody(signed()?'👤 Cuenta':'🔐 Crear cuenta / ingresar');
-    if(!body) return;
-    body.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:30px;text-align:center;color:white">Cargando cuenta...</div>`;
-    session().then(()=>{ actualizarBotonCuenta(); signed()?renderCuentaActiva():renderLogin(); }).catch(()=>renderLogin());
-  };
+  /* openCuenta definida en HK_CLEAN - no redefinir aquí */
   try { openCuenta = window.openCuenta; } catch(e){}
 
   // Registro robusto: MAYÚSCULA, nombre único y perfil en Supabase.
@@ -10582,26 +10607,11 @@ body.hk-account-open #modalOverlay.open .modal { max-width:520px; }
 }
 </style>
 <script>
-/* ===== HUGOKIDS CORRECCIÓN LIMPIA 2026-06-15 =====
-   Estabiliza móvil, detiene parches duplicados, deja cuenta sin bloqueo,
-   avatar único y tabla de usuarios registrada desde Supabase. */
+/* ===== HUGOKIDS SISTEMA DE CUENTA Y USUARIOS (versión limpia) ===== */
 (function(){
   'use strict';
-  const nativeSetTimeout = window.__HK_NATIVE_TIMEOUT__ || window.setTimeout.bind(window);
-  const nativeSetInterval = window.__HK_NATIVE_INTERVAL__ || window.setInterval.bind(window);
-  window.__HK_NATIVE_TIMEOUT__ = nativeSetTimeout;
-  window.__HK_NATIVE_INTERVAL__ = nativeSetInterval;
-  const HEAVY = /hgInjectExtraOnlineGames|hgAddMoreOnlineCards|hgFixCategoriasOnline|hgSyncWindowOnline|hgIniciarCanalInvites|iniciarCanalSolicitudesAmigo|initHkSupabaseFix|actualizarNombreYanken|loadAll|refrescarTodo|hkCargarUsuariosRegistrados|hkActualizarContadores|cargarJugadoresOnlineDesdePerfiles|iniciarPresenciaGlobal|registrarVisita|revisarSesion/i;
-  window.setTimeout = function(fn, delay, ...args){
-    try{ if(HEAVY.test(String(fn||'')) && Number(delay||0) < 60000) return 0; }catch(e){}
-    return nativeSetTimeout(fn, delay, ...args);
-  };
-  window.setInterval = function(fn, delay, ...args){
-    try{ if(HEAVY.test(String(fn||'')) || Number(delay||0) < 800) return 0; }catch(e){}
-    return nativeSetInterval(fn, delay, ...args);
-  };
-  function clearOldTimers(){ for(let i=1;i<8000;i++){ try{ clearTimeout(i); clearInterval(i); }catch(e){} } }
-  clearOldTimers(); nativeSetTimeout(clearOldTimers,80); nativeSetTimeout(clearOldTimers,700);
+  const nativeSetTimeout = window.setTimeout.bind(window);
+  const nativeSetInterval = window.setInterval.bind(window);
 
   const HK = window.HK_CLEAN = {profiles:[], loading:false, lastLoad:0};
   function $(id){ return document.getElementById(id); }
@@ -10642,7 +10652,7 @@ body.hk-account-open #modalOverlay.open .modal { max-width:520px; }
   window.refrescarTablaJugadoresOnline=()=>{ loadUsers(false); };
   window.hkCargarUsuariosRegistrados=async()=>{ await loadUsers(true); return window.hkUsuariosRegistrados||[]; };
   window.hkActualizarContadores=async()=>{ await checkSession(); await loadUsers(true); };
-  function boot(){ document.body.classList.add('hk-clean-stable'); const b=$('cuentaBtn'); if(b) b.onclick=e=>{e.preventDefault();e.stopPropagation();window.openCuenta();}; document.querySelectorAll('[onclick*="openCuenta"]').forEach(el=>{el.onclick=e=>{e.preventDefault();e.stopPropagation();window.openCuenta();};}); updateCuentaBtn(); nativeSetTimeout(()=>{checkSession();loadUsers(true);},900); nativeSetTimeout(()=>{loadUsers(true);},3500); nativeSetTimeout(()=>{HK.interval=nativeSetInterval(()=>loadUsers(false),60000);},1200); }
+  function boot(){ document.body.classList.add('hk-clean-stable'); const b=$('cuentaBtn'); if(b) b.onclick=e=>{e.preventDefault();e.stopPropagation();window.openCuenta();}; document.querySelectorAll('[onclick*="openCuenta"]').forEach(el=>{el.onclick=e=>{e.preventDefault();e.stopPropagation();window.openCuenta();};}); updateCuentaBtn(); setTimeout(()=>{checkSession();loadUsers(true);},900); setTimeout(()=>{loadUsers(true);},3500); setTimeout(()=>{HK.interval=setInterval(()=>loadUsers(false),60000);},1200); }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
 </script>
@@ -10977,6 +10987,176 @@ body.hk-account-open #modalOverlay.open .modal { max-width:520px; }
       el.onclick = function(e){ e.preventDefault(); e.stopPropagation(); window.openCuenta(); };
     });
   });
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   HUGOKIDS METRICS SYSTEM — visitas, usuarios, juegos más jugados
+   Requiere tabla en Supabase:
+     CREATE TABLE stats (
+       key TEXT PRIMARY KEY,
+       value BIGINT DEFAULT 0,
+       updated_at TIMESTAMPTZ DEFAULT NOW()
+     );
+     ALTER TABLE stats ENABLE ROW LEVEL SECURITY;
+     CREATE POLICY "public read" ON stats FOR SELECT USING (true);
+     CREATE POLICY "public upsert" ON stats FOR INSERT WITH CHECK (true);
+     CREATE POLICY "public update" ON stats FOR UPDATE USING (true);
+   ══════════════════════════════════════════════════════════ */
+(function(){
+  'use strict';
+
+  const NOMBRES_JUEGOS = {
+    globos:'Revienta Globos',tocar:'Toca y Aparece',pintar:'Pintar con el Dedo',
+    piano:'Piano de Animales',animales:'Sonidos de Animales',numeros:'Aprende Números',
+    letras:'Aprende Letras',vocales:'Aprende Vocales',colores:'Aprende Colores',
+    formas:'Aprende Formas',silabas:'Aprende Sílabas',burbujas:'Burbujas',
+    snake:'Snake Pro',breakout:'Breakout Blast',whack:'Whack-a-Mole',
+    memory:'Memory Flip',maze:'Maze Escape',racing:'Speed Racer',
+    pong:'Pong Battle',tictactoe:'Tres en Raya',flappy:'Flappy Bird',
+    catch:'Atrapa Frutas',jump:'Salta y Sube',simon:'Simón Dice',
+    '2048':'2048',quiz:'Quiz Genio',reaction:'Duelo Reflejos',
+    treasure:'Caza Tesoros',platform:'Súper Salto',defender:'Defensa Espacial',
+    dungeon:'Mazmorra Mágica',idle:'Idle Millonario',multitud:'Multitud',
+    runner:'Corre sin Fin',merge:'Fusión',torre:'Defiende la Torre',
+    sumas:'Sumas y Restas',tablas:'Tablas de Multiplicar',palabra:'Forma la Palabra',
+    regiones:'Regiones del Perú',patrios:'Símbolos Patrios',solar:'Sistema Solar',
+    cuerpo:'Cuerpo Humano',figuras:'Figuras y Colores'
+  };
+
+  function fmt(n) {
+    n = parseInt(n) || 0;
+    if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+    return n.toString();
+  }
+
+  function supa() {
+    try { return (typeof getSupabase === 'function') ? getSupabase() : null; } catch(e) { return null; }
+  }
+
+  // --- REGISTRAR VISITA ---
+  async function registrarVisita() {
+    const sb = supa(); if (!sb) return;
+    try {
+      // Evitar contar recarga inmediata (< 30s desde última visita del mismo tab)
+      const lastKey = 'hk_last_visit';
+      const last = parseInt(sessionStorage.getItem(lastKey) || '0');
+      if (Date.now() - last < 30000) return;
+      sessionStorage.setItem(lastKey, Date.now());
+      const { data } = await sb.from('stats').select('value').eq('key','total_visitas').maybeSingle();
+      const nuevo = ((data && data.value) || 0) + 1;
+      await sb.from('stats').upsert({key:'total_visitas', value:nuevo, updated_at:new Date().toISOString()}, {onConflict:'key'});
+    } catch(e) {}
+  }
+
+  // --- CARGAR TODAS LAS MÉTRICAS ---
+  async function cargarMetricas() {
+    const sb = supa(); if (!sb) return;
+    try {
+      // 1. Usuarios registrados
+      const { count: nUsuarios } = await sb.from('perfiles').select('*', {count:'exact', head:true}).eq('tipo_cuenta','usuario');
+      const uStr = fmt(nUsuarios || 0);
+      const el_reg = document.getElementById('registeredCount');
+      const el_m_u = document.getElementById('m_usuarios');
+      if (el_reg) el_reg.textContent = uStr;
+      if (el_m_u) el_m_u.textContent = uStr;
+
+      // 2. Visitas totales
+      const { data: vData } = await sb.from('stats').select('value').eq('key','total_visitas').maybeSingle();
+      const vStr = fmt(vData && vData.value ? vData.value : 0);
+      const el_vis = document.getElementById('visitorCount');
+      const el_m_v = document.getElementById('m_visitas');
+      if (el_vis) el_vis.textContent = vStr;
+      if (el_m_v) el_m_v.textContent = vStr;
+
+      // 3. Total partidas
+      const { data: statsData } = await sb.from('stats').select('key,value').like('key','game_%');
+      let totalPartidas = 0;
+      const juegosCont = [];
+      (statsData || []).forEach(row => {
+        const gameId = row.key.replace('game_', '');
+        const plays = parseInt(row.value) || 0;
+        totalPartidas += plays;
+        if (plays > 0) juegosCont.push({ id: gameId, plays, nombre: NOMBRES_JUEGOS[gameId] || gameId });
+      });
+      // Sumar también los datos locales del dispositivo actual
+      try {
+        const local = JSON.parse(localStorage.getItem('hk_game_plays') || '{}');
+        Object.entries(local).forEach(([id, n]) => {
+          const idx = juegosCont.findIndex(j => j.id === id);
+          if (idx >= 0) juegosCont[idx].plays = Math.max(juegosCont[idx].plays, n);
+          else juegosCont.push({ id, plays: n, nombre: NOMBRES_JUEGOS[id] || id });
+          totalPartidas += 0; // ya contado desde Supabase
+        });
+      } catch(e) {}
+
+      const el_p = document.getElementById('m_partidas');
+      if (el_p) el_p.textContent = fmt(totalPartidas);
+
+      // 4. Top 5 juegos más jugados
+      juegosCont.sort((a, b) => b.plays - a.plays);
+      const top5 = juegosCont.slice(0, 5);
+      const container = document.getElementById('m_topjuegos');
+      if (container && top5.length) {
+        const maxPlays = top5[0].plays || 1;
+        const medallas = ['🥇','🥈','🥉','4️⃣','5️⃣'];
+        container.innerHTML = top5.map((j, i) => {
+          const pct = Math.round((j.plays / maxPlays) * 100);
+          return `<div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:1rem;width:24px">${medallas[i]}</span>
+            <span style="flex:1;font-size:0.85rem;font-weight:700;color:#2D1B4E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${j.nombre}</span>
+            <div style="width:80px;height:8px;background:#F0ECFB;border-radius:4px;overflow:hidden">
+              <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#7C3AED,#FF4D9D);border-radius:4px"></div>
+            </div>
+            <span style="font-size:0.78rem;color:#7A6B9D;min-width:28px;text-align:right">${fmt(j.plays)}</span>
+          </div>`;
+        }).join('');
+      } else if (container) {
+        container.innerHTML = '<div style="color:#ccc;font-size:0.85rem">Aún no hay partidas registradas</div>';
+      }
+
+      // Actualizar también el contador de jugadores online en stats bar
+      const el_online_m = document.getElementById('m_online');
+      const el_online_s = document.getElementById('onlineCount');
+      if (window.conectadosAhora) {
+        const nOnline = Object.keys(window.conectadosAhora).length;
+        if (el_online_m) el_online_m.textContent = '🟢 ' + nOnline;
+        if (el_online_s) el_online_s.textContent = '🟢 ' + nOnline;
+      }
+    } catch(e) { console.warn('HK Metrics:', e); }
+  }
+
+  // --- TOGGLE DEL PANEL ---
+  window.toggleMetrics = function() {
+    const panel = document.getElementById('metricsPanel');
+    const btn = document.getElementById('statsToggleBtn');
+    if (!panel) return;
+    const visible = panel.style.display !== 'none';
+    panel.style.display = visible ? 'none' : 'block';
+    if (btn) btn.textContent = visible ? '📊 Ver estadísticas detalladas' : '📊 Ocultar estadísticas';
+    if (!visible) cargarMetricas();
+  };
+
+  // --- INICIO ---
+  function init() {
+    // Contar juegos reales en el grid
+    const totalJuegos = document.querySelectorAll('.game-card').length;
+    const el_j = document.getElementById('statJuegos');
+    if (el_j && totalJuegos > 0) el_j.textContent = totalJuegos;
+    // Registrar visita y cargar métricas básicas (solo registeredCount y visitorCount)
+    setTimeout(async () => {
+      await registrarVisita();
+      await cargarMetricas();
+    }, 2000);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, {once: true});
+  } else {
+    init();
+  }
 })();
 </script>
 
