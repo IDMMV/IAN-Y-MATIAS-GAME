@@ -557,7 +557,7 @@
       HugoKids <span style="font-size:1.1rem">🎮</span>
     </div>
     <div class="family-text">
-      Ian • Matías • Milan • Valery • Dylan
+      Ian • Dylan • Matias • Milan • Valery
     </div>
   </div>
   <ul class="nav-links">
@@ -581,7 +581,7 @@
 <!-- HERO -->
 <div class="hero">
   <div class="hero-glow"></div>
-  <div class="hero-badge">✨ Ian • Matías • Milan • Valery • Dylan</div>
+  <div class="hero-badge">✨ Ian • Dylan • Matias • Milan • Valery</div>
   <h1>Tu Portal de<br>Juegos Épicos</h1>
   <p>Acción, puzzles, carreras y batallas 2 jugadores. ¡Todo gratis, sin descargas!</p>
   <div class="hero-btns">
@@ -1144,7 +1144,7 @@
 <footer>
   <div class="footer-logo">HugoKids 🎮</div>
   <p>El mejor portal de juegos online en español</p>
-  <p class="creators">Creado con ❤️ por <span>Ian</span> &amp; <span>Matías</span></p>
+  <p class="creators">Creado con ❤️ por <span>Ian</span> • <span>Dylan</span> • <span>Matias</span> • <span>Milan</span> • <span>Valery</span></p>
   <p style="margin-top:8px;font-size:0.75rem">© 2026 HugoKids · Todos los juegos gratis</p>
 </footer>
 
@@ -1159,6 +1159,43 @@
       </div>
     </div>
     <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+
+<!-- RESET PASSWORD SUPABASE -->
+<div class="modal-overlay" id="resetPasswordBox" style="display:none;z-index:1200">
+  <div class="modal" style="max-width:430px">
+    <div class="modal-header">
+      <div class="modal-title">🔐 Nueva contraseña</div>
+      <button class="modal-close" onclick="cerrarResetPassword()">✕</button>
+    </div>
+    <div class="modal-body" style="background:#FFF8E7">
+      <div style="background:#0a0a14;border-radius:18px;padding:20px;text-align:center;color:#fff">
+        <div style="font-size:2.3rem">🛡️</div>
+        <div style="font-family:'Fredoka One',cursive;font-size:1.25rem;margin:6px 0 10px">Cambia tu contraseña</div>
+        <p style="color:#d9d3ff;font-size:.9rem;margin-bottom:14px">Escribe tu nueva contraseña dos veces para poder volver a entrar a HugoKids.</p>
+
+        <div style="position:relative;margin-bottom:10px">
+          <input id="newPassword" type="password" placeholder="Nueva contraseña"
+            style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
+          <button type="button" onclick="togglePasswordVisibility('newPassword', this)"
+            style="position:absolute;right:6px;top:6px;background:#2d2250;border:none;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
+        </div>
+
+        <div style="position:relative;margin-bottom:14px">
+          <input id="confirmPassword" type="password" placeholder="Repetir contraseña"
+            style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
+          <button type="button" onclick="togglePasswordVisibility('confirmPassword', this)"
+            style="position:absolute;right:6px;top:6px;background:#2d2250;border:none;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
+        </div>
+
+        <button onclick="guardarNuevaPassword()"
+          style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:900;font-size:1rem;cursor:pointer">
+          Guardar contraseña ✅
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1185,6 +1222,82 @@ function supabaseListo() {
 }
 const onlineDisponible = () => supabaseListo();
 
+// Mostrar / ocultar contraseña con ojito
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const visible = input.type === 'text';
+  input.type = visible ? 'password' : 'text';
+  if (btn) btn.textContent = visible ? '👁️' : '🙈';
+}
+
+// Pantalla para cambiar contraseña cuando Supabase envía enlace de recuperación
+function mostrarResetPassword() {
+  const box = document.getElementById('resetPasswordBox');
+  if (!box) return;
+  box.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => {
+    const input = document.getElementById('newPassword');
+    if (input) input.focus();
+  }, 100);
+}
+
+function cerrarResetPassword() {
+  const box = document.getElementById('resetPasswordBox');
+  if (box) box.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function prepararSesionRecoverySiExiste() {
+  const c = getSupabase();
+  if (!c) return false;
+  try {
+    const hash = window.location.hash ? window.location.hash.substring(1) : '';
+    const query = window.location.search ? window.location.search.substring(1) : '';
+    const hp = new URLSearchParams(hash);
+    const qp = new URLSearchParams(query);
+    const tipo = hp.get('type') || qp.get('type');
+    const access_token = hp.get('access_token') || qp.get('access_token');
+    const refresh_token = hp.get('refresh_token') || qp.get('refresh_token');
+
+    if (tipo === 'recovery') {
+      if (access_token && refresh_token) {
+        await c.auth.setSession({ access_token, refresh_token });
+      }
+      mostrarResetPassword();
+      return true;
+    }
+  } catch (e) {
+    console.error('recovery', e);
+    mostrarResetPassword();
+    return true;
+  }
+  return false;
+}
+
+async function guardarNuevaPassword() {
+  const c = getSupabase();
+  const pass1 = (document.getElementById('newPassword')?.value || '').trim();
+  const pass2 = (document.getElementById('confirmPassword')?.value || '').trim();
+
+  if (!c) { showToast('❌ No se pudo conectar con Supabase'); return; }
+  if (pass1.length < 6) { showToast('⚠️ La contraseña debe tener mínimo 6 caracteres'); return; }
+  if (pass1 !== pass2) { showToast('⚠️ Las contraseñas no coinciden'); return; }
+
+  try {
+    const { error } = await c.auth.updateUser({ password: pass1 });
+    if (error) { showToast('❌ ' + traducirError(error.message)); return; }
+    cerrarResetPassword();
+    showToast('✅ Contraseña actualizada correctamente');
+    try { history.replaceState(null, document.title, window.location.origin + window.location.pathname); } catch(e) {}
+    setTimeout(() => { window.location.href = window.location.origin + window.location.pathname; }, 900);
+  } catch (e) {
+    showToast('❌ Error al guardar la nueva contraseña');
+  }
+}
+
+
 // ══════════════════════════════════════════════════════════
 //  SISTEMA DE CUENTAS (Supabase Auth)
 // ══════════════════════════════════════════════════════════
@@ -1195,6 +1308,7 @@ let perfilNube = null;      // datos del perfil guardado en la nube
 async function revisarSesion() {
   const c = getSupabase(); if (!c) return;
   try {
+    const enRecuperacion = await prepararSesionRecoverySiExiste();
     const { data } = await c.auth.getSession();
     if (data && data.session) {
       usuarioActual = data.session.user;
@@ -1204,6 +1318,9 @@ async function revisarSesion() {
     // escuchar cambios de sesión
     c.auth.onAuthStateChange((evento, session) => {
       usuarioActual = session ? session.user : null;
+      if (evento === 'PASSWORD_RECOVERY') {
+        mostrarResetPassword();
+      }
       if (usuarioActual) cargarPerfilNube();
       else perfilNube = null;
       actualizarBotonCuenta();
@@ -1275,7 +1392,7 @@ async function loginGoogle() {
 async function recuperarPassword(email) {
   const c = getSupabase(); if (!c) return { error: 'No se pudo conectar al servidor. Revisa tu internet e intenta de nuevo.' };
   try {
-    const { error } = await c.auth.resetPasswordForEmail(email, { redirectTo: 'https://ian-y-matias-game.vercel.app' });
+    const { error } = await c.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/' });
     if (error) return { error: traducirError(error.message) };
     return { ok: true };
   } catch (e) { return { error: 'Error' }; }
@@ -2297,7 +2414,10 @@ function renderLogin() {
       </div>
       <div style="max-width:340px;margin:0 auto">
         <input id="logEmail" type="email" placeholder="Tu correo" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
-        <input id="logPass" type="password" placeholder="Tu contraseña" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:6px;outline:none">
+        <div style="position:relative;margin-bottom:6px">
+          <input id="logPass" type="password" placeholder="Tu contraseña" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
+          <button type="button" onclick="togglePasswordVisibility('logPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:none;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
+        </div>
         <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;font-size:0.8rem;text-decoration:none">¿Olvidaste tu contraseña?</a></div>
         <button id="btnLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:14px">Ingresar ▶</button>
         <div style="text-align:center;color:#aaa;font-size:0.85rem">¿No tienes cuenta? <a href="#" id="irRegistro" style="color:#FFD600;font-weight:800;text-decoration:none">Crear cuenta</a></div>
@@ -2329,7 +2449,10 @@ function renderRegistro() {
       <div style="max-width:340px;margin:0 auto">
         <input id="regNombre" type="text" maxlength="14" placeholder="Tu nombre" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
         <input id="regEmail" type="email" placeholder="Tu correo (puede ser de un papá)" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
-        <input id="regPass" type="password" placeholder="Contraseña (mínimo 6 letras)" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:14px;outline:none">
+        <div style="position:relative;margin-bottom:14px">
+          <input id="regPass" type="password" placeholder="Contraseña (mínimo 6 letras)" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
+          <button type="button" onclick="togglePasswordVisibility('regPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:none;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
+        </div>
         <button id="btnRegistro" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:14px">Crear mi cuenta ▶</button>
         <div style="text-align:center;color:#aaa;font-size:0.85rem">¿Ya tienes cuenta? <a href="#" id="irLogin" style="color:#FFD600;font-weight:800;text-decoration:none">Ingresar</a></div>
       </div>
