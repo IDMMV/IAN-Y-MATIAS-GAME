@@ -1508,12 +1508,15 @@ async function buscarUsuarioRecuperacion(dato) {
   // 1. Buscar por nombre exacto (case insensitive)
   try {
     const r1 = await c.from('perfiles').select(cols).ilike('nombre', texto).limit(5);
+    console.log('Búsqueda nombre exacto:', texto, '→', r1.data, r1.error);
     if (!r1.error && r1.data && r1.data.length) return { ok: true, cuentas: r1.data, columnaCorreoExiste: true };
-  } catch(e) {}
+    if (r1.error) return { error: 'Error DB: ' + r1.error.message };
+  } catch(e) { return { error: 'Error conexión: ' + e.message }; }
 
   // 2. Buscar por nombre parcial
   try {
     const r2 = await c.from('perfiles').select(cols).ilike('nombre', `%${texto}%`).limit(5);
+    console.log('Búsqueda nombre parcial:', `%${texto}%`, '→', r2.data, r2.error);
     if (!r2.error && r2.data && r2.data.length) return { ok: true, cuentas: r2.data, columnaCorreoExiste: true };
   } catch(e) {}
 
@@ -2947,22 +2950,58 @@ function renderRecuperar() {
     showToast('Buscando cuenta...');
     const r = await buscarUsuarioRecuperacion(dato);
     if (!r.ok) {
-      showToast('❌ ' + (r.error || 'No encontrado'));
-      if (msg) msg.innerHTML = `<div style="background:rgba(220,38,38,.15);border:1px solid #dc2626;border-radius:10px;padding:10px;color:#fca5a5;font-size:.82rem;text-align:center">No encontré una cuenta con ese dato.</div>`;
+      const errMsg = r.error || 'No encontré una cuenta con ese dato.';
+      showToast('❌ ' + errMsg);
+      if (msg) msg.innerHTML = `<div style="background:rgba(220,38,38,.15);border:1px solid #dc2626;border-radius:10px;padding:10px;color:#fca5a5;font-size:.82rem;text-align:center">${errMsg}</div>`;
       return;
     }
     const cuentas = (r.cuentas || []).map(p => {
       const codigo = String(p.codigo_publico || (p.numero_amigo ? 'U' + p.numero_amigo : '')).toUpperCase();
-      const correo = p.correo ? `<div>📧 Correo: <b>${escapeHtml(p.correo)}</b></div>` : `<div style="color:#fbbf24">📧 Correo: no guardado todavía</div>`;
-      return `<div style="background:#10101c;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;margin:8px 0;text-align:left">
-        <div style="font-size:1.4rem">${escapeHtml(p.avatar || '👤')}</div>
-        <div>👤 Usuario: <b>${escapeHtml(p.nombre || 'Sin nombre')}</b></div>
-        <div>🆔 Código: <b>${escapeHtml(codigo)}</b></div>
-        ${correo}
-      </div>`;
+      const tieneCorreo = p.correo && p.correo.trim() && !p.correo.endsWith('@usuarios.hugokids.app');
+
+      if (tieneCorreo) {
+        // Usuario con correo real — puede recuperar contraseña
+        return `<div style="text-align:left">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span style="font-size:2rem">${escapeHtml(p.avatar || '👤')}</span>
+            <div>
+              <div style="color:#fff;font-weight:800;font-size:1rem">${escapeHtml(p.nombre || 'Sin nombre')}</div>
+              <div style="color:#16A34A;font-size:0.78rem">Código: ${escapeHtml(codigo)}</div>
+            </div>
+          </div>
+          <div style="background:rgba(22,163,74,0.12);border:1px solid #16A34A;border-radius:10px;padding:12px;margin-top:8px">
+            <div style="color:#86efac;font-weight:800;margin-bottom:6px">✅ ¡Cuenta encontrada!</div>
+            <div style="color:#c4b5fd;font-size:0.82rem;line-height:1.5">
+              Para recuperar tu contraseña, escribe tu correo en la sección <strong style="color:#FFD600">1) Recuperar contraseña</strong> de arriba y te enviaremos un enlace.
+            </div>
+            <div style="margin-top:8px;background:#111;border-radius:8px;padding:8px;font-size:0.78rem;color:#93c5fd">
+              📧 Correo registrado: <strong>${escapeHtml(p.correo)}</strong>
+            </div>
+          </div>
+        </div>`;
+      } else {
+        // Usuario sin correo — no puede recuperar por email
+        return `<div style="text-align:left">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span style="font-size:2rem">${escapeHtml(p.avatar || '👤')}</span>
+            <div>
+              <div style="color:#fff;font-weight:800;font-size:1rem">${escapeHtml(p.nombre || 'Sin nombre')}</div>
+              <div style="color:#16A34A;font-size:0.78rem">Código: ${escapeHtml(codigo)}</div>
+            </div>
+          </div>
+          <div style="background:rgba(245,158,11,0.12);border:1px solid #f59e0b;border-radius:10px;padding:12px;margin-top:8px">
+            <div style="color:#fbbf24;font-weight:800;margin-bottom:6px">⚠️ Cuenta sin correo de recuperación</div>
+            <div style="color:#fde68a;font-size:0.82rem;line-height:1.5">
+              Esta cuenta no tiene correo guardado. No se puede enviar un enlace de recuperación.<br><br>
+              <strong>Opciones:</strong><br>
+              • Si recuerdas la contraseña, ingresa normalmente con tu usuario <strong>${escapeHtml(p.nombre)}</strong><br>
+              • Si olvidaste la contraseña, contacta al administrador del juego
+            </div>
+          </div>
+        </div>`;
+      }
     }).join('');
-    const nota = r.columnaCorreoExiste ? '' : `<div style="color:#fbbf24;font-size:.78rem;margin-top:8px">Para mostrar correos debes agregar la columna <b>correo</b> en Supabase y ejecutar el SQL de actualización.</div>`;
-    if (msg) msg.innerHTML = `<div style="background:rgba(124,58,237,.15);border:1px solid #7C3AED;border-radius:12px;padding:12px;color:#fff;font-size:.84rem;text-align:center"><b>Cuenta encontrada:</b>${cuentas}${nota}</div>`;
+    if (msg) msg.innerHTML = `<div style="background:rgba(124,58,237,.15);border:1px solid #7C3AED;border-radius:12px;padding:14px;color:#fff;font-size:.84rem">${cuentas}</div>`;
   });
 
   document.getElementById('volverLogin').onclick = e => { e.preventDefault(); renderLogin(); };
@@ -3089,20 +3128,18 @@ async function renderPanelAdmin() {
   body.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:22px;min-height:300px">
     <div style="text-align:center;color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem;margin-bottom:6px">🛡️ Panel de Administrador</div>
     <div style="text-align:center;color:#aaa;font-size:0.82rem;margin-bottom:14px">Gestiona las cuentas de los usuarios</div>
-    <div id="adminStats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:380px;margin:0 auto 14px"></div>
-    <div id="adminLista" style="max-width:380px;margin:0 auto"><div style="text-align:center;color:#666">Cargando usuarios...</div></div>
+    <div id="adminStats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;margin:0 auto 14px"></div>
+    <div id="adminLista" style="max-width:420px;margin:0 auto"><div style="text-align:center;color:#666">Cargando usuarios...</div></div>
     <div style="text-align:center;margin-top:16px"><a href="#" id="volverPanel" style="color:#FFD600;font-weight:800;text-decoration:none">← Volver a mi cuenta</a></div>
   </div>`;
   document.getElementById('volverPanel').onclick = e => { e.preventDefault(); renderPanelUsuario(); };
   const c = getSupabase();
   try {
-    const { data, error } = await c.from('perfiles').select('id,nombre,avatar,numero_amigo,bloqueado,es_admin,ultima_actividad,creado');
+    const { data, error } = await c.from('perfiles').select('id,nombre,avatar,numero_amigo,correo,bloqueado,es_admin,ultima_actividad');
     const cont = document.getElementById('adminLista');
     if (error || !data) { cont.innerHTML = '<div style="text-align:center;color:#f87171">No se pudo cargar (¿tienes permisos de admin?)</div>'; return; }
     if (!data.length) { cont.innerHTML = '<div style="text-align:center;color:#666">No hay usuarios todavía</div>'; return; }
-    // estadísticas
     const ahora = Date.now();
-    const enLinea = data.filter(u => u.ultima_actividad && (ahora - new Date(u.ultima_actividad).getTime()) < 5*60*1000).length;
     const bloqueados = data.filter(u => u.bloqueado).length;
     const visitas = await contarVisitas();
     const st = document.getElementById('adminStats');
@@ -3112,17 +3149,37 @@ async function renderPanelAdmin() {
       <div style="background:#13131f;border-radius:12px;padding:10px;text-align:center"><div style="color:#f87171;font-size:1.4rem;font-weight:800">${bloqueados}</div><div style="color:#aaa;font-size:0.68rem">Bloqueados</div></div>`;
     cont.innerHTML = data.map(u => {
       const inact = tiempoInactivo(u.ultima_actividad);
+      const tieneCorreo = u.correo && !u.correo.endsWith('@usuarios.hugokids.app');
       return `
-      <div style="display:flex;align-items:center;gap:8px;background:#13131f;border-radius:10px;padding:10px;margin-bottom:6px">
-        <span style="font-size:1.4rem">${u.avatar||'👤'}</span>
-        <div style="flex:1;min-width:0">
-          <div style="color:#fff;font-weight:700;font-size:0.88rem">${u.nombre||'Sin nombre'} ${u.es_admin?'🛡️':''}</div>
-          <div style="color:${u.bloqueado?'#f87171':'#16A34A'};font-size:0.72rem">${u.bloqueado?'🔒 Bloqueado':'✅ Activo'} · #${u.numero_amigo||'?'}</div>
-          <div style="color:#666;font-size:0.66rem">${inact}</div>
+      <div style="background:#13131f;border-radius:12px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:1.6rem">${u.avatar||'👤'}</span>
+          <div style="flex:1;min-width:0">
+            <div style="color:#fff;font-weight:700;font-size:0.9rem">${u.nombre||'Sin nombre'} ${u.es_admin?'🛡️':''}</div>
+            <div style="color:${u.bloqueado?'#f87171':'#16A34A'};font-size:0.72rem">${u.bloqueado?'🔒 Bloqueado':'✅ Activo'} · #${u.numero_amigo||'?'}</div>
+            <div style="color:#555;font-size:0.66rem">${inact}</div>
+            <div style="color:${tieneCorreo?'#93c5fd':'#555'};font-size:0.66rem">${tieneCorreo?'📧 '+u.correo:'📧 Sin correo de recuperación'}</div>
+          </div>
         </div>
-        <button data-toggle="${u.id}" data-bloq="${u.bloqueado?1:0}" style="background:${u.bloqueado?'#16A34A':'#dc2626'};border:none;color:#fff;padding:8px 12px;border-radius:10px;font-weight:800;font-size:0.76rem;cursor:pointer">${u.bloqueado?'Desbloquear':'Bloquear'}</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button data-toggle="${u.id}" data-bloq="${u.bloqueado?1:0}"
+            style="flex:1;background:${u.bloqueado?'#16A34A':'#dc2626'};border:none;color:#fff;padding:7px 10px;border-radius:8px;font-weight:800;font-size:0.74rem;cursor:pointer">
+            ${u.bloqueado?'🔓 Desbloquear':'🔒 Bloquear'}
+          </button>
+          ${tieneCorreo ? `
+          <button data-reset="${u.id}" data-email="${u.correo}" data-nombre="${u.nombre||''}"
+            style="flex:1;background:#7C3AED;border:none;color:#fff;padding:7px 10px;border-radius:8px;font-weight:800;font-size:0.74rem;cursor:pointer">
+            🔑 Enviar reset
+          </button>` : `
+          <button data-newpass="${u.id}" data-nombre="${u.nombre||''}"
+            style="flex:1;background:#0ea5e9;border:none;color:#fff;padding:7px 10px;border-radius:8px;font-weight:800;font-size:0.74rem;cursor:pointer">
+            🔑 Nueva contraseña
+          </button>`}
+        </div>
       </div>`;
     }).join('');
+
+    // Bloquear / desbloquear
     cont.querySelectorAll('button[data-toggle]').forEach(b => {
       const f = async e => {
         e.preventDefault();
@@ -3132,6 +3189,48 @@ async function renderPanelAdmin() {
       };
       b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
     });
+
+    // Enviar correo de reset (usuarios con correo)
+    cont.querySelectorAll('button[data-reset]').forEach(b => {
+      const f = async e => {
+        e.preventDefault();
+        const email = b.dataset.email, nombre = b.dataset.nombre;
+        b.textContent = 'Enviando...'; b.disabled = true;
+        try {
+          const r = await c.auth.resetPasswordForEmail(email, {
+            redirectTo: window.location.origin + window.location.pathname
+          });
+          if (r.error) { showToast('❌ Error: ' + r.error.message); }
+          else { showToast('✅ Correo de reset enviado a ' + nombre); }
+        } catch(ex) { showToast('❌ Error al enviar'); }
+        b.textContent = '🔑 Enviar reset'; b.disabled = false;
+      };
+      b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+    });
+
+    // Nueva contraseña para usuarios sin correo — mostrar formulario
+    cont.querySelectorAll('button[data-newpass]').forEach(b => {
+      const f = async e => {
+        e.preventDefault();
+        const id = b.dataset.newpass, nombre = b.dataset.nombre;
+        const nueva = prompt('Nueva contraseña para ' + nombre + ' (mínimo 6 caracteres):');
+        if (!nueva || nueva.length < 6) { showToast('⚠️ Contraseña muy corta o cancelada'); return; }
+        // Actualizar el campo correo con el email interno para poder hacer reset
+        // Solo el admin puede hacer esto via Supabase Admin API — mostrar instrucción SQL
+        const emailInterno = nombre.toUpperCase().replace(/[^A-Z0-9_]/g,'').toLowerCase() + '@usuarios.hugokids.app';
+        const sql = `-- Ejecuta esto en Supabase SQL Editor:\nUPDATE auth.users SET encrypted_password = crypt('${nueva}', gen_salt('bf')) WHERE email = '${emailInterno}';`;
+        const instruccion = `Para cambiar la contraseña de ${nombre} sin correo,\nexecuta este SQL en Supabase → SQL Editor:\n\nUPDATE auth.users SET encrypted_password = crypt('${nueva}', gen_salt('bf')) WHERE email = '${emailInterno}';`;
+        // Copiar al portapapeles
+        try {
+          await navigator.clipboard.writeText(`UPDATE auth.users SET encrypted_password = crypt('${nueva}', gen_salt('bf')) WHERE email = '${emailInterno}';`);
+          showToast('✅ SQL copiado al portapapeles. Pégalo en Supabase SQL Editor.');
+        } catch(ex) {
+          alert(instruccion);
+        }
+      };
+      b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+    });
+
   } catch (e) {
     document.getElementById('adminLista').innerHTML = '<div style="text-align:center;color:#f87171">Error al cargar</div>';
   }
