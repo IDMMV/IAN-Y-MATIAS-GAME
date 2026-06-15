@@ -605,37 +605,6 @@
   <div class="stat"><div class="stat-num" id="visitorCount">—</div><div class="stat-label">Visitas totales</div></div>
 </div>
 
-<div style="text-align:center;margin:-8px 0 16px">
-  <button onclick="toggleMetrics()" id="statsToggleBtn" style="background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.5);color:white;border-radius:20px;padding:7px 20px;font-family:'Nunito',sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer;transition:all 0.2s">📊 Ver estadísticas detalladas</button>
-</div>
-
-<!-- MÉTRICAS DETALLADAS -->
-<div id="metricsPanel" style="margin:0 24px 24px;background:rgba(255,255,255,0.95);border-radius:20px;padding:18px 20px;box-shadow:0 4px 20px rgba(124,58,237,0.12);display:none">
-  <div style="font-family:'Fredoka One',cursive;font-size:1.05rem;color:#7C3AED;margin-bottom:12px">📊 Estadísticas de la plataforma</div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px">
-    <div style="background:#F0ECFB;border-radius:14px;padding:12px;text-align:center">
-      <div style="font-size:1.5rem;font-weight:800;color:#7C3AED" id="m_usuarios">—</div>
-      <div style="font-size:0.72rem;color:#7A6B9D;font-weight:700;margin-top:2px">USUARIOS REGISTRADOS</div>
-    </div>
-    <div style="background:#F0FBF4;border-radius:14px;padding:12px;text-align:center">
-      <div style="font-size:1.5rem;font-weight:800;color:#16A34A" id="m_online">—</div>
-      <div style="font-size:0.72rem;color:#7A6B9D;font-weight:700;margin-top:2px">EN LÍNEA AHORA</div>
-    </div>
-    <div style="background:#FFF8E7;border-radius:14px;padding:12px;text-align:center">
-      <div style="font-size:1.5rem;font-weight:800;color:#FF6B00" id="m_visitas">—</div>
-      <div style="font-size:0.72rem;color:#7A6B9D;font-weight:700;margin-top:2px">VISITAS TOTALES</div>
-    </div>
-    <div style="background:#FFF0F9;border-radius:14px;padding:12px;text-align:center">
-      <div style="font-size:1.5rem;font-weight:800;color:#FF4D9D" id="m_partidas">—</div>
-      <div style="font-size:0.72rem;color:#7A6B9D;font-weight:700;margin-top:2px">PARTIDAS JUGADAS</div>
-    </div>
-  </div>
-  <div style="font-size:0.8rem;font-weight:800;color:#7A6B9D;margin-bottom:8px">🏆 JUEGOS MÁS JUGADOS</div>
-  <div id="m_topjuegos" style="display:flex;flex-direction:column;gap:6px">
-    <div style="color:#ccc;font-size:0.85rem">Cargando...</div>
-  </div>
-</div>
-
 
 
 <!-- LOBBY ONLINE -->
@@ -6936,6 +6905,8 @@ function buildMultitud(container) {
   let enemyY = -800;
   let estado = 'corriendo'; // corriendo | batalla | fin
   let _multAnimId = null;
+
+  function nuevoNivel() {
     miEquipo = 1; playerX = W/2; scroll = 0; jugando = true; estado = 'corriendo';
     puertas = [];
     const numPuertas = 3 + nivel;
@@ -9023,40 +8994,15 @@ if(_hgOriginalOpenGame){
 </script>
 
 <script>
-/* ══════════════════════════════════════════════════════════
-   HUGOKIDS METRICS — visitas, usuarios registrados, juegos más jugados
-   Requiere tabla en Supabase:
-     CREATE TABLE stats (
-       key TEXT PRIMARY KEY,
-       value BIGINT DEFAULT 0,
-       updated_at TIMESTAMPTZ DEFAULT NOW()
-     );
-     ALTER TABLE stats ENABLE ROW LEVEL SECURITY;
-     CREATE POLICY "public read"   ON stats FOR SELECT USING (true);
-     CREATE POLICY "public insert" ON stats FOR INSERT WITH CHECK (true);
-     CREATE POLICY "public update" ON stats FOR UPDATE USING (true);
-   ══════════════════════════════════════════════════════════ */
+/* HUGOKIDS — actualiza contadores de la barra de stats silenciosamente
+   Requiere tabla stats en Supabase (ver instrucciones en README) */
 (function(){
   'use strict';
 
-  const NOMBRES_JUEGOS = {
-    globos:'Revienta Globos',tocar:'Toca y Aparece',pintar:'Pintar con el Dedo',
-    piano:'Piano de Animales',animales:'Sonidos de Animales',numeros:'Aprende Números',
-    letras:'Aprende Letras',vocales:'Aprende Vocales',colores:'Aprende Colores',
-    formas:'Aprende Formas',silabas:'Aprende Sílabas',burbujas:'Burbujas',
-    snake:'Snake Pro',breakout:'Breakout Blast',whack:'Whack-a-Mole',
-    memory:'Memory Flip',maze:'Maze Escape',racing:'Speed Racer',
-    pong:'Pong Battle',tictactoe:'Tres en Raya',flappy:'Flappy Bird',
-    catch:'Atrapa Frutas',jump:'Salta y Sube',simon:'Simón Dice',
-    '2048':'2048',quiz:'Quiz Genio',reaction:'Duelo Reflejos',
-    treasure:'Caza Tesoros',platform:'Súper Salto',defender:'Defensa Espacial',
-    dungeon:'Mazmorra Mágica',idle:'Idle Millonario',multitud:'Multitud',
-    runner:'Corre sin Fin',merge:'Fusión',torre:'Defiende la Torre',
-    sumas:'Sumas y Restas',tablas:'Tablas de Multiplicar',palabra:'Forma la Palabra',
-    regiones:'Regiones del Perú',patrios:'Símbolos Patrios',solar:'Sistema Solar',
-    cuerpo:'Cuerpo Humano',figuras:'Figuras y Colores'
-  };
-
+  function sb() {
+    try { return typeof getSupabase === 'function' ? getSupabase() : null; } catch(e) { return null; }
+  }
+  function set(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
   function fmt(n) {
     n = parseInt(n) || 0;
     if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
@@ -9064,114 +9010,40 @@ if(_hgOriginalOpenGame){
     return n.toString();
   }
 
-  function sb() {
-    try { return typeof getSupabase === 'function' ? getSupabase() : null; } catch(e) { return null; }
-  }
-
-  function set(id, val) {
-    var el = document.getElementById(id);
-    if (el) el.textContent = val;
+  async function actualizarStats() {
+    var c = sb(); if (!c) return;
+    try {
+      // Usuarios registrados
+      var ur = await c.from('perfiles').select('*', {count:'exact', head:true});
+      if (ur && typeof ur.count === 'number') set('registeredCount', fmt(ur.count));
+    } catch(e) {}
+    try {
+      // Visitas totales
+      var vr = await c.from('stats').select('value').eq('key','total_visitas').maybeSingle();
+      if (vr && vr.data) set('visitorCount', fmt(vr.data.value));
+    } catch(e) {}
+    // Actualizar contador de juegos reales
+    var totalJuegos = document.querySelectorAll('.game-card').length;
+    if (totalJuegos > 0) set('statJuegos', totalJuegos);
   }
 
   async function registrarVisita() {
     var c = sb(); if (!c) return;
     try {
-      var lastKey = 'hk_last_visit';
-      var last = parseInt(sessionStorage.getItem(lastKey) || '0');
+      var last = parseInt(sessionStorage.getItem('hk_lv') || '0');
       if (Date.now() - last < 30000) return;
-      sessionStorage.setItem(lastKey, Date.now());
+      sessionStorage.setItem('hk_lv', Date.now());
       var r = await c.from('stats').select('value').eq('key','total_visitas').maybeSingle();
       var nuevo = ((r && r.data && r.data.value) || 0) + 1;
       await c.from('stats').upsert({key:'total_visitas', value:nuevo, updated_at:new Date().toISOString()}, {onConflict:'key'});
+      set('visitorCount', fmt(nuevo));
     } catch(e) {}
   }
 
-  async function cargarMetricas() {
-    var c = sb(); if (!c) return;
-    try {
-      // Usuarios registrados
-      var ur = await c.from('perfiles').select('*', {count:'exact', head:true});
-      if (ur && typeof ur.count === 'number') {
-        var uStr = fmt(ur.count);
-        set('registeredCount', uStr);
-        set('m_usuarios', uStr);
-      }
-
-      // Visitas
-      var vr = await c.from('stats').select('value').eq('key','total_visitas').maybeSingle();
-      var vStr = fmt(vr && vr.data ? vr.data.value : 0);
-      set('visitorCount', vStr);
-      set('m_visitas', vStr);
-
-      // Partidas y top juegos
-      var gr = await c.from('stats').select('key,value').like('key','game_%');
-      var totalPartidas = 0;
-      var juegos = [];
-      ((gr && gr.data) || []).forEach(function(row) {
-        var gameId = row.key.replace('game_', '');
-        var plays = parseInt(row.value) || 0;
-        totalPartidas += plays;
-        juegos.push({id:gameId, plays:plays, nombre:NOMBRES_JUEGOS[gameId] || gameId});
-      });
-      // Sumar datos locales
-      try {
-        var local = JSON.parse(localStorage.getItem('hk_game_plays') || '{}');
-        Object.keys(local).forEach(function(id) {
-          var idx = juegos.findIndex(function(j){ return j.id === id; });
-          if (idx >= 0) juegos[idx].plays = Math.max(juegos[idx].plays, local[id]);
-          else juegos.push({id:id, plays:local[id], nombre:NOMBRES_JUEGOS[id] || id});
-        });
-      } catch(e) {}
-
-      set('m_partidas', fmt(totalPartidas));
-      set('statJuegos', document.querySelectorAll('.game-card').length || 51);
-
-      // Online ahora
-      if (window.conectadosAhora) {
-        var nOnline = Object.keys(window.conectadosAhora).length;
-        set('onlineCount', '🟢 ' + nOnline);
-        set('m_online', '🟢 ' + nOnline);
-      }
-
-      // Top 5
-      juegos.sort(function(a,b){ return b.plays - a.plays; });
-      var top5 = juegos.slice(0, 5);
-      var container = document.getElementById('m_topjuegos');
-      if (container) {
-        if (!top5.length) {
-          container.innerHTML = '<div style="color:#ccc;font-size:0.85rem">Aún no hay partidas registradas</div>';
-        } else {
-          var maxP = top5[0].plays || 1;
-          var medallas = ['🥇','🥈','🥉','4️⃣','5️⃣'];
-          container.innerHTML = top5.map(function(j, i) {
-            var pct = Math.round((j.plays / maxP) * 100);
-            return '<div style="display:flex;align-items:center;gap:8px">'
-              + '<span style="font-size:1rem;width:24px">' + medallas[i] + '</span>'
-              + '<span style="flex:1;font-size:0.85rem;font-weight:700;color:#2D1B4E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + j.nombre + '</span>'
-              + '<div style="width:80px;height:8px;background:#F0ECFB;border-radius:4px;overflow:hidden">'
-              + '<div style="width:' + pct + '%;height:100%;background:linear-gradient(90deg,#7C3AED,#FF4D9D);border-radius:4px"></div></div>'
-              + '<span style="font-size:0.78rem;color:#7A6B9D;min-width:28px;text-align:right">' + fmt(j.plays) + '</span>'
-              + '</div>';
-          }).join('');
-        }
-      }
-    } catch(e) { console.warn('HK Metrics:', e); }
-  }
-
-  window.toggleMetrics = function() {
-    var panel = document.getElementById('metricsPanel');
-    var btn = document.getElementById('statsToggleBtn');
-    if (!panel) return;
-    var visible = panel.style.display !== 'none';
-    panel.style.display = visible ? 'none' : 'block';
-    if (btn) btn.textContent = visible ? '📊 Ver estadísticas detalladas' : '📊 Ocultar estadísticas';
-    if (!visible) cargarMetricas();
-  };
-
   function init() {
     setTimeout(function() {
+      actualizarStats();
       registrarVisita();
-      cargarMetricas();
     }, 2500);
   }
 
