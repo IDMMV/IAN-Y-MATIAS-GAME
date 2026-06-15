@@ -2856,23 +2856,29 @@ function renderPanelUsuario() {
   const avatar = p.avatar || miIdentidadOnline().emoji;
   const nLogros = (Array.isArray(p.logros) ? p.logros.length : getBadges().length);
   const miNum = p.numero_amigo || getGuestId();
+  const correoMostrar = (usuarioActual && usuarioActual.email && !usuarioActual.email.endsWith('@usuarios.hugokids.app'))
+    ? usuarioActual.email : '(sin correo de recuperación)';
   body.innerHTML = `
     <div class="game-container" style="background:#0a0a14;padding:22px;min-height:300px">
       <div style="text-align:center;margin-bottom:16px">
         <div style="font-size:3rem" id="miAvatarShow">${avatar}</div>
-        <input id="miNombreInput" type="text" maxlength="14" value="${nombre.replace(/"/g,'&quot;')}" style="background:transparent;border:none;border-bottom:2px solid rgba(255,255,255,0.2);color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem;text-align:center;outline:none;width:80%;max-width:240px">
-        <div style="color:#16A34A;font-size:0.85rem;margin-top:6px">✅ Sesión iniciada · Tus logros se guardan</div>
+        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.4rem;margin-top:6px">${nombre}</div>
+        <div style="color:#6B7280;font-size:0.72rem;margin-top:2px">El nombre de usuario es único y no se puede cambiar</div>
+        <div style="color:#16A34A;font-size:0.82rem;margin-top:6px">✅ Sesión iniciada · Tus logros se guardan</div>
       </div>
-      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:360px;margin:0 auto 14px">
-        <div style="color:#aaa;font-size:0.78rem;text-align:center;margin-bottom:8px">🎨 Cambia tu personaje:</div>
+
+      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:360px;margin:0 auto 12px">
+        <div style="color:#c4b5fd;font-size:0.78rem;font-weight:800;text-align:center;margin-bottom:10px">🎨 Elige tu avatar:</div>
         <div id="cuentaAvatars" style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px"></div>
       </div>
-      <div style="background:#13131f;border-radius:14px;padding:16px;max-width:360px;margin:0 auto 14px">
+
+      <div style="background:#13131f;border-radius:14px;padding:16px;max-width:360px;margin:0 auto 12px">
         <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">🏅 Medallas</span><strong>${nLogros}/10</strong></div>
         <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">👥 Mi número</span><strong style="color:#16A34A">#${miNum}</strong></div>
-        <div style="display:flex;justify-content:space-between;color:#fff"><span style="color:#aaa">📧 Correo</span><strong style="font-size:0.8rem">${(usuarioActual&&usuarioActual.email)||'-'}</strong></div>
+        <div style="display:flex;justify-content:space-between;color:#fff"><span style="color:#aaa">📧 Correo</span><strong style="font-size:0.78rem;color:#93c5fd">${correoMostrar}</strong></div>
       </div>
-      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:360px;margin:0 auto 14px">
+
+      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:360px;margin:0 auto 12px">
         <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:4px">👥 Mis Amigos</div>
         <div style="color:#aaa;font-size:0.72rem;text-align:center;margin-bottom:10px">Agrega amigos por su número para invitarlos a jugar</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
@@ -2881,34 +2887,33 @@ function renderPanelUsuario() {
         </div>
         <div id="listaAmigos"></div>
       </div>
+
       <div style="max-width:360px;margin:0 auto;display:flex;flex-direction:column;gap:10px">
         ${esAdmin() ? `<button id="btnAdmin" style="width:100%;background:linear-gradient(135deg,#f59e0b,#b91c1c);border:none;color:#fff;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">🛡️ Panel de Administrador</button>` : ''}
         <button id="btnVerLogros" style="width:100%;background:#7C3AED;border:none;color:#fff;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">🏅 Ver mis medallas</button>
         <button id="btnSalir" style="width:100%;background:rgba(220,38,38,0.2);border:2px solid #dc2626;color:#f87171;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">Cerrar sesión</button>
       </div>
     </div>
-    <div class="game-instructions">Este es tu perfil. Cambia tu nombre o personaje y se guardará en tu cuenta para todos tus dispositivos.</div>`;
-  // nombre editable
-  const ni = document.getElementById('miNombreInput');
-  if (ni) ni.addEventListener('change', () => { setGuestName(ni.value); guardarPerfilNube(); updatePlayerBadge(); });
-  // selector de avatar
+    <div class="game-instructions">Elige tu avatar aquí. Tu nombre de usuario es fijo e identifica tu cuenta.</div>`;
+
+  // Selector de avatar — UN solo lugar para cambiarlo
   const ap = document.getElementById('cuentaAvatars');
   if (ap) AVATARS.forEach(av => {
     const b = document.createElement('button');
     b.textContent = av;
-    b.style.cssText = `aspect-ratio:1;background:${av===avatar?'#16A34A':'#1a1a2e'};border:2px solid ${av===avatar?'#fff':'transparent'};border-radius:8px;font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent`;
+    const selected = av === avatar;
+    b.style.cssText = `aspect-ratio:1;background:${selected?'#16A34A':'#1a1a2e'};border:2px solid ${selected?'#fff':'transparent'};border-radius:8px;font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent`;
     const pick = e => {
       e.preventDefault(); e.stopPropagation();
       setGuestAvatar(av);
-      const nombreActual = document.getElementById('miNombreInput');
-      if (nombreActual) setGuestName(nombreActual.value);
       guardarPerfilNube(); updatePlayerBadge(); SFX.click(); renderPanelUsuario();
     };
     b.addEventListener('touchstart', pick, {passive:false});
     b.addEventListener('click', pick);
     ap.appendChild(b);
   });
-  // amigos
+
+  // Amigos
   const addBtn = document.getElementById('addAmigoBtn');
   if (addBtn) {
     const add = async e => {
@@ -2993,8 +2998,8 @@ function tiempoInactivo(iso) {
 async function contarVisitas() {
   const c = getSupabase(); if (!c) return 0;
   try {
-    const { count } = await c.from('visitas').select('*', { count:'exact', head:true });
-    return count || 0;
+    const r = await c.from('stats').select('value').eq('key','total_visitas').maybeSingle();
+    return (r && r.data && r.data.value) ? r.data.value : 0;
   } catch (e) { return 0; }
 }
 // Registrar una visita al cargar
@@ -8948,31 +8953,7 @@ if(_hgOriginalOpenGame){
 (function(){
   function hkSafe(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
 
-  // Decisión de diseño: el avatar se cambia en un solo lugar: Perfil y Medallas.
-  // Así crear cuenta queda rápido y no se repite el selector.
-  function hkLimpiarAvatarPanelCuenta(){
-    const picker = document.getElementById('cuentaAvatars');
-    if (!picker) return;
-    const card = picker.closest('div[style*="background:#13131f"]') || picker.parentElement;
-    if (card) {
-      card.innerHTML = `
-        <div style="text-align:center;color:#fff;font-weight:900;margin-bottom:8px">🎭 Avatar</div>
-        <div style="font-size:2.4rem;text-align:center;margin-bottom:8px">${hkSafe((typeof miIdentidadOnline==='function' ? miIdentidadOnline().emoji : '👤'))}</div>
-        <div style="color:#c4b5fd;font-size:.8rem;text-align:center;line-height:1.35">Para evitar duplicados, el avatar se cambia solo en <b>Perfil y Medallas</b>.</div>
-        <button id="hkIrPerfilAvatar" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:10px;border-radius:12px;font-weight:900;cursor:pointer">Abrir Perfil y Medallas</button>`;
-      const btn = document.getElementById('hkIrPerfilAvatar');
-      if (btn) btn.onclick = function(){ try{ openProfile(); }catch(e){} };
-    }
-  }
-  const oldPanel = window.renderPanelUsuario;
-  if (typeof oldPanel === 'function') {
-    window.renderPanelUsuario = function(){
-      const r = oldPanel.apply(this, arguments);
-      setTimeout(hkLimpiarAvatarPanelCuenta, 0);
-      return r;
-    };
-  }
-  new MutationObserver(hkLimpiarAvatarPanelCuenta).observe(document.body, {childList:true, subtree:true});
+  // Avatar selector ya está en renderPanelUsuario — no se necesita interceptor.
 
   // Registro: delega a la función principal que ya tiene email opcional
   window.renderRegistro = function(){ if(typeof renderRegistro==='function') renderRegistro(); };
