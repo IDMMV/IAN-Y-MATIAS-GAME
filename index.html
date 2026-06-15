@@ -10647,5 +10647,338 @@ body.hk-account-open #modalOverlay.open .modal { max-width:520px; }
 })();
 </script>
 
+
+
+<script>
+/* ===== Corrección final: teclado libre en formularios + usuario único ===== */
+(function(){
+  'use strict';
+
+  function $(id){ return document.getElementById(id); }
+  function toast(msg){
+    try { if (typeof showToast === 'function') return showToast(msg); } catch(e) {}
+    try { alert(msg); } catch(e) {}
+  }
+  function sb(){
+    try { if (typeof getSupabase === 'function') return getSupabase(); } catch(e) {}
+    return null;
+  }
+  function isTypingTarget(t){
+    if (!t) return false;
+    const tag = String(t.tagName || '').toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable;
+  }
+
+  // Evita que WASD/flechas/espacio de los juegos bloqueen la escritura en correo, usuario o contraseña.
+  ['keydown','keyup','keypress'].forEach(function(ev){
+    document.addEventListener(ev, function(e){
+      if (isTypingTarget(e.target)) {
+        e.stopImmediatePropagation();
+      }
+    }, true);
+  });
+
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(ch){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]);
+    });
+  }
+  function emailOk(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim()); }
+  function normalizarUsuario(v){
+    return String(v || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/Ñ/g,'N')
+      .replace(/[^A-Z0-9_]/g, '')
+      .slice(0, 16);
+  }
+  function authEmailDesdeUsuario(usuario){
+    // Email interno solo para Supabase Auth. El usuario no lo ve ni lo escribe.
+    return normalizarUsuario(usuario).toLowerCase() + '@usuarios.hugokids.app';
+  }
+  function codigoDesdeId(id){
+    if (typeof numeroDesdeId === 'function') {
+      try { return String(numeroDesdeId(id)).replace(/^U/i,''); } catch(e) {}
+    }
+    let h = 0, s = String(id || Date.now());
+    for (let i=0;i<s.length;i++) h = (h * 31 + s.charCodeAt(i)) % 900000;
+    return String(100000 + h);
+  }
+  function miAvatar(){
+    try { const yo = typeof miIdentidadOnline === 'function' ? miIdentidadOnline() : null; if (yo && yo.emoji) return yo.emoji; } catch(e) {}
+    try { const cur = localStorage.getItem('hk_avatar') || localStorage.getItem('im_avatar'); if (cur) return cur; } catch(e) {}
+    return '👤';
+  }
+  async function cargarPerfil(id){
+    const c = sb(); if (!c || !id) return null;
+    try {
+      const r = await c.from('perfiles').select('*').eq('id', id).maybeSingle();
+      if (!r.error && r.data) {
+        try { perfilNube = r.data; } catch(e) { window.perfilNube = r.data; }
+        return r.data;
+      }
+    } catch(e) {}
+    return null;
+  }
+  function setSesion(user, perfil){
+    try { usuarioActual = user || null; } catch(e) { window.usuarioActual = user || null; }
+    if (perfil) { try { perfilNube = perfil; } catch(e) { window.perfilNube = perfil; } }
+    try { if (perfil && perfil.codigo_publico) localStorage.setItem('im_usercode', perfil.codigo_publico); } catch(e) {}
+    try { if (perfil && perfil.nombre && typeof setGuestName === 'function') setGuestName(perfil.nombre); } catch(e) {}
+    try { if (perfil && perfil.avatar && typeof setGuestAvatar === 'function') setGuestAvatar(perfil.avatar); } catch(e) {}
+    try { if (typeof actualizarBotonCuenta === 'function') actualizarBotonCuenta(); } catch(e) {}
+    try { if (typeof iniciarPresenciaGlobal === 'function') iniciarPresenciaGlobal(); } catch(e) {}
+    try { if (typeof iniciarPulsoActividad === 'function') iniciarPulsoActividad(); } catch(e) {}
+  }
+  function modal(titulo){
+    const overlay = $('modalOverlay'), body = $('modalBody'), title = $('modalTitle');
+    if (!overlay || !body || !title) return null;
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    title.textContent = titulo || '🔐 Mi cuenta';
+    try { activeGame = 'cuenta'; } catch(e) {}
+    return body;
+  }
+  function inputBase(id, type, placeholder, autocomplete){
+    return '<input id="'+id+'" type="'+type+'" autocomplete="'+(autocomplete||'off')+'" placeholder="'+placeholder+'" autocorrect="off" spellcheck="false" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;color:white;font-weight:900;margin-bottom:10px;font-size:16px">';
+  }
+  function perfilConNombre(nombre){
+    const c = sb(); if (!c) return Promise.resolve({data:null,error:{message:'Sin conexión'}});
+    return c.from('perfiles').select('*').ilike('nombre', nombre).limit(1).maybeSingle();
+  }
+  async function usuarioDisponible(nombre){
+    try {
+      const r = await perfilConNombre(nombre);
+      if (r && r.data) return false;
+      return true;
+    } catch(e) { return true; }
+  }
+  async function resolverEmailLogin(usuario){
+    const c = sb(); if (!c) return { error:'No hay conexión con Supabase.' };
+    const nom = normalizarUsuario(usuario);
+    if (!nom || nom.length < 3) return { error:'Escribe tu nombre de usuario.' };
+    try {
+      const r = await perfilConNombre(nom);
+      if (r && r.data) {
+        const p = r.data;
+        const email = p.auth_email || p.correo_auth || p.email_auth || p.correo || authEmailDesdeUsuario(nom);
+        return { email:String(email).toLowerCase(), perfil:p };
+      }
+    } catch(e) {}
+    return { email:authEmailDesdeUsuario(nom), perfil:null };
+  }
+
+  window.registrarCuentaUsuario = async function(nombre, password, correoRecuperacion){
+    const c = sb(); if (!c) return { error:'No hay conexión con Supabase.' };
+    const nom = normalizarUsuario(nombre);
+    const pass = String(password || '');
+    const rec = String(correoRecuperacion || '').trim().toLowerCase();
+    if (nom.length < 3) return { error:'El nombre de usuario debe tener mínimo 3 caracteres.' };
+    if (pass.length < 6) return { error:'La contraseña debe tener mínimo 6 caracteres.' };
+    if (rec && !emailOk(rec)) return { error:'El correo de recuperación no es válido.' };
+
+    const libre = await usuarioDisponible(nom);
+    if (!libre) return { error:'Ese nombre de usuario ya existe. Elige otro.' };
+
+    const authEmail = rec || authEmailDesdeUsuario(nom);
+    try {
+      const sign = await c.auth.signUp({
+        email: authEmail,
+        password: pass,
+        options: { data: { nombre: nom, usuario: nom, correo_recuperacion: rec || null } }
+      });
+      if (sign.error) return { error: sign.error.message || 'No se pudo crear la cuenta.' };
+      const u = sign.data && sign.data.user;
+      if (!u) return { error:'Cuenta creada, pero Supabase no devolvió usuario. Revisa si requiere confirmar correo.' };
+      const num = codigoDesdeId(u.id);
+      const codigo = 'U' + num;
+      const av = miAvatar();
+      let perfil = {
+        id: u.id,
+        nombre: nom,
+        usuario: nom,
+        avatar: av,
+        numero_amigo: num,
+        codigo_publico: codigo,
+        tipo_cuenta: 'usuario',
+        ultima_actividad: new Date().toISOString(),
+        correo: rec || null,
+        correo_recuperacion: rec || null,
+        auth_email: authEmail,
+        monedas: 0,
+        puntos: 0,
+        comprados: [],
+        titulo: '',
+        amigos: [],
+        logros: [],
+        records: {}
+      };
+      try {
+        let up = await c.from('perfiles').upsert(perfil, { onConflict:'id' }).select('*').maybeSingle();
+        if (up && up.error) {
+          // Compatibilidad si aún no existen columnas usuario/correo_recuperacion/auth_email.
+          const basico = {
+            id: u.id,
+            nombre: nom,
+            avatar: av,
+            numero_amigo: num,
+            codigo_publico: codigo,
+            tipo_cuenta: 'usuario',
+            ultima_actividad: new Date().toISOString(),
+            correo: rec || authEmail,
+            amigos: [],
+            logros: [],
+            records: {}
+          };
+          up = await c.from('perfiles').upsert(basico, { onConflict:'id' }).select('*').maybeSingle();
+        }
+        if (up && !up.error && up.data) perfil = up.data;
+      } catch(e) {}
+      setSesion(u, perfil);
+      return { ok:true, perfil:perfil };
+    } catch(e) {
+      return { error:'Error al crear cuenta: ' + (e && e.message ? e.message : e) };
+    }
+  };
+
+  window.iniciarSesionUsuario = async function(nombre, password){
+    const c = sb(); if (!c) return { error:'No hay conexión con Supabase.' };
+    const res = await resolverEmailLogin(nombre);
+    if (res.error) return res;
+    try {
+      const login = await c.auth.signInWithPassword({ email: res.email, password:String(password || '') });
+      if (login.error) return { error: login.error.message || 'Usuario o contraseña incorrectos.' };
+      const u = login.data && login.data.user;
+      const perfil = res.perfil || await cargarPerfil(u && u.id);
+      if (perfil && perfil.bloqueado) {
+        try { await c.auth.signOut(); } catch(e) {}
+        setSesion(null, null);
+        return { error:'Tu cuenta está bloqueada. Contacta al administrador.' };
+      }
+      setSesion(u, perfil || null);
+      return { ok:true };
+    } catch(e) {
+      return { error:'Error al ingresar.' };
+    }
+  };
+
+  window.recuperarPasswordUsuario = async function(valor){
+    const c = sb(); if (!c) return { error:'No hay conexión con Supabase.' };
+    let v = String(valor || '').trim();
+    if (!v) return { error:'Escribe tu usuario o tu correo de recuperación.' };
+    let email = '';
+    if (emailOk(v)) {
+      email = v.toLowerCase();
+    } else {
+      const nom = normalizarUsuario(v);
+      try {
+        const r = await perfilConNombre(nom);
+        if (r && r.data) email = (r.data.correo_recuperacion || r.data.correo || r.data.auth_email || '').toLowerCase();
+      } catch(e) {}
+    }
+    if (!email || !emailOk(email) || email.endsWith('@usuarios.hugokids.app')) {
+      return { error:'Ese usuario no tiene correo de recuperación guardado.' };
+    }
+    try {
+      const r = await c.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
+      if (r.error) return { error:r.error.message || 'No se pudo enviar recuperación.' };
+      return { ok:true };
+    } catch(e) { return { error:'Error al enviar recuperación.' }; }
+  };
+
+  window.hkRenderLoginDirect = function(){
+    const body = $('modalBody'); if (!body) return;
+    body.innerHTML = '<div class="game-container" style="background:#0a0a14;padding:22px;min-height:320px;color:white">'
+      + '<div style="text-align:center;margin-bottom:14px"><div style="font-size:2.2rem">🎮</div><div style="font-size:1.25rem;font-weight:900">Ingresar con usuario</div><div style="color:#86efac;font-size:.82rem;margin-top:4px">Ya no necesitas escribir correo para entrar.</div></div>'
+      + '<div style="max-width:360px;margin:0 auto">'
+      + '<input id="logUsuario" maxlength="16" placeholder="NOMBRE DE USUARIO" autocomplete="username" autocorrect="off" spellcheck="false" style="text-transform:uppercase;width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;color:white;font-weight:900;margin-bottom:10px;font-size:16px">'
+      + inputBase('logPass','password','Contraseña','current-password')
+      + '<div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;text-decoration:none;font-size:.84rem;font-weight:900">¿Olvidaste contraseña?</a></div>'
+      + '<button id="btnLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:0;color:white;padding:14px;border-radius:14px;font-weight:900;font-size:1rem;cursor:pointer">Ingresar ▶</button>'
+      + '<div style="text-align:center;color:#aaa;font-size:.86rem;margin-top:14px">¿No tienes cuenta? <a href="#" id="irRegistro" style="color:#FFD600;font-weight:900;text-decoration:none">Crear cuenta</a></div>'
+      + '</div></div>';
+    const u = $('logUsuario'); if (u) u.addEventListener('input', function(){ this.value = normalizarUsuario(this.value); });
+    const ir = $('irRegistro'); if (ir) ir.onclick = function(e){ e.preventDefault(); window.hkRenderRegisterDirect(); };
+    const olv = $('olvideLink'); if (olv) olv.onclick = function(e){ e.preventDefault(); window.hkRenderRecuperarDirect(); };
+    const btn = $('btnLogin'); if (btn) btn.onclick = async function(){
+      const nom = $('logUsuario').value, pw = $('logPass').value;
+      if (!nom || !pw) return toast('⚠️ Escribe usuario y contraseña.');
+      toast('Ingresando...');
+      const r = await window.iniciarSesionUsuario(nom, pw);
+      if (r.error) return toast('❌ ' + r.error);
+      toast('✅ Sesión iniciada.');
+      try { if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline(); } catch(e) {}
+      window.hkRenderAccountActiveDirect ? window.hkRenderAccountActiveDirect() : window.openCuenta();
+    };
+  };
+
+  window.hkRenderRegisterDirect = function(){
+    const body = $('modalBody'); if (!body) return;
+    body.innerHTML = '<div class="game-container" style="background:#0a0a14;padding:22px;min-height:390px;color:white">'
+      + '<div style="text-align:center;margin-bottom:14px"><div style="font-size:2.2rem">✨</div><div style="font-size:1.25rem;font-weight:900">Crear cuenta nueva</div><div style="color:#FFD600;font-size:.82rem;margin-top:4px">Cada persona tendrá un nombre de usuario único.</div></div>'
+      + '<div style="max-width:360px;margin:0 auto">'
+      + '<input id="regUsuario" maxlength="16" placeholder="NOMBRE DE USUARIO ÚNICO" autocomplete="username" autocorrect="off" spellcheck="false" style="text-transform:uppercase;width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;color:white;font-weight:900;margin-bottom:10px;font-size:16px">'
+      + inputBase('regPass','password','Contraseña mínimo 6 caracteres','new-password')
+      + '<input id="regRecovery" type="email" autocomplete="email" placeholder="Correo de recuperación (opcional)" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;color:white;font-weight:900;margin-bottom:6px;font-size:16px">'
+      + '<div style="color:#93c5fd;font-size:.78rem;line-height:1.35;margin-bottom:12px">El correo no será tu usuario. Solo servirá para recuperar contraseña si lo colocas.</div>'
+      + '<button id="btnRegistro" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:0;color:white;padding:14px;border-radius:14px;font-weight:900;font-size:1rem;cursor:pointer">Crear mi cuenta ▶</button>'
+      + '<div style="text-align:center;color:#aaa;font-size:.86rem;margin-top:14px">¿Ya tienes cuenta? <a href="#" id="irLogin" style="color:#FFD600;font-weight:900;text-decoration:none">Ingresar</a></div>'
+      + '</div></div>';
+    const u = $('regUsuario'); if (u) u.addEventListener('input', function(){ this.value = normalizarUsuario(this.value); });
+    const ir = $('irLogin'); if (ir) ir.onclick = function(e){ e.preventDefault(); window.hkRenderLoginDirect(); };
+    const btn = $('btnRegistro'); if (btn) btn.onclick = async function(){
+      const nom = $('regUsuario').value, pw = $('regPass').value, rec = $('regRecovery').value;
+      toast('Creando cuenta...');
+      const r = await window.registrarCuentaUsuario(nom, pw, rec);
+      if (r.error) return toast('❌ ' + r.error);
+      toast('🎉 Cuenta creada con usuario único.');
+      try { if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline(); } catch(e) {}
+      window.hkRenderAccountActiveDirect ? window.hkRenderAccountActiveDirect() : window.openCuenta();
+    };
+  };
+
+  window.hkRenderRecuperarDirect = function(){
+    const body = $('modalBody'); if (!body) return;
+    body.innerHTML = '<div class="game-container" style="background:#0a0a14;padding:22px;min-height:300px;color:white">'
+      + '<div style="text-align:center;margin-bottom:14px"><div style="font-size:2.2rem">🔑</div><div style="font-size:1.25rem;font-weight:900">Recuperar contraseña</div><div style="color:#93c5fd;font-size:.82rem;margin-top:4px">Escribe tu usuario o tu correo de recuperación.</div></div>'
+      + '<div style="max-width:360px;margin:0 auto">'
+      + inputBase('recoverUser','text','Usuario o correo de recuperación','username')
+      + '<button id="btnRecover" style="width:100%;background:linear-gradient(135deg,#00B4D8,#7C3AED);border:0;color:white;padding:14px;border-radius:14px;font-weight:900;font-size:1rem;cursor:pointer">Enviar recuperación</button>'
+      + '<div style="text-align:center;color:#aaa;font-size:.86rem;margin-top:14px"><a href="#" id="volverLogin" style="color:#FFD600;font-weight:900;text-decoration:none">Volver a ingresar</a></div>'
+      + '</div></div>';
+    const v = $('recoverUser'); if (v) v.addEventListener('input', function(){ if (!this.value.includes('@')) this.value = normalizarUsuario(this.value); });
+    const back = $('volverLogin'); if (back) back.onclick = function(e){ e.preventDefault(); window.hkRenderLoginDirect(); };
+    const btn = $('btnRecover'); if (btn) btn.onclick = async function(){
+      const r = await window.recuperarPasswordUsuario($('recoverUser').value);
+      if (r.error) return toast('❌ ' + r.error);
+      toast('✅ Revisa tu correo de recuperación.');
+    };
+  };
+
+  window.openCuenta = function(){
+    const body = modal('🔐 Mi cuenta'); if (!body) return;
+    body.innerHTML = '<div class="game-container" style="background:#0a0a14;padding:24px;color:white;text-align:center;min-height:260px">'
+      + '<div style="font-size:2.6rem">🎮</div><div style="font-size:1.3rem;font-weight:900;margin:8px 0">HugoKids Cuenta</div>'
+      + '<div style="color:#c7d2fe;margin-bottom:16px">Entra con usuario único. El correo es opcional para recuperar contraseña.</div>'
+      + '<div style="display:flex;flex-direction:column;gap:10px;max-width:340px;margin:0 auto">'
+      + '<button id="hkMiniLogin" style="background:linear-gradient(135deg,#16A34A,#2563EB);border:0;color:white;padding:14px;border-radius:14px;font-weight:900;cursor:pointer">Ingresar con usuario</button>'
+      + '<button id="hkMiniRegister" style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:0;color:white;padding:14px;border-radius:14px;font-weight:900;cursor:pointer">Crear usuario único</button>'
+      + '</div><div style="font-size:.82rem;color:#86efac;margin-top:14px">Ejemplo: IAN2026, DYLAN, MATIAS_HUGO.</div></div>';
+    const li = $('hkMiniLogin'); if (li) li.onclick = function(){ window.hkRenderLoginDirect(); };
+    const re = $('hkMiniRegister'); if (re) re.onclick = function(){ window.hkRenderRegisterDirect(); };
+  };
+
+  try { renderLogin = window.hkRenderLoginDirect; renderRegistro = window.hkRenderRegisterDirect; openCuenta = window.openCuenta; } catch(e) {}
+
+  document.addEventListener('DOMContentLoaded', function(){
+    const b = $('cuentaBtn');
+    if (b) b.onclick = function(e){ e.preventDefault(); e.stopPropagation(); window.openCuenta(); };
+    document.querySelectorAll('[onclick*="openCuenta"]').forEach(function(el){
+      el.onclick = function(e){ e.preventDefault(); e.stopPropagation(); window.openCuenta(); };
+    });
+  });
+})();
+</script>
+
 </body>
 </html>
