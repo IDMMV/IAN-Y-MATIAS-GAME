@@ -5044,7 +5044,13 @@ function crearJuegoOnline(cfg) {
   };
   ctrl.enviar = enviarMovimientoOnline;
   ctrl.renderLobby = renderLobby;
-  renderBienvenida();
+  // Si viene de una invitación aceptada, salta directo a la sala compartida.
+  if (typeof _autoSala !== 'undefined' && _autoSala) {
+    const a = _autoSala; _autoSala = null;
+    iniciar(a.sala, a.esAnfitrion);
+  } else {
+    renderBienvenida();
+  }
   return ctrl;
 }
 
@@ -5590,7 +5596,13 @@ function buildC4Online(container) {
     renderJuego(); pintar();
   }
 
-  pantallaBienvenidaOnline(container, '🔴', 'Conecta 4 Online', 'linear-gradient(135deg,#FFD600,#DC2626)', renderLobby);
+  // Si viene de una invitación aceptada, entra directo a la sala sin pedir código manual.
+  if (typeof _autoSala !== 'undefined' && _autoSala) {
+    const a = _autoSala; _autoSala = null;
+    iniciarSala(a.sala, a.esAnfitrion);
+  } else {
+    pantallaBienvenidaOnline(container, '🔴', 'Conecta 4 Online', 'linear-gradient(135deg,#FFD600,#DC2626)', renderLobby);
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -7444,11 +7456,11 @@ if(_hgOriginalOpenGame){
   ];
 
   function asegurarArrayJuegosOnline(){
-    if (typeof JUEGOS_EXTRA_ONLINE === 'undefined') return;
+    if (typeof window.JUEGOS_EXTRA_ONLINE === 'undefined') return;
     JUEGOS_ONLINE_QUE_DEBEN_EXISTIR.forEach(g => {
-      const existe = JUEGOS_EXTRA_ONLINE.find(x => x.id === g.id);
+      const existe = window.JUEGOS_EXTRA_ONLINE.find(x => x.id === g.id);
       if (existe) Object.assign(existe, g);
-      else JUEGOS_EXTRA_ONLINE.push(g);
+      else window.JUEGOS_EXTRA_ONLINE.push(g);
     });
   }
 
@@ -7471,7 +7483,7 @@ if(_hgOriginalOpenGame){
   window.hgInjectExtraOnlineGames = function(){
     asegurarArrayJuegosOnline();
     JUEGOS_ONLINE_QUE_DEBEN_EXISTIR.forEach(agregarUnaTarjetaOnline);
-    const old = Array.isArray(JUEGOS_EXTRA_ONLINE) ? JUEGOS_EXTRA_ONLINE : [];
+    const old = Array.isArray(window.JUEGOS_EXTRA_ONLINE) ? window.JUEGOS_EXTRA_ONLINE : [];
     old.forEach(agregarUnaTarjetaOnline);
     const gc = document.getElementById('gameCount');
     if (gc) gc.textContent = document.querySelectorAll('.game-card').length + ' juegos';
@@ -7500,7 +7512,7 @@ if(_hgOriginalOpenGame){
     if (!codigo || !codigo.startsWith('U')) return { error:'Solo puedes invitar a usuarios registrados con código U. Los invitados G cambian cada vez que entran.' };
     const numero = codigo.replace(/[^0-9]/g, '');
     if (!c) {
-      const online = (typeof conectadosAhora !== 'undefined' ? conectadosAhora : {})[codigo];
+      const online = (window.conectadosAhora || {})[codigo];
       if (online) return { data:{ num:codigo, alias:online.name || ('Jugador #' + codigo), avatar:online.emoji || '👤' } };
       return { error:'No hay conexión con Supabase' };
     }
@@ -7511,13 +7523,9 @@ if(_hgOriginalOpenGame){
         const old = await buscarOriginal(codigo);
         if (old && old.data) return old;
       }
-      if (r && r.error) {
-        const onlineErr = (typeof conectadosAhora !== 'undefined' ? conectadosAhora : {})[codigo];
-        if (onlineErr && String(onlineErr.tipo || '').toLowerCase() !== 'invitado') return { data:{ num:codigo, alias:onlineErr.name || ('Jugador #' + codigo), avatar:onlineErr.emoji || '👤' } };
-        return { error:'No se pudo buscar ese código en Supabase' };
-      }
+      if (r && r.error) return { error:'No se pudo buscar ese código en Supabase' };
       if (!r || !r.data) {
-        const online = (typeof conectadosAhora !== 'undefined' ? conectadosAhora : {})[codigo];
+        const online = (window.conectadosAhora || {})[codigo];
         if (online && String(online.tipo || '').toLowerCase() !== 'invitado') return { data:{ num:codigo, alias:online.name || ('Jugador #' + codigo), avatar:online.emoji || '👤' } };
         return { error:'No se encontró ese código. Revisa que sea un código U de usuario registrado y que exista en Supabase.' };
       }
@@ -7585,9 +7593,7 @@ if(_hgOriginalOpenGame){
     const ya = (typeof getAmigos === 'function' ? getAmigos() : []).some(x => normalizarCodigoAmigo(x.num) === amigo.num);
     if (ya) { safeToast('✅ Ya tienes a ese usuario como amigo'); return true; }
     iniciarCanalSolicitudesAmigo();
-    await new Promise(r => setTimeout(r, 250));
-    if (!canalSolicitudesAmigo) { safeToast('No se pudo abrir el canal de solicitudes. Revisa Supabase Realtime.'); return false; }
-    const online = (typeof conectadosAhora !== 'undefined' ? conectadosAhora : {})[amigo.num];
+    const online = (window.conectadosAhora || {})[amigo.num];
     if (!online) { safeToast('El usuario existe, pero no está en línea. Para aceptar la solicitud debe estar conectado.'); return false; }
     const yo = typeof miIdentidadOnline === 'function' ? miIdentidadOnline() : {name:'Jugador', emoji:'👤'};
     try{
@@ -7663,7 +7669,7 @@ if(_hgOriginalOpenGame){
     const yo = codigoActualSeguro();
     const amigos = typeof getAmigos === 'function' ? getAmigos() : [];
     const idsAmigos = new Set(amigos.map(a => normalizarCodigoAmigo(a.num)));
-    const lista = Object.entries(typeof conectadosAhora !== 'undefined' ? conectadosAhora : {})
+    const lista = Object.entries(window.conectadosAhora || {})
       .filter(([id]) => normalizarCodigoAmigo(id) && normalizarCodigoAmigo(id) !== yo)
       .map(([id,u]) => ({ id:normalizarCodigoAmigo(id), ...u }))
       .sort((a,b) => (String(b.tipo).includes('usuario')?1:0) - (String(a.tipo).includes('usuario')?1:0));
@@ -7797,6 +7803,345 @@ if(_hgOriginalOpenGame){
       return oldOpenExtra.apply(this, arguments);
     };
   }
+
+})();
+
+
+/* ══════════════════════════════════════════════════════════
+   CORRECCIÓN 2026-06: INVITACIÓN CON ACEPTAR/RECHAZAR,
+   CHAT PREVIO PARA ELEGIR JUEGO Y TABLA ONLINE ROBUSTA
+   ══════════════════════════════════════════════════════════ */
+(function(){
+  function hgToast(msg){ try{ showToast(msg); }catch(e){ alert(msg); } }
+  function hgHtml(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function hgCode(v){ try{ return normalizarCodigoAmigo(v); }catch(e){ return String(v||'').toUpperCase().trim(); } }
+  function hgMiCodigo(){ try{ return hgCode(getGuestId()); }catch(e){ return ''; } }
+  function hgOnline(){
+    try{ if (typeof conectadosAhora !== 'undefined' && conectadosAhora) return conectadosAhora; }catch(e){}
+    return window.conectadosAhora || {};
+  }
+  function hgNombreYo(){ try{ return miIdentidadOnline(); }catch(e){ return {name:'Jugador', emoji:'👤'}; } }
+  function hgOnlineInfo(code){ return hgOnline()[hgCode(code)] || hgOnline()[String(code||'')] || null; }
+
+  // Mantener una copia en window para que parches anteriores y botones nuevos vean los conectados.
+  function hgSyncWindowOnline(){
+    try{ if (typeof conectadosAhora !== 'undefined') window.conectadosAhora = conectadosAhora; }catch(e){}
+  }
+  setInterval(hgSyncWindowOnline, 1000);
+  document.addEventListener('DOMContentLoaded', () => setTimeout(hgSyncWindowOnline, 800));
+
+  // Arregla tarjetas online añadidas por parches anteriores: deben filtrar por categoría online.
+  function hgFixCategoriasOnline(){
+    document.querySelectorAll('.game-card[id^="card-"]').forEach(card => {
+      const title = (card.querySelector('.game-name')?.textContent || '').toLowerCase();
+      if (title.includes('online') || title.includes('yanken') || card.id.includes('online')) card.dataset.cat = 'online';
+    });
+  }
+  document.addEventListener('DOMContentLoaded', () => setTimeout(hgFixCategoriasOnline, 1000));
+  setTimeout(hgFixCategoriasOnline, 1800);
+
+  // Agregar amigo local/nube solo después de aceptar la solicitud.
+  async function hgGuardarAmigoDirecto(amigo){
+    amigo = amigo || {};
+    const code = hgCode(amigo.num || amigo.codigo || amigo.id || amigo.deId);
+    if (!code || !code.startsWith('U')) { hgToast('Solo se guardan amigos con código U de usuario registrado.'); return false; }
+    const lista = typeof getAmigos === 'function' ? getAmigos() : [];
+    if (!lista.some(x => hgCode(x.num) === code)) {
+      lista.push({ num:code, alias:amigo.alias || amigo.name || amigo.deName || ('Jugador #' + code), avatar:amigo.avatar || amigo.emoji || amigo.deEmoji || '👤' });
+      try{ localStorage.setItem('im_amigos', JSON.stringify(lista)); }catch(e){}
+      try{ if (typeof guardarPerfilNube === 'function') await guardarPerfilNube(); }catch(e){}
+    }
+    try{ if (typeof refrescarListaAmigos === 'function') refrescarListaAmigos(); }catch(e){}
+    try{ if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline(); }catch(e){}
+    return true;
+  }
+  window.agregarAmigoDirecto = hgGuardarAmigoDirecto;
+
+  // Canal único para invitaciones de amistad y de juego.
+  let hgCanalInvites = null;
+  let hgEsperandoJuegoBox = null;
+  function hgIniciarCanalInvites(){
+    const c = typeof getSupabase === 'function' ? getSupabase() : null;
+    if (!c || hgCanalInvites) return;
+    try{
+      hgCanalInvites = c.channel('hugokids-invitaciones-v3');
+      hgCanalInvites.on('broadcast', {event:'solicitud_amigo_v3'}, ({payload}) => {
+        if (payload && payload.paraId === hgMiCodigo()) hgMostrarSolicitudAmigo(payload);
+      });
+      hgCanalInvites.on('broadcast', {event:'respuesta_amigo_v3'}, async ({payload}) => {
+        if (!payload || payload.paraId !== hgMiCodigo()) return;
+        if (payload.aceptado) {
+          await hgGuardarAmigoDirecto({num:payload.deId, alias:payload.deName, avatar:payload.deEmoji});
+          hgToast('🤝 ' + (payload.deName || 'Tu amigo') + ' aceptó agregarse.');
+        } else {
+          hgToast('❌ ' + (payload.deName || 'El usuario') + ' rechazó la solicitud.');
+        }
+      });
+      hgCanalInvites.on('broadcast', {event:'solicitud_juego_v3'}, ({payload}) => {
+        if (payload && payload.paraId === hgMiCodigo()) hgMostrarSolicitudJuego(payload);
+      });
+      hgCanalInvites.on('broadcast', {event:'respuesta_juego_v3'}, ({payload}) => {
+        if (!payload || payload.paraId !== hgMiCodigo()) return;
+        hgCerrarEsperandoJuego();
+        if (payload.aceptado) {
+          hgToast('✅ ' + (payload.deName || 'Tu amigo') + ' aceptó jugar.');
+          hgAbrirSalaSocial(payload.sala, true, {id:payload.deId, name:payload.deName, emoji:payload.deEmoji});
+        } else {
+          hgToast('❌ ' + (payload.deName || 'El usuario') + ' rechazó jugar.');
+        }
+      });
+      hgCanalInvites.subscribe();
+    }catch(e){ console.warn('canal invitaciones', e); }
+  }
+  window.hgIniciarCanalInvites = hgIniciarCanalInvites;
+  document.addEventListener('DOMContentLoaded', () => setTimeout(hgIniciarCanalInvites, 1200));
+  setTimeout(hgIniciarCanalInvites, 2000);
+  setInterval(hgIniciarCanalInvites, 5000);
+
+  function hgMostrarFlotante(html, timeout=30000){
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#7C3AED,#FF4D9D);color:#fff;padding:16px 18px;border-radius:20px;z-index:7000;box-shadow:0 14px 40px rgba(0,0,0,.45);text-align:center;max-width:94%;width:min(430px,94vw);font-family:Nunito,sans-serif';
+    box.innerHTML = html;
+    document.body.appendChild(box);
+    if (timeout) setTimeout(() => { if (document.body.contains(box)) box.remove(); }, timeout);
+    return box;
+  }
+
+  async function hgEnviarSolicitudAmistad(codigo){
+    hgIniciarCanalInvites();
+    const paraId = hgCode(codigo);
+    if (!paraId || !paraId.startsWith('U')) { hgToast('Solo puedes invitar a agregarse a usuarios registrados con código U.'); return false; }
+    if (paraId === hgMiCodigo()) { hgToast('Ese es tu propio código.'); return false; }
+    const online = hgOnlineInfo(paraId);
+    if (!online) { hgToast('Ese usuario no está en línea. Para aceptar, debe estar conectado.'); return false; }
+    const yo = hgNombreYo();
+    try{
+      await hgCanalInvites.send({type:'broadcast', event:'solicitud_amigo_v3', payload:{paraId, deId:hgMiCodigo(), deName:yo.name, deEmoji:yo.emoji}});
+      hgToast('🤝 Solicitud enviada. El otro usuario debe aceptar.');
+      return true;
+    }catch(e){ hgToast('No se pudo enviar la solicitud.'); return false; }
+  }
+  window.enviarSolicitudAmistad = hgEnviarSolicitudAmistad;
+  // El botón de agregar ya no agrega directo: invita a agregarse.
+  window.agregarAmigo = hgEnviarSolicitudAmistad;
+
+  function hgMostrarSolicitudAmigo(payload){
+    const box = hgMostrarFlotante(`
+      <div style="font-size:1.8rem">${hgHtml(payload.deEmoji || '👤')}</div>
+      <div style="font-weight:900;margin-bottom:6px">${hgHtml(payload.deName || 'Un jugador')} quiere agregarte como amigo</div>
+      <div style="font-size:.82rem;opacity:.95;margin-bottom:12px">Código: <b>${hgHtml(payload.deId)}</b></div>
+      <button id="hgSiAmigo" style="background:#fff;color:#16A34A;border:0;border-radius:14px;padding:9px 14px;font-weight:900;cursor:pointer;margin-right:8px">✅ Aceptar</button>
+      <button id="hgNoAmigo" style="background:rgba(255,255,255,.2);color:white;border:0;border-radius:14px;padding:9px 14px;font-weight:900;cursor:pointer">❌ Rechazar</button>
+    `);
+    const responder = async (ok) => {
+      if (document.body.contains(box)) box.remove();
+      const yo = hgNombreYo();
+      if (ok) await hgGuardarAmigoDirecto({num:payload.deId, alias:payload.deName, avatar:payload.deEmoji});
+      try{ await hgCanalInvites.send({type:'broadcast', event:'respuesta_amigo_v3', payload:{paraId:payload.deId, deId:hgMiCodigo(), deName:yo.name, deEmoji:yo.emoji, aceptado:ok}}); }catch(e){}
+      hgToast(ok ? '🤝 Ahora son amigos.' : 'Solicitud rechazada.');
+    };
+    box.querySelector('#hgSiAmigo').onclick = () => responder(true);
+    box.querySelector('#hgNoAmigo').onclick = () => responder(false);
+  }
+
+  function hgCerrarEsperandoJuego(){
+    if (hgEsperandoJuegoBox && document.body.contains(hgEsperandoJuegoBox)) hgEsperandoJuegoBox.remove();
+    hgEsperandoJuegoBox = null;
+  }
+  function hgMostrarEsperandoJuego(nombre){
+    hgCerrarEsperandoJuego();
+    hgEsperandoJuegoBox = hgMostrarFlotante(`
+      <div style="font-size:2rem">⏳</div>
+      <div style="font-weight:900;margin-bottom:6px">Esperando respuesta de ${hgHtml(nombre || 'tu amigo')}...</div>
+      <div style="font-size:.82rem;opacity:.95;margin-bottom:12px">Cuando acepte, ambos entrarán a un chat para elegir el juego.</div>
+      <button id="hgCancelarEspera" style="background:#fff;color:#7C3AED;border:0;border-radius:14px;padding:9px 16px;font-weight:900;cursor:pointer">Cancelar</button>
+    `, 0);
+    hgEsperandoJuegoBox.querySelector('#hgCancelarEspera').onclick = hgCerrarEsperandoJuego;
+  }
+
+  // Invitar a jugar: ya no abre una sala con código inmediatamente. Primero el otro acepta.
+  window.invitarAmigo = async function(codigo){
+    hgIniciarCanalInvites();
+    const paraId = hgCode(codigo);
+    if (!paraId) { hgToast('Código inválido.'); return false; }
+    if (paraId === hgMiCodigo()) { hgToast('No puedes invitarte a ti mismo.'); return false; }
+    const online = hgOnlineInfo(paraId);
+    if (!online) { hgToast('Ese jugador no está en línea ahora.'); return false; }
+    const yo = hgNombreYo();
+    const sala = generarCodigoSala();
+    try{
+      await hgCanalInvites.send({type:'broadcast', event:'solicitud_juego_v3', payload:{paraId, deId:hgMiCodigo(), deName:yo.name, deEmoji:yo.emoji, sala}});
+      hgMostrarEsperandoJuego(online.name || paraId);
+      return true;
+    }catch(e){ hgToast('No se pudo enviar la invitación para jugar.'); return false; }
+  };
+
+  function hgMostrarSolicitudJuego(payload){
+    const box = hgMostrarFlotante(`
+      <div style="font-size:1.8rem">${hgHtml(payload.deEmoji || '👤')}</div>
+      <div style="font-weight:900;margin-bottom:6px">${hgHtml(payload.deName || 'Un jugador')} te invita a jugar</div>
+      <div style="font-size:.82rem;opacity:.95;margin-bottom:12px">Si aceptas, entrarán a un chat para elegir el juego.</div>
+      <button id="hgSiJuego" style="background:#fff;color:#16A34A;border:0;border-radius:14px;padding:9px 14px;font-weight:900;cursor:pointer;margin-right:8px">✅ Aceptar</button>
+      <button id="hgNoJuego" style="background:rgba(255,255,255,.2);color:white;border:0;border-radius:14px;padding:9px 14px;font-weight:900;cursor:pointer">❌ Rechazar</button>
+    `);
+    const responder = async (ok) => {
+      if (document.body.contains(box)) box.remove();
+      const yo = hgNombreYo();
+      try{ await hgCanalInvites.send({type:'broadcast', event:'respuesta_juego_v3', payload:{paraId:payload.deId, deId:hgMiCodigo(), deName:yo.name, deEmoji:yo.emoji, sala:payload.sala, aceptado:ok}}); }catch(e){}
+      if (ok) hgAbrirSalaSocial(payload.sala, false, {id:payload.deId, name:payload.deName, emoji:payload.deEmoji});
+      else hgToast('Invitación rechazada.');
+    };
+    box.querySelector('#hgSiJuego').onclick = () => responder(true);
+    box.querySelector('#hgNoJuego').onclick = () => responder(false);
+  }
+
+  // Sala social: chat + elección de juego antes de entrar a la partida.
+  let hgCanalSocial = null;
+  let hgSocialState = {sala:null, esHost:false, peer:null};
+  const HG_JUEGOS_SOCIALES = [
+    ['tttonline','⭕','Tres en Raya'],
+    ['c4online','🔴','Conecta 4'],
+    ['cajasonline','🎯','Puntos y Cajas'],
+    ['ahorcadoonline','✏️','Ahorcado'],
+    ['navalonline','🚢','Batalla Naval'],
+    ['damasonline','⚫','Damas'],
+    ['ludoonline','🎲','Ludo']
+  ];
+  function hgAbrirModalSocial(){
+    const modal = document.getElementById('modalOverlay');
+    const body = document.getElementById('modalBody');
+    const title = document.getElementById('modalTitle');
+    if (!modal || !body || !title) return null;
+    try{ stopAllGames(); }catch(e){}
+    modal.classList.add('open','fs');
+    document.body.style.overflow = 'hidden';
+    title.textContent = '💬 Sala de amigos';
+    return body;
+  }
+  function hgRenderSalaSocial(){
+    const body = hgAbrirModalSocial(); if (!body) return;
+    const yo = hgNombreYo();
+    const peer = hgSocialState.peer || {name:'Amigo', emoji:'👤'};
+    body.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:18px;min-height:520px;color:white">
+        <div style="text-align:center;margin-bottom:14px">
+          <div style="font-size:2.2rem">💬🎮</div>
+          <h2 style="font-family:'Fredoka One',cursive;margin:5px 0">Chat antes de jugar</h2>
+          <div style="color:#d9d3ff;font-size:.9rem">Conversen y elijan juntos qué juego jugar.</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;background:#15152a;border-radius:18px;padding:12px;margin-bottom:12px">
+          <div style="text-align:center"><div style="font-size:1.8rem">${hgHtml(yo.emoji)}</div><b>${hgHtml(yo.name)}</b><div style="font-size:.72rem;color:#16A34A">${hgHtml(hgMiCodigo())}</div></div>
+          <div style="font-family:'Fredoka One',cursive;color:#FFD600">VS</div>
+          <div style="text-align:center"><div style="font-size:1.8rem">${hgHtml(peer.emoji)}</div><b>${hgHtml(peer.name)}</b><div style="font-size:.72rem;color:#FF4D9D">${hgHtml(peer.id || '')}</div></div>
+        </div>
+        <div id="hgSocialChat" style="height:130px;overflow:auto;background:#10101c;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:10px;margin-bottom:8px;font-size:.9rem"></div>
+        <div style="display:flex;gap:6px;margin-bottom:14px">
+          <input id="hgSocialInput" maxlength="120" placeholder="Escribe aquí mientras eligen el juego..." style="flex:1;background:#1a1a2e;border:1px solid rgba(255,255,255,.15);border-radius:14px;color:white;padding:11px;font-family:Nunito,sans-serif;outline:none">
+          <button id="hgSocialSend" style="background:#16A34A;color:white;border:0;border-radius:14px;padding:0 15px;font-weight:900;cursor:pointer">➤</button>
+        </div>
+        <div style="background:#15152a;border-radius:18px;padding:12px">
+          <div style="font-weight:900;text-align:center;margin-bottom:10px">${hgSocialState.esHost ? 'Elige el juego para ambos' : 'Esperando que el invitador elija el juego'}</div>
+          <div id="hgSocialGames" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px"></div>
+        </div>
+      </div>
+      <div class="game-instructions"><strong>Ahora sí:</strong> ya no necesitas copiar un código. Cuando uno elija el juego, ambos entrarán a la misma sala.</div>`;
+    const gamesBox = document.getElementById('hgSocialGames');
+    HG_JUEGOS_SOCIALES.forEach(g => {
+      const b = document.createElement('button');
+      b.innerHTML = `<div style="font-size:1.6rem">${g[1]}</div><b>${g[2]}</b>`;
+      b.disabled = !hgSocialState.esHost;
+      b.style.cssText = `background:${hgSocialState.esHost?'linear-gradient(135deg,#7C3AED,#FF4D9D)':'#272738'};color:white;border:0;border-radius:16px;padding:12px;font-family:Nunito,sans-serif;font-weight:900;cursor:${hgSocialState.esHost?'pointer':'not-allowed'};opacity:${hgSocialState.esHost?'1':'.65'}`;
+      b.onclick = () => hgElegirJuegoSocial(g[0]);
+      gamesBox.appendChild(b);
+    });
+    const enviar = () => {
+      const inp = document.getElementById('hgSocialInput'); if (!inp || !inp.value.trim()) return;
+      const res = typeof filtrarMensaje === 'function' ? filtrarMensaje(inp.value) : {ok:true,texto:inp.value};
+      if (!res.ok) { hgToast(res.motivo || 'Mensaje no permitido'); return; }
+      const yo = hgNombreYo(); inp.value = '';
+      hgAppendSocialChat(yo.name, res.texto, yo.emoji);
+      try{ hgCanalSocial && hgCanalSocial.send({type:'broadcast', event:'chat_social_v3', payload:{nombre:yo.name, emoji:yo.emoji, texto:res.texto}}); }catch(e){}
+    };
+    document.getElementById('hgSocialSend').onclick = enviar;
+    document.getElementById('hgSocialInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); enviar(); } });
+    hgAppendSocialChat('HugoKids', 'Invitación aceptada. Ahora elijan el juego.', '🎮');
+  }
+  function hgAppendSocialChat(nombre, texto, emoji){
+    const ch = document.getElementById('hgSocialChat'); if (!ch) return;
+    const d = document.createElement('div');
+    d.style.cssText = 'margin-bottom:5px;line-height:1.25';
+    d.innerHTML = `<b>${hgHtml(emoji || '👤')} ${hgHtml(nombre)}:</b> ${hgHtml(texto)}`;
+    ch.appendChild(d); ch.scrollTop = ch.scrollHeight;
+  }
+  function hgAbrirSalaSocial(sala, esHost, peer){
+    const c = typeof getSupabase === 'function' ? getSupabase() : null;
+    if (!c) { hgToast('No hay conexión para abrir el chat.'); return; }
+    try{ if (hgCanalSocial) c.removeChannel(hgCanalSocial); }catch(e){}
+    hgSocialState = {sala, esHost, peer};
+    hgRenderSalaSocial();
+    hgCanalSocial = c.channel('hugokids-social-' + sala, {config:{broadcast:{self:false}, presence:{key:hgMiCodigo()}}});
+    hgCanalSocial.on('broadcast', {event:'chat_social_v3'}, ({payload}) => { if (payload) hgAppendSocialChat(payload.nombre, payload.texto, payload.emoji); });
+    hgCanalSocial.on('broadcast', {event:'juego_elegido_v3'}, ({payload}) => { if (payload && payload.gameId) hgIniciarJuegoSocial(payload.gameId, false, payload.salaJuego || sala); });
+    hgCanalSocial.on('presence', {event:'sync'}, () => { /* reservado para mostrar conectados dentro de sala */ });
+    hgCanalSocial.subscribe(async status => {
+      if (status === 'SUBSCRIBED') {
+        const yo = hgNombreYo();
+        await hgCanalSocial.track({id:hgMiCodigo(), name:yo.name, emoji:yo.emoji});
+        try{ hgCanalSocial.send({type:'broadcast', event:'chat_social_v3', payload:{nombre:'HugoKids', emoji:'✅', texto:yo.name + ' entró al chat.'}}); }catch(e){}
+      }
+    });
+  }
+  window.hgAbrirSalaSocial = hgAbrirSalaSocial;
+  function hgElegirJuegoSocial(gameId){
+    const salaJuego = hgSocialState.sala || generarCodigoSala();
+    try{ hgCanalSocial && hgCanalSocial.send({type:'broadcast', event:'juego_elegido_v3', payload:{gameId, salaJuego}}); }catch(e){}
+    hgIniciarJuegoSocial(gameId, true, salaJuego);
+  }
+  function hgIniciarJuegoSocial(gameId, esHost, salaJuego){
+    try{ if (hgCanalSocial) { getSupabase().removeChannel(hgCanalSocial); hgCanalSocial = null; } }catch(e){}
+    try{ _autoSala = {sala:salaJuego, esAnfitrion:esHost}; }catch(e){}
+    hgToast('🎮 Entrando al juego...');
+    openGame(gameId);
+  }
+
+  // Tabla online nueva: usa los conectados reales y botones correctos.
+  window.refrescarTablaJugadoresOnline = function(){
+    hgSyncWindowOnline();
+    const tb = document.getElementById('tablaJugadoresOnline'); if (!tb) return;
+    const yo = hgMiCodigo();
+    const amigos = typeof getAmigos === 'function' ? getAmigos() : [];
+    const idsAmigos = new Set(amigos.map(a => hgCode(a.num)));
+    const lista = Object.entries(hgOnline())
+      .map(([id,u]) => ({id:hgCode(id || u.id), ...(u||{})}))
+      .filter(u => u.id && u.id !== yo)
+      .sort((a,b) => (String(b.id).startsWith('U')?1:0) - (String(a.id).startsWith('U')?1:0));
+    if (!lista.length) {
+      tb.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#7A6B9D;border-radius:14px">No hay otros jugadores conectados todavía. Abre la web en otro celular o navegador para probar.</td></tr>';
+      return;
+    }
+    tb.innerHTML = lista.map(u => {
+      const code = hgCode(u.id);
+      const esUsuario = code.startsWith('U') && String(u.tipo || 'usuario').toLowerCase() !== 'invitado';
+      const ya = idsAmigos.has(code);
+      return `<tr>
+        <td><div class="lobby-player"><div class="lobby-avatar">${hgHtml(u.emoji || '👤')}</div><div><div class="lobby-name">${hgHtml(u.name || 'Jugador')}</div><div class="lobby-num">${hgHtml(code)}</div></div></div></td>
+        <td>${esUsuario ? '🟢 Usuario' : '🟡 Invitado temporal'}</td>
+        <td>
+          ${esUsuario ? (ya ? '<span style="color:#16A34A;font-weight:900;margin-right:8px">✓ Amigo</span>' : `<button class="lobby-btn lobby-add" data-friend-request="${hgHtml(code)}">🤝 Invitar a agregarse</button>`) : '<span style="color:#f59e0b;font-weight:900;margin-right:8px">Invitado</span>'}
+          <button class="lobby-btn lobby-play" data-play-online="${hgHtml(code)}">🎮 Invitar a jugar</button>
+        </td>
+      </tr>`;
+    }).join('');
+    tb.querySelectorAll('button[data-friend-request]').forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); hgEnviarSolicitudAmistad(b.dataset.friendRequest); });
+    tb.querySelectorAll('button[data-play-online]').forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); window.invitarAmigo(b.dataset.playOnline); });
+  };
+
+  // Lista de amigos: botón claro.
+  const hgOldLista = window.refrescarListaAmigos;
+  window.refrescarListaAmigos = function(){
+    if (typeof hgOldLista === 'function') hgOldLista();
+    document.querySelectorAll('button[data-inv]').forEach(btn => { btn.textContent = '🎮 Invitar a jugar'; btn.title = 'Invitar a jugar'; });
+  };
 
 })();
 </script>
