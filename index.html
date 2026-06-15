@@ -8989,7 +8989,15 @@ if(_hgOriginalOpenGame){
     {id:'runner3d', emoji:'🏃', name:'Carrera Obstáculos 3D', desc:'Cambia de carril, salta obstáculos y recoge monedas'},
     {id:'gold3d', emoji:'🪙', name:'Mascota Caza Oro 3D', desc:'Recoge monedas y cofres antes de que acabe el tiempo'},
     {id:'sword3d', emoji:'⚔️', name:'Duelo de Espadas 3D', desc:'Ataca, cúbrete y derrota al rival'},
-    {id:'wheels3d', emoji:'🛞', name:'Ruedas Locas 3D', desc:'Maneja el carrito y evita trampas de la pista'}
+    {id:'wheels3d', emoji:'🛞', name:'Ruedas Locas 3D', desc:'Maneja el carrito y evita trampas de la pista'},
+    {id:'maze3d', emoji:'🌀', name:'Laberinto Mágico 3D', desc:'Busca llaves, evita muros y llega al portal final'},
+    {id:'penalty3d', emoji:'⚽', name:'Penales 3D', desc:'Apunta, patea y marca goles antes de que el arquero tape'},
+    {id:'bridge3d', emoji:'🌉', name:'Puente Valiente 3D', desc:'Construye puentes en el momento correcto y cruza los huecos'},
+    {id:'space3d', emoji:'🚀', name:'Defensa Espacial 3D', desc:'Dispara meteoritos y protege tu nave hasta la meta'},
+    {id:'dino3d', emoji:'🦖', name:'Dino Aventura 3D', desc:'Salta cactus, recoge huevos y llega al volcán final'},
+    {id:'target3d', emoji:'🎯', name:'Tiro al Blanco 3D', desc:'Mueve la mira y acierta objetivos rápidos para ganar'},
+    {id:'rescue3d', emoji:'🐶', name:'Rescate de Mascotas 3D', desc:'Encuentra mascotas perdidas y evita trampas del bosque'},
+    {id:'crystal3d', emoji:'💎', name:'Camino de Cristales 3D', desc:'Recuerda la ruta correcta y avanza por cristales seguros'}
   ];
 
   let hk3dRunning = false;
@@ -9089,7 +9097,15 @@ if(_hgOriginalOpenGame){
       runner3d:`<b>Carrera Obstáculos 3D:</b> cambia de carril, salta rampas y evita cajas. En nivel ${lv}, llega a la meta recogiendo al menos ${3+lv} monedas. ${common}`,
       gold3d:`<b>Mascota Caza Oro 3D:</b> recoge monedas y cofres en la arena. Evita rocas y trampas. En nivel ${lv}, junta ${5+lv*2} monedas. ${common}`,
       sword3d:`<b>Duelo de Espadas 3D:</b> acércate, ataca con el botón de acción y retrocede para esquivar. En nivel ${lv}, derrota al rival con cuidado. ${common}`,
-      wheels3d:`<b>Ruedas Locas 3D:</b> maneja por una pista con curvas, conos y rampas. En nivel ${lv}, sobrevive hasta la bandera final. ${common}`
+      wheels3d:`<b>Ruedas Locas 3D:</b> maneja por una pista con curvas, conos y rampas. En nivel ${lv}, sobrevive hasta la bandera final. ${common}`,
+      maze3d:`<b>Laberinto Mágico 3D:</b> cambia de carril para evitar muros, recoge ${2+lv} llaves y llega al portal. ${common}`,
+      penalty3d:`<b>Penales 3D:</b> mueve la mira, espera el momento y presiona acción para patear. En nivel ${lv}, marca ${2+lv} goles. ${common}`,
+      bridge3d:`<b>Puente Valiente 3D:</b> avanza y presiona acción justo antes de cada hueco para crear un puente. En nivel ${lv}, cruza ${3+lv} huecos. ${common}`,
+      space3d:`<b>Defensa Espacial 3D:</b> mueve la nave y dispara con acción para destruir meteoritos. En nivel ${lv}, destruye ${6+lv*2} meteoritos. ${common}`,
+      dino3d:`<b>Dino Aventura 3D:</b> salta cactus con arriba o acción, recoge huevos y llega al volcán. En nivel ${lv}, recoge ${3+lv} huevos. ${common}`,
+      target3d:`<b>Tiro al Blanco 3D:</b> mueve la mira y dispara con acción cuando esté sobre el objetivo. En nivel ${lv}, acierta ${4+lv} blancos. ${common}`,
+      rescue3d:`<b>Rescate de Mascotas 3D:</b> busca mascotas en el bosque, evita jaulas y llévalas a casa. En nivel ${lv}, rescata ${2+lv} mascotas. ${common}`,
+      crystal3d:`<b>Camino de Cristales 3D:</b> observa la ruta marcada, recuerda los carriles y avanza solo por cristales seguros. En nivel ${lv}, supera ${4+lv} pasos. ${common}`
     };
     return txt[id] || common;
   }
@@ -9126,6 +9142,15 @@ if(_hgOriginalOpenGame){
     else if(game.id==='runner3d') runRunner3D(game, lv);
     else if(game.id==='gold3d') runGold3D(game, lv);
     else if(game.id==='sword3d') runSword3D(game, lv);
+    else if(game.id==='wheels3d') runWheels3D(game, lv);
+    else if(game.id==='maze3d') runMaze3D(game, lv);
+    else if(game.id==='penalty3d') runPenalty3D(game, lv);
+    else if(game.id==='bridge3d') runBridge3D(game, lv);
+    else if(game.id==='space3d') runSpace3D(game, lv);
+    else if(game.id==='dino3d') runDino3D(game, lv);
+    else if(game.id==='target3d') runTarget3D(game, lv);
+    else if(game.id==='rescue3d') runRescue3D(game, lv);
+    else if(game.id==='crystal3d') runCrystal3D(game, lv);
     else runWheels3D(game, lv);
   }
 
@@ -9283,6 +9308,161 @@ if(_hgOriginalOpenGame){
       hk3dRAF=requestAnimationFrame(loop);
     } hk3dRAF=requestAnimationFrame(loop);
   }
+
+  function runMaze3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let lane=1, dist=0, keys=0, time=75, last=performance.now(), cooldown=0;
+    const need=2+lv, goal=980+lv*240; const objs=[];
+    for(let i=0;i<26;i++) objs.push({z:260+i*150,lane:Math.floor(Math.random()*3),type:Math.random()<.38?'key':'wall',hit:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cooldown-=dt; dist+=(170+lv*18)*dt;
+      if(input('left')&&cooldown<=0){lane=Math.max(0,lane-1); cooldown=.18;} if(input('right')&&cooldown<=0){lane=Math.min(2,lane+1); cooldown=.18;}
+      drawGround(ctx,W,H,'#312e81','#020617');
+      ctx.fillStyle='rgba(255,255,255,.08)'; ctx.fillRect(285,140,390,340);
+      objs.forEach(o=>{ let rz=o.z-dist; if(rz<-80){ o.z+=26*150; o.lane=Math.floor(Math.random()*3); o.type=Math.random()<.35?'key':'wall'; o.hit=false; rz=o.z-dist; }
+        if(rz>0&&rz<1150&&!o.hit){ drawSprite(ctx,{x:(o.lane-1)*145,z:rz,w:o.type==='key'?48:85,h:o.type==='key'?48:80},o.type==='key'?'🔑':'🧱',o.type==='key'?'#FFD600':'#7C3AED');
+          if(o.lane===lane && rz<145 && rz>70){ if(o.type==='key'){keys++; o.hit=true; playBeep('coin');} else { return showEnd(game,false); } }
+        }
+      });
+      drawSprite(ctx,{x:(lane-1)*145,z:115,w:72,h:72},'🧙','#2563EB');
+      if(dist>goal-120) drawSprite(ctx,{x:0,z:goal-dist+150,w:90,h:90},'🌀','#16A34A');
+      setHud(`${keys}/${need} llaves`,time,`Carril ${lane+1} · evita muros`);
+      if(dist>=goal && keys>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runPenalty3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let aim=0, dir=1, keeper=0, kdir=1, goals=0, shots=0, time=70, last=performance.now(), cd=0;
+    const need=2+lv, maxShots=need+3;
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cd-=dt;
+      aim += dir*(250+lv*35)*dt; if(aim>260){aim=260;dir=-1;} if(aim<-260){aim=-260;dir=1;}
+      keeper += kdir*(180+lv*24)*dt; if(keeper>220){keeper=220;kdir=-1;} if(keeper<-220){keeper=-220;kdir=1;}
+      if((input('left')||input('right'))){ aim += ((input('right')?1:0)-(input('left')?1:0))*260*dt; aim=Math.max(-280,Math.min(280,aim)); }
+      if(input('action')&&cd<=0){ shots++; cd=.55; const blocked=Math.abs(aim-keeper)<75; if(!blocked){goals++; playBeep('coin');} else playBeep('lose'); }
+      drawGround(ctx,W,H,'#065f46','#022c22');
+      const goalP=project(0,720); ctx.strokeStyle='#fff'; ctx.lineWidth=8; ctx.strokeRect(goalP.x-300,goalP.y-170,600,170);
+      drawSprite(ctx,{x:keeper,z:670,w:92,h:95},'🧤','#FF4D9D');
+      drawSprite(ctx,{x:aim,z:525,w:48,h:48},'🎯','#FFD600');
+      drawSprite(ctx,{x:0,z:115,w:65,h:65},'⚽','#fff');
+      setHud(`${goals}/${need} goles`,time,`Disparos ${shots}/${maxShots} · acción = patear`);
+      if(goals>=need) return reward(game,true); if(shots>=maxShots||time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runBridge3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let dist=0, built=0, time=75, last=performance.now(), cd=0, safeFlash=0;
+    const need=3+lv, goal=900+lv*240; const gaps=[]; for(let i=0;i<need+3;i++) gaps.push({z:260+i*190,done:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cd-=dt; safeFlash-=dt; dist+=(145+lv*18)*dt;
+      let danger=false, nextGap=null;
+      gaps.forEach(g=>{ const rz=g.z-dist; if(rz>45&&rz<120&&!g.done){ danger=true; nextGap=g; } });
+      if(input('action')&&cd<=0){ cd=.45; if(danger&&nextGap){ nextGap.done=true; built++; safeFlash=.35; playBeep('coin'); } else { safeFlash=.2; } }
+      drawGround(ctx,W,H,'#0f172a','#111827');
+      // camino principal
+      ctx.fillStyle='rgba(245,158,11,.22)'; const a=project(-120,0), b=project(120,950); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(420,150); ctx.lineTo(540,150); ctx.lineTo(b.x,b.y); ctx.closePath(); ctx.fill();
+      gaps.forEach(g=>{ const rz=g.z-dist; if(rz>-80&&rz<900){ drawSprite(ctx,{x:0,z:rz,w:120,h:40},g.done?'🪵':'🕳️',g.done?'#A16207':'#000'); } if(rz<50&&rz>10&&!g.done){ return showEnd(game,false); } });
+      drawSprite(ctx,{x:0,z:120,w:78,h:78},'🧒','#2563EB');
+      setHud(`${built}/${need} puentes`,time,`${danger?'⚠️ Presiona Acción para construir':'Avanza y prepárate'} ${safeFlash>0?'✅':''}`);
+      if(dist>=goal && built>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runSpace3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let ship={x:0,z:115,w:74,h:74}, shots=[], kills=0, hits=0, time=75, last=performance.now(), cd=0;
+    const need=6+lv*2; const rocks=[]; for(let i=0;i<12;i++) rocks.push({x:-420+Math.random()*840,z:260+Math.random()*850,v:90+Math.random()*80,hit:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cd-=dt;
+      ship.x += ((input('right')?1:0)-(input('left')?1:0))*360*dt; ship.z += ((input('down')?1:0)-(input('up')?1:0))*150*dt; ship.x=Math.max(-440,Math.min(440,ship.x)); ship.z=Math.max(80,Math.min(280,ship.z));
+      if(input('action')&&cd<=0){ shots.push({x:ship.x,z:ship.z+55}); cd=.22; playBeep('coin'); }
+      shots.forEach(s=>s.z+=620*dt); shots=shots.filter(s=>s.z<1150);
+      drawGround(ctx,W,H,'#020617','#111827');
+      for(let i=0;i<80;i++){ ctx.fillStyle='rgba(255,255,255,.55)'; ctx.fillRect((i*83+Math.floor(performance.now()/20))%W, (i*47)%H, 2,2); }
+      rocks.forEach(r=>{ r.z-=r.v*dt; if(r.z<20){ r.z=980; r.x=-420+Math.random()*840; r.v=90+Math.random()*90; r.hit=false; }
+        drawSprite(ctx,{x:r.x,z:r.z,w:58,h:58},'☄️','#7C2D12');
+        shots.forEach(s=>{ if(Math.hypot(s.x-r.x,s.z-r.z)<58){ r.z=980; r.x=-420+Math.random()*840; kills++; s.z=1400; playBeep('coin'); } });
+        if(collision(ship,r,58)){ hits++; r.z=980; if(hits>=3) return showEnd(game,false); }
+      });
+      shots.forEach(s=>drawSprite(ctx,{x:s.x,z:s.z,w:24,h:42},'✨','#FFD600'));
+      drawSprite(ctx,ship,'🚀','#2563EB');
+      setHud(`${kills}/${need} meteoritos`,time,`Golpes ${hits}/3 · acción = disparar`);
+      if(kills>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runDino3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let y=0, vy=0, dist=0, eggs=0, time=70, last=performance.now(); const need=3+lv, goal=880+lv*260;
+    const objs=[]; for(let i=0;i<24;i++) objs.push({z:250+i*150,type:Math.random()<.42?'egg':'cactus',hit:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; dist+=(175+lv*16)*dt;
+      if((input('up')||input('action'))&&y<=1){ vy=390; }
+      vy-=880*dt; y+=vy*dt; if(y<0){ y=0; vy=0; }
+      drawGround(ctx,W,H,'#78350f','#1c1917');
+      objs.forEach(o=>{ let rz=o.z-dist; if(rz<-80){ o.z+=24*150; o.type=Math.random()<.42?'egg':'cactus'; o.hit=false; rz=o.z-dist; }
+        if(rz>0&&rz<1000&&!o.hit){ drawSprite(ctx,{x:0,z:rz,w:o.type==='egg'?45:70,h:o.type==='egg'?45:80},o.type==='egg'?'🥚':'🌵',o.type==='egg'?'#FDE68A':'#16A34A'); if(rz<145&&rz>70){ if(o.type==='egg'){eggs++; o.hit=true; playBeep('coin');} else if(y<55){ return showEnd(game,false); } } }
+      });
+      drawSprite(ctx,{x:0,z:120,y,w:92,h:85},'🦖','#65A30D');
+      setHud(`${eggs}/${need} huevos`,time,`${y>0?'🦘 Saltando':'Arriba/Acción = saltar'}`);
+      if(dist>=goal && eggs>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runTarget3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let aim={x:0,z:430}, hit=0, miss=0, time=70, last=performance.now(), cd=0;
+    const need=4+lv; let target={x:-320+Math.random()*640,z:280+Math.random()*500,w:70,h:70};
+    function newTarget(){ target={x:-360+Math.random()*720,z:240+Math.random()*590,w:65,h:65}; }
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cd-=dt;
+      aim.x += ((input('right')?1:0)-(input('left')?1:0))*420*dt; aim.z += ((input('down')?1:0)-(input('up')?1:0))*360*dt; aim.x=Math.max(-430,Math.min(430,aim.x)); aim.z=Math.max(80,Math.min(880,aim.z));
+      if(input('action')&&cd<=0){ cd=.35; if(Math.hypot(aim.x-target.x,aim.z-target.z)<70){ hit++; playBeep('coin'); newTarget(); } else { miss++; playBeep('lose'); if(miss>=5) return showEnd(game,false); } }
+      drawGround(ctx,W,H,'#1e1b4b','#0a0a14');
+      drawSprite(ctx,target,'🎈','#FF4D9D');
+      const p=project(aim.x,aim.z); ctx.strokeStyle='#FFD600'; ctx.lineWidth=5; ctx.beginPath(); ctx.arc(p.x,p.y,34,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(p.x-46,p.y); ctx.lineTo(p.x+46,p.y); ctx.moveTo(p.x,p.y-46); ctx.lineTo(p.x,p.y+46); ctx.stroke();
+      setHud(`${hit}/${need} aciertos`,time,`Fallos ${miss}/5 · acción = disparar`);
+      if(hit>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runRescue3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let p={x:0,z:150,w:70,h:70,vx:0,vz:0}, resc=0, time=75, last=performance.now(); const need=2+lv;
+    const things=[]; for(let i=0;i<need+7;i++) things.push({x:-420+Math.random()*840,z:90+Math.random()*780,type:Math.random()<.55?'pet':'trap',taken:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt;
+      p.vx=((input('right')?1:0)-(input('left')?1:0))*(input('action')?390:300); p.vz=((input('down')?1:0)-(input('up')?1:0))*(input('action')?390:300); p.x+=p.vx*dt; p.z+=p.vz*dt; p.x=Math.max(-430,Math.min(430,p.x)); p.z=Math.max(40,Math.min(900,p.z));
+      drawGround(ctx,W,H,'#14532d','#052e16');
+      things.forEach(it=>{ if(it.taken) return; drawSprite(ctx,{x:it.x,z:it.z,w:55,h:55},it.type==='pet'?(Math.random()<.5?'🐶':'🐱'):'🪤',it.type==='pet'?'#F59E0B':'#7F1D1D'); if(collision(p,it,58)){ if(it.type==='pet'){ resc++; it.taken=true; playBeep('coin');} else return showEnd(game,false); } });
+      drawSprite(ctx,p,'🧒','#2563EB'); setHud(`${resc}/${need} mascotas`,time,`${input('action')?'⚡ Corriendo':'Rescata sin tocar trampas'}`);
+      if(resc>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runCrystal3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let step=0, lane=1, time=75, last=performance.now(), cooldown=0, preview=2.8;
+    const total=4+lv, route=Array.from({length:total},()=>Math.floor(Math.random()*3));
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cooldown-=dt; preview-=dt;
+      if(input('left')&&cooldown<=0){lane=Math.max(0,lane-1); cooldown=.18;} if(input('right')&&cooldown<=0){lane=Math.min(2,lane+1); cooldown=.18;}
+      if((input('up')||input('action'))&&cooldown<=0){ cooldown=.3; if(lane===route[step]){ step++; playBeep('coin'); } else return showEnd(game,false); }
+      drawGround(ctx,W,H,'#0f172a','#1e1b4b');
+      for(let i=0;i<total;i++){
+        for(let l=0;l<3;l++){
+          const safe=(route[i]===l); const showSafe=preview>0 || i<step;
+          drawSprite(ctx,{x:(l-1)*145,z:170+i*110,w:72,h:36}, safe&&showSafe?'💎':'⬛', safe&&showSafe?'#22D3EE':'#334155');
+        }
+      }
+      drawSprite(ctx,{x:(lane-1)*145,z:110,w:70,h:70},'🧒','#7C3AED');
+      setHud(`${step}/${total} pasos`,time,`${preview>0?'Mira la ruta y recuerda':'Izq/Der y Acción/Arriba para avanzar'}`);
+      if(step>=total) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
 })();
 </script>
 
