@@ -7376,6 +7376,7 @@ const JUEGOS_EXTRA_ONLINE = [
   {id:'futbolonline', emoji:'⚽', name:'Fútbol Penal Online', desc:'Turnos para patear y atajar'},
   {id:'cartasonline', emoji:'🃏', name:'Cartas Mayor Online', desc:'Gana quien saque la carta mayor'},
   {id:'matematicasduelo', emoji:'➕', name:'Duelo Matemático Online', desc:'Responde rápido contra un amigo'},
+  {id:'piramideonline', emoji:'🔺', name:'Pirámide Matemática Online', desc:'Completa la pirámide resolviendo sumas por turnos'},
   {id:'memoriaonline', emoji:'🧠', name:'Memoria Online', desc:'Busca pares por turnos'},
   {id:'carreraonline', emoji:'🏁', name:'Carrera de Dados Online', desc:'Avanza hasta la meta'},
   {id:'piedrapapelonline', emoji:'✊', name:'Piedra Papel Tijera Online', desc:'Rondas rápidas con amigo'}
@@ -7453,42 +7454,273 @@ function openJuegoExtraOnline(id){
 }
 
 function buildExtraOnlineGame(root, game){
-  let score1=0, score2=0, turno=1, ronda=1;
-  const nivel=()=>hgNivelActual(game.id);
-  function render(msg='Elige una acción para empezar'){
-    root.innerHTML=`
-    <div style="background:#0a0a14;color:white;border-radius:20px;padding:18px;text-align:center;min-height:420px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-        <div style="background:#1a1a2e;border-radius:16px;padding:14px"><div style="font-size:2.4rem">🧒</div><b>Jugador 1</b><div style="font-size:1.8rem;color:#FFD600">${score1}</div></div>
-        <div style="background:#1a1a2e;border-radius:16px;padding:14px"><div style="font-size:2.4rem">👧</div><b>Jugador 2</b><div style="font-size:1.8rem;color:#FFD600">${score2}</div></div>
-      </div>
-      <div style="font-size:3.8rem;margin:18px">${game.emoji}</div>
-      <h2 style="font-family:'Fredoka One',cursive">${game.name}</h2>
-      <p style="color:#ccc;margin:8px 0 18px">${msg}</p>
-      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-        <button id="p1Action" class="btn-primary">Jugador 1</button>
-        <button id="p2Action" class="btn-primary" style="background:linear-gradient(135deg,#16A34A,#06b6d4)">Jugador 2</button>
-        <button id="resetExtra" class="btn-secondary" style="background:#222;color:white">Reiniciar</button>
-      </div>
-      <div class="game-instructions" style="background:#15152a;color:#ddd;margin-top:18px">Modo local listo para jugar. Para conectarlo con Supabase en tiempo real, usa las salas y solicitudes que ya estás creando.</div>
+  // Versión corregida: estos juegos ya no son solo una imagen estática.
+  // Funcionan por turnos y sincronizan el estado por la misma sala online de Supabase.
+  if (!root) return;
+  if (!onlineDisponible()) {
+    root.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:30px;text-align:center;color:#fff">
+      <div style="font-size:2.5rem">📡</div>
+      <div style="font-family:'Fredoka One',cursive;font-size:1.3rem;margin:10px 0">Sin conexión online</div>
+      <div style="color:#aaa">Revisa Supabase o tu conexión a internet.</div>
     </div>`;
-    root.querySelector('#p1Action').onclick=()=>play(1);
-    root.querySelector('#p2Action').onclick=()=>play(2);
-    root.querySelector('#resetExtra').onclick=()=>{score1=0;score2=0;ronda=1;render('Nueva partida')};
+    return;
   }
-  function play(player){
-    const puntos = Math.floor(Math.random()*6)+1+nivel();
-    if(player===1) score1+=puntos; else score2+=puntos;
-    ronda++;
-    if(score1>=20 || score2>=20){
-      const ganador=score1>score2?'Jugador 1':'Jugador 2';
-      const nombre=game.name;
-      render(`🏆 Ganó ${ganador}. Recompensa entregada.`);
-      hgCompletarNivel(game.id,nombre,10,25);
-      setTimeout(()=>{score1=0;score2=0;ronda=1;render('Siguiente partida')},900);
-    } else render(`${player===1?'Jugador 1':'Jugador 2'} ganó ${puntos} puntos. Ronda ${ronda}`);
+
+  let salaExtra = '';
+  let rivalInfoExtra = null;
+  let state = null;
+  let recompensaMostrada = false;
+  const safe = (v) => String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const gameTitle = () => (game && (game.name || game.title)) || 'Juego online';
+  const miRol = () => soyAnfitrion ? 'A' : 'B';
+  const otroRol = () => soyAnfitrion ? 'B' : 'A';
+  const nombreRol = (r) => r === miRol() ? 'Tú' : 'Tu amigo';
+  const rolColor = (r) => r === 'A' ? '#00B4D8' : '#FF4D9D';
+  const nextTurn = (r) => r === 'A' ? 'B' : 'A';
+
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+    return a;
   }
-  render();
+  function rnd(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+  function preguntaMate(){
+    const lv = Math.max(1, Number(hgNivelActual ? hgNivelActual(game.id) : 1));
+    const a = rnd(1, 6 + lv*3), b = rnd(1, 6 + lv*3);
+    const ans = a + b;
+    const opts = shuffle([ans, ans+rnd(1,4), Math.max(0, ans-rnd(1,4)), ans+rnd(5,8)]).slice(0,4);
+    if(!opts.includes(ans)) opts[0]=ans;
+    return {txt:`${a} + ${b} = ?`, ans, opts:shuffle(opts)};
+  }
+  function preguntaPiramide(){
+    const lv = Math.max(1, Number(hgNivelActual ? hgNivelActual(game.id) : 1));
+    const a = rnd(1,5+lv), b = rnd(1,5+lv), c = rnd(1,5+lv);
+    const x = a+b, y = b+c, top = x+y;
+    const ask = shuffle([{txt:`${a} + ${b}`, ans:x},{txt:`${b} + ${c}`, ans:y},{txt:`${x} + ${y}`, ans:top}])[0];
+    const opts = shuffle([ask.ans, ask.ans+rnd(1,3), Math.max(0, ask.ans-rnd(1,3)), ask.ans+rnd(4,6)]);
+    return {base:[a,b,c], middle:[x,y], top, txt:`Pirámide: ¿cuánto vale ${ask.txt}?`, ans:ask.ans, opts};
+  }
+  function initialState(){
+    const id = game.id;
+    const base = { id, turn:'A', scores:{A:0,B:0}, round:1, msg:'Empieza el Jugador A', done:false, winner:null, match:Date.now() };
+    if(id === 'memoriaonline'){
+      const icons = ['🍎','⭐','🚀','🐶','🎲','💎','⚽','🦄'];
+      return {...base, cards:shuffle([...icons,...icons]).map((v,i)=>({id:i,v,done:false})), flipped:[], msg:'Encuentra pares por turnos'};
+    }
+    if(id === 'carreraonline') return {...base, pos:{A:0,B:0}, meta:30, msg:'Tira el dado y llega primero a la meta'};
+    if(id === 'cartasonline') return {...base, draws:{}, msg:'Cada jugador saca una carta; gana la carta mayor'};
+    if(id === 'futbolonline') return {...base, target:5, msg:'Elige dónde patear. Si el arquero no adivina, es gol'};
+    if(id === 'matematicasduelo' || id === 'quizonline') return {...base, q:preguntaMate(), msg:'Responde la pregunta de tu turno'};
+    if(id === 'piramideonline') return {...base, q:preguntaPiramide(), msg:'Completa la pirámide matemática'};
+    if(id === 'piedrapapelonline') return {...base, picks:{}, msg:'Elige piedra, papel o tijera'};
+    if(id === 'tesoroonline') return {...base, boxes:shuffle(['💎','💎','🪙','🪙','💣','🕳️','⭐','🎁']), opened:[], msg:'Abre un cofre por turno'};
+    return {...base, energy:{A:10,B:10}, msg:'Juega por turnos usando acción, defensa o poder'};
+  }
+  function myName(){ try { return miIdentidadOnline(); } catch(e){ return {name:'Yo',emoji:'👤'}; } }
+  function peerName(){ return rivalInfoExtra || {name:'Amigo',emoji:'👤'}; }
+  function sendState(){ try{ enviarMovimientoOnline({tipo:'extra_state_v6', gameId:game.id, state}); }catch(e){} }
+  function sendNeedState(){ try{ enviarMovimientoOnline({tipo:'extra_need_state_v6', gameId:game.id}); }catch(e){} }
+  function setMsg(m){ if(state) state.msg = m; }
+  function isMyTurn(){ return state && !state.done && state.turn === miRol(); }
+  function maybeReward(){
+    if(!state || !state.done || recompensaMostrada) return;
+    if(state.winner !== miRol()) return;
+    recompensaMostrada = true;
+    const key = 'hg_reward_' + game.id + '_' + salaExtra + '_' + state.match;
+    try{ if(localStorage.getItem(key)) return; localStorage.setItem(key,'1'); }catch(e){}
+    try{ hgCompletarNivel(game.id, gameTitle(), 10, 25); }catch(e){}
+  }
+  function finishIfNeeded(limit=5){
+    if(state.scores.A >= limit || state.scores.B >= limit){
+      state.done = true;
+      state.winner = state.scores.A > state.scores.B ? 'A' : 'B';
+      state.msg = (state.winner === miRol() ? '🏆 ¡Ganaste!' : '😮 Ganó tu amigo') + ' Puedes pedir revancha.';
+    }
+  }
+  function nuevaPartida(){ state = initialState(); recompensaMostrada = false; renderGame(); sendState(); }
+
+  function commonTop(){
+    const yo = myName(), riv = peerName();
+    const myR = miRol(), opR = otroRol();
+    return `<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-bottom:10px">
+      <div style="text-align:center"><div style="font-size:1.8rem">${safe(yo.emoji)}</div><b style="color:${rolColor(myR)}">${safe(yo.name)} (${myR})</b><div style="font-size:.75rem;color:#ccc">Puntos: ${state?.scores?.[myR]||0}</div></div>
+      <div style="font-family:'Fredoka One',cursive;color:#FFD600">VS</div>
+      <div style="text-align:center"><div style="font-size:1.8rem">${safe(riv.emoji)}</div><b style="color:${rolColor(opR)}">${safe(riv.name||'Amigo')} (${opR})</b><div style="font-size:.75rem;color:#ccc">Puntos: ${state?.scores?.[opR]||0}</div></div>
+    </div>`;
+  }
+  function chatHTML(){
+    return `<div style="margin-top:12px">
+      <div id="extraChat" style="height:70px;overflow:auto;background:#10101c;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px;margin-bottom:6px;font-size:.82rem;color:white"></div>
+      <div style="display:flex;gap:6px"><input id="extraChatInput" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="120" placeholder="Mensaje..." style="flex:1;min-width:0;background:#1a1a2e;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:9px;color:white;font-family:Nunito,sans-serif;outline:none"><button id="extraChatSend" style="background:#16A34A;color:white;border:0;border-radius:12px;padding:0 14px;font-weight:900;cursor:pointer">➤</button></div>
+    </div>`;
+  }
+  function bindChat(){
+    window._chatRenderer = function(nombre,texto,emoji){
+      const box = document.getElementById('extraChat'); if(!box) return;
+      const d=document.createElement('div'); d.innerHTML = `<b>${safe(emoji||'👤')} ${safe(nombre)}:</b> ${safe(texto)}`; box.appendChild(d); box.scrollTop=box.scrollHeight;
+    };
+    const btn=document.getElementById('extraChatSend'), inp=document.getElementById('extraChatInput');
+    const send=()=>{ if(!inp || !inp.value.trim()) return; const res=typeof filtrarMensaje==='function'?filtrarMensaje(inp.value):{ok:true,texto:inp.value}; if(!res.ok){showToast(res.motivo||'Mensaje no permitido');return;} const txt=res.texto; inp.value=''; enviarChatOnline(txt); };
+    if(btn) btn.onclick=send;
+    if(inp) inp.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); send(); } };
+  }
+  function actionsDisabled(){ return !isMyTurn() ? 'disabled style="opacity:.45;cursor:not-allowed"' : ''; }
+  function btn(label, action, extra='') { return `<button data-action="${action}" ${actionsDisabled()} style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);color:white;border:0;border-radius:14px;padding:12px 14px;font-family:Nunito,sans-serif;font-weight:900;cursor:pointer;${extra}">${label}</button>`; }
+
+  function renderSpecific(){
+    const id = game.id;
+    if(id === 'futbolonline'){
+      return `<div style="font-size:3rem;margin:8px">⚽🥅</div><p style="color:#d9d3ff">${safe(state.msg)}</p><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${btn('⬅️ Izquierda','shot-L')}${btn('⬆️ Centro','shot-C')}${btn('➡️ Derecha','shot-R')}</div><div style="font-size:.8rem;color:#aaa;margin-top:8px">Meta: primero en llegar a ${state.target} goles.</div>`;
+    }
+    if(id === 'memoriaonline'){
+      return `<p style="color:#d9d3ff;text-align:center">${safe(state.msg)}</p><div style="display:grid;grid-template-columns:repeat(4,minmax(54px,86px));gap:8px;justify-content:center">${state.cards.map((c,i)=>{
+        const show = c.done || state.flipped.includes(i);
+        return `<button data-card="${i}" ${(!isMyTurn()||c.done||state.flipped.includes(i)||state.flipped.length>=2)?'disabled':''} style="height:70px;background:${show?'#7C3AED':'#1a1a2e'};border:2px solid #4c1d95;border-radius:14px;color:white;font-size:1.8rem;font-weight:900;cursor:pointer;opacity:${(!isMyTurn()&&!show)?'.75':'1'}">${show?c.v:'❓'}</button>`;
+      }).join('')}</div>`;
+    }
+    if(id === 'carreraonline'){
+      const pctA=Math.min(100,Math.round((state.pos.A/state.meta)*100)); const pctB=Math.min(100,Math.round((state.pos.B/state.meta)*100));
+      return `<p style="color:#d9d3ff;text-align:center">${safe(state.msg)}</p><div style="max-width:560px;margin:0 auto 12px"><div style="color:#00B4D8;font-weight:900">A 🏎️ ${state.pos.A}/${state.meta}</div><div style="background:#222;border-radius:12px;overflow:hidden;height:22px;margin-bottom:8px"><div style="width:${pctA}%;height:100%;background:#00B4D8"></div></div><div style="color:#FF4D9D;font-weight:900">B 🏁 ${state.pos.B}/${state.meta}</div><div style="background:#222;border-radius:12px;overflow:hidden;height:22px"><div style="width:${pctB}%;height:100%;background:#FF4D9D"></div></div></div><div style="text-align:center">${btn('🎲 Tirar dado','dice')}</div>`;
+    }
+    if(id === 'cartasonline'){
+      return `<p style="color:#d9d3ff;text-align:center">${safe(state.msg)}</p><div style="display:flex;justify-content:center;gap:18px;margin:16px"><div style="font-size:4rem;background:#1a1a2e;border-radius:16px;padding:18px">${state.draws.A||'🂠'}</div><div style="font-size:4rem;background:#1a1a2e;border-radius:16px;padding:18px">${state.draws.B||'🂠'}</div></div><div style="text-align:center">${btn('🃏 Sacar carta','card')}</div>`;
+    }
+    if(id === 'matematicasduelo' || id === 'quizonline' || id === 'piramideonline'){
+      const q = state.q || preguntaMate();
+      const pir = id === 'piramideonline' && q.base ? `<div style="font-size:1.4rem;margin:8px auto;color:#FFD600">🔺 ${q.top}<br>🔹 ${q.middle[0]} &nbsp;&nbsp; ${q.middle[1]}<br>▫️ ${q.base.join('  ')}</div>` : '';
+      return `<div style="text-align:center"><div style="font-size:2.5rem">${id==='piramideonline'?'🔺':'➕'}</div>${pir}<h2 style="color:white">${safe(q.txt)}</h2><p style="color:#d9d3ff">${safe(state.msg)}</p><div style="display:grid;grid-template-columns:repeat(2,minmax(90px,160px));gap:8px;justify-content:center">${q.opts.map(o=>btn(String(o),'answer-'+o)).join('')}</div></div>`;
+    }
+    if(id === 'piedrapapelonline'){
+      return `<p style="color:#d9d3ff;text-align:center">${safe(state.msg)}</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">${btn('✊ Piedra','rps-rock')}${btn('✋ Papel','rps-paper')}${btn('✌️ Tijera','rps-scissors')}</div><div style="font-size:.85rem;color:#aaa;margin-top:10px;text-align:center">Cuando ambos elijan, se muestra el ganador de la ronda.</div>`;
+    }
+    if(id === 'tesoroonline'){
+      return `<p style="color:#d9d3ff;text-align:center">${safe(state.msg)}</p><div style="display:grid;grid-template-columns:repeat(4,minmax(58px,88px));gap:8px;justify-content:center">${state.boxes.map((x,i)=>`<button data-box="${i}" ${(!isMyTurn()||state.opened.includes(i))?'disabled':''} style="height:68px;background:#1a1a2e;border:2px solid #4c1d95;border-radius:14px;color:white;font-size:1.9rem;cursor:pointer;opacity:${state.opened.includes(i)?'.6':'1'}">${state.opened.includes(i)?x:'🎁'}</button>`).join('')}</div>`;
+    }
+    return `<p style="color:#d9d3ff;text-align:center">${safe(state.msg)}</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:420px;margin:0 auto 12px"><div style="background:#15152a;border-radius:14px;padding:12px;text-align:center"><b>A</b><div style="font-size:1.7rem;color:#00B4D8">❤️ ${state.energy.A}</div></div><div style="background:#15152a;border-radius:14px;padding:12px;text-align:center"><b>B</b><div style="font-size:1.7rem;color:#FF4D9D">❤️ ${state.energy.B}</div></div></div><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${btn('⚔️ Acción','generic-hit')}${btn('🛡️ Defensa','generic-def')}${btn('✨ Poder','generic-power')}</div>`;
+  }
+
+  function renderGame(){
+    if(!state) state = initialState();
+    const turnoTexto = state.done ? 'Partida terminada' : (state.turn === miRol() ? '✅ Tu turno' : '⏳ Turno de tu amigo');
+    root.innerHTML = `<div class="game-container" style="background:#0a0a14;color:white;border-radius:20px;padding:16px;min-height:430px">
+      ${commonTop()}
+      <div style="text-align:center;background:#15152a;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:10px;margin-bottom:12px"><b>${safe(gameTitle())}</b> · Nivel ${hgNivelActual ? hgNivelActual(game.id) : 1}/5<br><span style="color:${state.turn===miRol()?'#16A34A':'#FFD600'}">${turnoTexto}</span></div>
+      <div id="extraPlayArea">${renderSpecific()}</div>
+      ${state.done ? `<div style="text-align:center;margin-top:12px"><button id="extraRematch" style="background:#7C3AED;color:white;border:0;border-radius:16px;padding:12px 22px;font-weight:900;cursor:pointer">🔁 Revancha</button></div>` : ''}
+      ${chatHTML()}
+    </div>
+    <div class="game-instructions"><strong>Ahora sí se puede jugar:</strong> cada botón ejecuta una acción y se sincroniza con el otro jugador de la sala.</div>`;
+    bindActions(); bindChat(); maybeReward();
+  }
+
+  function bindActions(){
+    root.querySelectorAll('[data-action]').forEach(b => b.onclick = () => handleAction(b.dataset.action));
+    root.querySelectorAll('[data-card]').forEach(b => b.onclick = () => flipCard(Number(b.dataset.card)));
+    root.querySelectorAll('[data-box]').forEach(b => b.onclick = () => openBox(Number(b.dataset.box)));
+    const rem = document.getElementById('extraRematch'); if(rem) rem.onclick = nuevaPartida;
+  }
+  function handleAction(action){
+    if(!isMyTurn()) { showToast('⏳ Espera tu turno'); return; }
+    const r = miRol();
+    if(action.startsWith('shot-')){
+      const dir = action.split('-')[1], save = ['L','C','R'][rnd(0,2)];
+      if(dir !== save){ state.scores[r]++; state.msg = `⚽ ¡Gol! Pateaste ${dir} y el arquero fue a ${save}.`; }
+      else state.msg = `🧤 Atajada. Ambos eligieron ${dir}.`;
+      state.turn = nextTurn(r); finishIfNeeded(state.target || 5);
+    } else if(action === 'dice'){
+      const d = rnd(1,6); state.pos[r] += d; state.scores[r] = state.pos[r]; state.msg = `${nombreRol(r)} sacó ${d}.`;
+      if(state.pos[r] >= state.meta){ state.done=true; state.winner=r; state.msg = `${nombreRol(r)} llegó a la meta 🏁`; }
+      else state.turn = nextTurn(r);
+    } else if(action === 'card'){
+      const vals = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+      const card = vals[rnd(0,12)]; state.draws[r]=card;
+      const val = vals.indexOf(card)+1;
+      if(state.draws.A && state.draws.B){
+        const va = vals.indexOf(state.draws.A)+1, vb = vals.indexOf(state.draws.B)+1;
+        if(va>vb){state.scores.A++; state.msg='Gana la ronda A';}
+        else if(vb>va){state.scores.B++; state.msg='Gana la ronda B';}
+        else state.msg='Empate de cartas';
+        state.draws={}; state.round++; state.turn = state.round % 2 ? 'A' : 'B'; finishIfNeeded(5);
+      } else { state.msg = `${nombreRol(r)} sacó carta. Falta el otro.`; state.turn=nextTurn(r); }
+    } else if(action.startsWith('answer-')){
+      const ans = Number(action.replace('answer-',''));
+      if(ans === Number(state.q.ans)){ state.scores[r]++; state.msg = `✅ Correcto. ${nombreRol(r)} suma punto.`; }
+      else state.msg = `❌ Era ${state.q.ans}.`;
+      state.q = game.id === 'piramideonline' ? preguntaPiramide() : preguntaMate();
+      state.turn = nextTurn(r); finishIfNeeded(5);
+    } else if(action.startsWith('rps-')){
+      const pick = action.replace('rps-',''); state.picks[r]=pick;
+      if(state.picks.A && state.picks.B){
+        const a=state.picks.A,b=state.picks.B; let win=null;
+        if(a!==b){ if((a==='rock'&&b==='scissors')||(a==='paper'&&b==='rock')||(a==='scissors'&&b==='paper')) win='A'; else win='B'; }
+        if(win){ state.scores[win]++; state.msg = `Resultado: A eligió ${a}, B eligió ${b}. Gana ${win}.`; }
+        else state.msg = `Empate: ambos eligieron ${a}.`;
+        state.picks={}; state.turn = nextTurn(state.turn); finishIfNeeded(5);
+      } else { state.msg = `${nombreRol(r)} ya eligió. Falta el otro.`; state.turn = nextTurn(r); }
+    } else if(action.startsWith('generic-')){
+      const op = nextTurn(r); let dmg=0;
+      if(action==='generic-hit') dmg=rnd(1,3);
+      if(action==='generic-def') { state.energy[r]=Math.min(12,state.energy[r]+1); state.msg=`${nombreRol(r)} se defendió y recuperó energía.`; }
+      if(action==='generic-power') dmg=rnd(2,5);
+      if(dmg){ state.energy[op]-=dmg; state.scores[r]+=dmg; state.msg=`${nombreRol(r)} hizo ${dmg} de fuerza.`; }
+      if(state.energy[op] <= 0){ state.done=true; state.winner=r; state.msg=`🏆 ${nombreRol(r)} ganó el duelo.`; }
+      else state.turn=op;
+    }
+    renderGame(); sendState();
+  }
+  function flipCard(i){
+    if(!isMyTurn()) return;
+    const c=state.cards[i]; if(!c || c.done || state.flipped.includes(i) || state.flipped.length>=2) return;
+    state.flipped.push(i);
+    if(state.flipped.length===2){
+      const [a,b]=state.flipped;
+      if(state.cards[a].v===state.cards[b].v){ state.cards[a].done=state.cards[b].done=true; state.scores[miRol()]++; state.msg='✅ Par encontrado. Sigues jugando.'; state.flipped=[]; finishIfNeeded(8); renderGame(); sendState(); }
+      else { state.msg='❌ No es par. Cambia el turno.'; renderGame(); sendState(); setTimeout(()=>{ if(state && state.flipped.length===2){ state.flipped=[]; state.turn=nextTurn(state.turn); renderGame(); sendState(); } },900); }
+    } else { state.msg='Elige otra carta.'; renderGame(); sendState(); }
+  }
+  function openBox(i){
+    if(!isMyTurn()) return;
+    if(state.opened.includes(i)) return;
+    state.opened.push(i); const x=state.boxes[i], r=miRol();
+    if(x==='💣' || x==='🕳️'){ state.scores[r]=Math.max(0,state.scores[r]-1); state.msg='😬 Trampa. Pierdes un punto.'; }
+    else { const pts = x==='💎'?2:1; state.scores[r]+=pts; state.msg=`${x} Cofre abierto: +${pts}.`; }
+    state.turn=nextTurn(r); finishIfNeeded(6); renderGame(); sendState();
+  }
+
+  function handleMove(payload){
+    if(!payload || payload.gameId !== game.id) return;
+    if(payload.tipo === 'extra_state_v6' && payload.state){ state = payload.state; renderGame(); }
+    if(payload.tipo === 'extra_need_state_v6' && soyAnfitrion){ sendState(); }
+  }
+  function start(codigo, esHost){
+    salaExtra = codigo; recompensaMostrada=false; state = initialState();
+    onMovimientoOnline = handleMove;
+    onRivalConectado = (info) => { rivalInfoExtra = info || rivalInfoExtra; if(soyAnfitrion) sendState(); renderGame(); };
+    onRivalSalio = () => { try{ showToast('👋 Tu amigo salió del juego'); }catch(e){} if(state){ state.msg='👋 Tu amigo salió. Te quedaste solo en la partida.'; renderGame(); } };
+    renderGame();
+    conectarSala(codigo, esHost);
+    setTimeout(sendNeedState, 900);
+    setTimeout(sendNeedState, 2000);
+  }
+  function renderLobby(){
+    const codigo = generarCodigoSala();
+    root.innerHTML = `<div class="game-container" style="background:#0a0a14;color:white;border-radius:20px;padding:22px;min-height:360px;text-align:center">
+      <div style="font-size:3rem">${safe(game.emoji||'🎮')}</div><h2 style="font-family:'Fredoka One',cursive">${safe(gameTitle())}</h2>
+      <p style="color:#d9d3ff">Crea una sala o únete con un código. También puedes llegar aquí desde una invitación aceptada.</p>
+      <button id="extraCrear" class="btn-primary" style="margin:8px">➕ Crear sala</button>
+      <div style="margin:10px;color:#aaa">— o —</div>
+      <input id="extraCodigo" value="" maxlength="10" placeholder="Código de sala" style="background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:14px;color:white;padding:12px;text-align:center;text-transform:uppercase;font-weight:900;outline:none">
+      <button id="extraUnir" class="btn-primary" style="margin:8px;background:linear-gradient(135deg,#16A34A,#06b6d4)">🔗 Unirse</button>
+      <div class="game-instructions" style="background:#15152a;color:#ddd;margin-top:14px">Si vienes desde el chat de amigos, no necesitas copiar código: ambos entran automáticamente.</div>
+    </div>`;
+    document.getElementById('extraCrear').onclick=()=>start(codigo,true);
+    document.getElementById('extraUnir').onclick=()=>{ const v=(document.getElementById('extraCodigo').value||'').toUpperCase().trim(); if(v.length<4){showToast('Escribe un código válido');return;} start(v,false); };
+  }
+
+  let auto = null;
+  try { if (typeof _autoSala !== 'undefined' && _autoSala) { auto = _autoSala; _autoSala = null; } } catch(e) {}
+  if(auto) start(auto.sala, auto.esAnfitrion);
+  else renderLobby();
 }
 
 // Panel de misión también para juegos existentes: no cambia el juego, pero da una finalidad visible.
@@ -7635,6 +7867,7 @@ if(_hgOriginalOpenGame){
     {id:'futbolonline', emoji:'⚽', name:'Fútbol Penal Online', desc:'Turnos para patear y atajar'},
     {id:'cartasonline', emoji:'🃏', name:'Cartas Mayor Online', desc:'Gana quien saque la carta mayor'},
     {id:'matematicasduelo', emoji:'➕', name:'Duelo Matemático Online', desc:'Responde rápido contra un amigo'},
+    {id:'piramideonline', emoji:'🔺', name:'Pirámide Matemática Online', desc:'Completa la pirámide resolviendo sumas por turnos'},
     {id:'memoriaonline', emoji:'🧠', name:'Memoria Online', desc:'Busca pares por turnos'},
     {id:'carreraonline', emoji:'🏁', name:'Carrera de Dados Online', desc:'Avanza hasta la meta'},
     {id:'piedrapapelonline', emoji:'✊', name:'Yanken Po Online', desc:'Piedra, papel o tijera por rondas'},
@@ -8216,6 +8449,7 @@ if(_hgOriginalOpenGame){
     ['futbolonline','⚽','Fútbol Penal'],
     ['cartasonline','🃏','Cartas Mayor'],
     ['matematicasduelo','➕','Duelo Matemático'],
+    ['piramideonline','🔺','Pirámide Matemática'],
     ['memoriaonline','🧠','Memoria Online'],
     ['carreraonline','🏁','Carrera de Dados'],
     ['piedrapapelonline','✊','Yanken Po'],
@@ -8668,5 +8902,389 @@ if(_hgOriginalOpenGame){
   });
 })();
 </script>
+
+<script>
+/* CORRECCIÓN FINAL: avatar solo en Perfil y Medallas + refuerzo de juegos online jugables */
+(function(){
+  function hkSafe(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+
+  // Decisión de diseño: el avatar se cambia en un solo lugar: Perfil y Medallas.
+  // Así crear cuenta queda rápido y no se repite el selector.
+  function hkLimpiarAvatarPanelCuenta(){
+    const picker = document.getElementById('cuentaAvatars');
+    if (!picker) return;
+    const card = picker.closest('div[style*="background:#13131f"]') || picker.parentElement;
+    if (card) {
+      card.innerHTML = `
+        <div style="text-align:center;color:#fff;font-weight:900;margin-bottom:8px">🎭 Avatar</div>
+        <div style="font-size:2.4rem;text-align:center;margin-bottom:8px">${hkSafe((typeof miIdentidadOnline==='function' ? miIdentidadOnline().emoji : '👤'))}</div>
+        <div style="color:#c4b5fd;font-size:.8rem;text-align:center;line-height:1.35">Para evitar duplicados, el avatar se cambia solo en <b>Perfil y Medallas</b>.</div>
+        <button id="hkIrPerfilAvatar" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:10px;border-radius:12px;font-weight:900;cursor:pointer">Abrir Perfil y Medallas</button>`;
+      const btn = document.getElementById('hkIrPerfilAvatar');
+      if (btn) btn.onclick = function(){ try{ openProfile(); }catch(e){} };
+    }
+  }
+  const oldPanel = window.renderPanelUsuario;
+  if (typeof oldPanel === 'function') {
+    window.renderPanelUsuario = function(){
+      const r = oldPanel.apply(this, arguments);
+      setTimeout(hkLimpiarAvatarPanelCuenta, 0);
+      return r;
+    };
+  }
+  new MutationObserver(hkLimpiarAvatarPanelCuenta).observe(document.body, {childList:true, subtree:true});
+
+  // Registro limpio: sin selector de avatar. El avatar se elige después en Perfil y Medallas.
+  window.renderRegistro = function(){
+    const body = document.getElementById('modalBody');
+    if(!body) return;
+    body.innerHTML = `
+    <div class="game-container" style="background:#0a0a14;padding:22px;min-height:320px">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:2.4rem">✨</div>
+        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem">Crear cuenta nueva</div>
+        <div style="color:#c4b5fd;font-size:.82rem;margin-top:6px">Luego podrás elegir tu avatar en Perfil y Medallas.</div>
+      </div>
+      <div style="max-width:340px;margin:0 auto">
+        <input id="regNombre" type="text" maxlength="14" placeholder="Tu nombre" autocomplete="name" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
+        <input id="regEmail" type="email" placeholder="Tu correo" autocomplete="email" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
+        <div style="position:relative;margin-bottom:14px">
+          <input id="regPass" type="password" placeholder="Contraseña (mínimo 6 letras)" autocomplete="new-password" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
+          <button type="button" onclick="togglePasswordVisibility('regPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:none;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
+        </div>
+        <button id="btnRegistro" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:14px">Crear mi cuenta ▶</button>
+        <div style="text-align:center;color:#aaa;font-size:0.85rem">¿Ya tienes cuenta? <a href="#" id="irLogin" style="color:#FFD600;font-weight:800;text-decoration:none">Ingresar</a></div>
+      </div>
+    </div>
+    <div class="game-instructions"><strong>Diseño recomendado:</strong> crear cuenta solo pide nombre, correo y contraseña. El avatar se personaliza en Perfil y Medallas para no repetir opciones.</div>`;
+    bindBtn('btnRegistro', async () => {
+      const nom = document.getElementById('regNombre').value.trim();
+      const em = document.getElementById('regEmail').value.trim();
+      const pw = document.getElementById('regPass').value;
+      if (!nom || !em || !pw) { showToast('⚠️ Completa todos los campos'); return; }
+      if (!supabaseListo()) { showToast('⏳ Conectando al servidor... intenta de nuevo'); return; }
+      showToast('Creando cuenta...');
+      const r = await registrarCuenta(em, pw, nom);
+      if (r.error) showToast('❌ ' + r.error);
+      else { try{SFX.win(); launchConfetti();}catch(e){} showToast('🎉 ¡Cuenta creada!'); renderPanelUsuario(); }
+    });
+    const l = document.getElementById('irLogin'); if(l) l.onclick = e => { e.preventDefault(); renderLogin(); };
+  };
+
+  // Asegurar que Pirámide también aparezca en el arreglo extra si el navegador llegó a cargar el script anterior.
+  try{
+    if (typeof JUEGOS_EXTRA_ONLINE !== 'undefined' && Array.isArray(JUEGOS_EXTRA_ONLINE) && !JUEGOS_EXTRA_ONLINE.some(g => g.id === 'piramideonline')) {
+      JUEGOS_EXTRA_ONLINE.splice(3, 0, {id:'piramideonline', emoji:'🔺', name:'Pirámide Matemática Online', desc:'Completa la pirámide resolviendo sumas por turnos'});
+    }
+    if (typeof hgInjectExtraOnlineGames === 'function') setTimeout(hgInjectExtraOnlineGames, 500);
+  }catch(e){}
+})();
+</script>
+
+<script>
+/* HugoKids 3D ligero: juegos originales tipo arcade con profundidad, niveles y recompensa */
+(function(){
+  const HK3D_GAMES = [
+    {id:'bumper3d', emoji:'🚗', name:'Carros de Choque 3D', desc:'Empuja, esquiva y usa turbo para ganar'},
+    {id:'runner3d', emoji:'🏃', name:'Carrera Obstáculos 3D', desc:'Cambia de carril, salta obstáculos y recoge monedas'},
+    {id:'gold3d', emoji:'🪙', name:'Mascota Caza Oro 3D', desc:'Recoge monedas y cofres antes de que acabe el tiempo'},
+    {id:'sword3d', emoji:'⚔️', name:'Duelo de Espadas 3D', desc:'Ataca, cúbrete y derrota al rival'},
+    {id:'wheels3d', emoji:'🛞', name:'Ruedas Locas 3D', desc:'Maneja el carrito y evita trampas de la pista'}
+  ];
+
+  let hk3dRunning = false;
+  let hk3dRAF = null;
+  let hk3dKeys = {};
+  let hk3dPointer = {left:false,right:false,up:false,down:false,action:false};
+  const LS_KEY = 'hugokids_3d_progress_v1';
+
+  function safe(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function qs(id){ return document.getElementById(id); }
+  function progress(){ try{return JSON.parse(localStorage.getItem(LS_KEY)||'{}')}catch(e){return {}} }
+  function saveProgress(p){ try{localStorage.setItem(LS_KEY, JSON.stringify(p));}catch(e){} }
+  function levelOf(id){ const p=progress(); return Math.max(1, Math.min(5, Number(p[id]?.level||1))); }
+  function toast3d(msg){ if(typeof showToast==='function') showToast(msg); else alert(msg); }
+  function playBeep(type){ try{ if(window.SFX && SFX[type]) SFX[type](); else if(typeof tone==='function') tone(type==='win'?720:260,.12); }catch(e){} }
+
+  function stop3D(){
+    hk3dRunning = false;
+    if(hk3dRAF) cancelAnimationFrame(hk3dRAF);
+    hk3dRAF = null;
+    hk3dKeys = {};
+    hk3dPointer = {left:false,right:false,up:false,down:false,action:false};
+  }
+  const oldStop = window.stopAllGames;
+  if(typeof oldStop === 'function'){
+    window.stopAllGames = function(){ stop3D(); return oldStop.apply(this, arguments); };
+  } else {
+    window.stopAllGames = stop3D;
+  }
+
+  function injectCards(){
+    const grid = qs('gameGrid');
+    if(!grid || qs('card-bumper3d')) return;
+    const sep = document.createElement('div');
+    sep.id='hk3dSeparator';
+    sep.style.cssText='grid-column:1/-1;background:rgba(255,255,255,.92);border:4px solid #FFD600;border-radius:24px;padding:18px;text-align:center;box-shadow:0 8px 18px rgba(0,0,0,.18)';
+    sep.innerHTML='<div style="font-family:\'Fredoka One\',cursive;font-size:1.45rem;color:#5B21B6">🚀 Zona 3D HugoKids</div><div style="font-weight:800;color:#7A6B9D;margin-top:4px">Juegos originales con niveles, monedas y recompensa final.</div>';
+    grid.appendChild(sep);
+    HK3D_GAMES.forEach(g=>{
+      const card=document.createElement('div');
+      card.className='game-card fade-up visible';
+      card.id='card-'+g.id;
+      card.dataset.cat='arcade racing adventure online multi';
+      card.dataset.name=(g.name+' '+g.desc+' 3d tres dimensiones').toLowerCase();
+      card.onclick=()=>openGame3D(g.id);
+      card.innerHTML=`
+        <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#0EA5E9,#7C3AED 55%,#FF4D9D)"></div><span class="game-thumb-emoji">${g.emoji}</span></div>
+        <div class="game-badge badge-hot">3D</div>
+        <div class="game-info"><div class="game-name">${g.name}</div><div class="game-meta"><span class="game-cat cat-online">Nivel ${levelOf(g.id)}/5</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>`;
+      grid.appendChild(card);
+    });
+    const gc=qs('gameCount'); if(gc) gc.textContent=document.querySelectorAll('.game-card').length+' juegos';
+    const statNums = document.querySelectorAll('.stats .stat-num');
+    if(statNums && statNums[0]) statNums[0].textContent = document.querySelectorAll('.game-card').length;
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(injectCards,500)); else setTimeout(injectCards,300);
+
+  function openGame3D(id){
+    try{ if(typeof stopAllGames==='function') stopAllGames(); }catch(e){ stop3D(); }
+    const game = HK3D_GAMES.find(g=>g.id===id) || HK3D_GAMES[0];
+    const modal=qs('modalOverlay'), body=qs('modalBody'), title=qs('modalTitle');
+    if(!modal || !body || !title) return;
+    modal.classList.add('open','fs');
+    document.body.style.overflow='hidden';
+    try{ if(typeof requestFullscreen==='function') requestFullscreen(); }catch(e){}
+    title.textContent = game.emoji + ' ' + game.name;
+    body.innerHTML = renderRules(game);
+    bindRules(game);
+  }
+  window.openGame3D = openGame3D;
+
+  function renderRules(game){
+    const lv = levelOf(game.id);
+    return `<div class="game-container" style="background:radial-gradient(circle at top,#1e1b4b,#050511);padding:22px;color:#fff;min-height:520px">
+      <div style="text-align:center;max-width:760px;margin:0 auto">
+        <div style="font-size:4rem">${game.emoji}</div>
+        <h2 style="font-family:'Fredoka One',cursive;margin:8px 0 6px">${safe(game.name)}</h2>
+        <div style="display:inline-block;background:#FFD600;color:#2D1B4E;border-radius:18px;padding:6px 14px;font-weight:900;margin:5px 0 14px">Nivel ${lv} de 5</div>
+        <p style="color:#ddd;font-weight:800;line-height:1.5">${safe(game.desc)}. Supera el objetivo del nivel para ganar monedas y avanzar hasta la recompensa final.</p>
+      </div>
+      <div id="hk3dRulesText" style="background:#16162a;border:2px solid rgba(255,255,255,.12);border-radius:20px;padding:16px;max-width:850px;margin:18px auto;color:#eee;line-height:1.55;font-weight:700">
+        ${rulesText(game.id, lv)}
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px">
+        <button id="hk3dReadBtn" style="background:#1f2937;color:#fff;border:2px solid #7C3AED;border-radius:18px;padding:12px 18px;font-weight:900;cursor:pointer">📖 Leer reglas</button>
+        <button id="hk3dSpeakBtn" style="background:#2563EB;color:#fff;border:none;border-radius:18px;padding:12px 18px;font-weight:900;cursor:pointer">🔊 Escuchar reglas</button>
+        <button id="hk3dStartBtn" style="background:linear-gradient(135deg,#16A34A,#7C3AED);color:#fff;border:none;border-radius:18px;padding:12px 22px;font-weight:900;cursor:pointer">▶ Iniciar juego</button>
+      </div>
+      <div style="text-align:center;color:#c4b5fd;font-size:.86rem;margin-top:14px">Las reglas no se reproducen solas. El jugador decide si leerlas o escucharlas.</div>
+    </div>`;
+  }
+
+  function rulesText(id, lv){
+    const common = `<b>Meta:</b> completa el objetivo antes de perder. <b>Controles:</b> usa flechas del teclado o los botones en pantalla. <b>Recompensa:</b> al ganar recibes monedas y puntos; en nivel 5 recibes premio final.`;
+    const txt = {
+      bumper3d:`<b>Carros de Choque 3D:</b> mueve tu carro, recoge turbos y golpea al carro rival. En nivel ${lv}, necesitas lograr ${2+lv} choques fuertes antes de que acabe el tiempo. ${common}`,
+      runner3d:`<b>Carrera Obstáculos 3D:</b> cambia de carril, salta rampas y evita cajas. En nivel ${lv}, llega a la meta recogiendo al menos ${3+lv} monedas. ${common}`,
+      gold3d:`<b>Mascota Caza Oro 3D:</b> recoge monedas y cofres en la arena. Evita rocas y trampas. En nivel ${lv}, junta ${5+lv*2} monedas. ${common}`,
+      sword3d:`<b>Duelo de Espadas 3D:</b> acércate, ataca con el botón de acción y retrocede para esquivar. En nivel ${lv}, derrota al rival con cuidado. ${common}`,
+      wheels3d:`<b>Ruedas Locas 3D:</b> maneja por una pista con curvas, conos y rampas. En nivel ${lv}, sobrevive hasta la bandera final. ${common}`
+    };
+    return txt[id] || common;
+  }
+
+  function bindRules(game){
+    const speakBtn=qs('hk3dSpeakBtn'), readBtn=qs('hk3dReadBtn'), startBtn=qs('hk3dStartBtn');
+    if(readBtn) readBtn.onclick=()=>toast3d('📖 Reglas listas para leer en pantalla');
+    if(speakBtn) speakBtn.onclick=()=>{
+      const el=qs('hk3dRulesText');
+      const text=(el?el.textContent:'').replace(/\s+/g,' ').trim();
+      try{
+        if(typeof speakText==='function') speakText(text);
+        else if('speechSynthesis' in window){ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.lang='es-ES'; u.rate=.92; speechSynthesis.speak(u); }
+      }catch(e){ toast3d('Tu navegador no permitió el audio'); }
+    };
+    if(startBtn) startBtn.onclick=()=>startGame3D(game);
+  }
+
+  function startGame3D(game){
+    stop3D();
+    const body=qs('modalBody'); if(!body) return;
+    const lv=levelOf(game.id);
+    body.innerHTML = `<div class="game-container" style="background:#050511;color:#fff;padding:12px;border-radius:18px">
+      <div id="hk3dHud" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#111126;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:10px 12px;margin-bottom:10px;font-weight:900">
+        <span>${game.emoji} ${safe(game.name)}</span><span>Nivel: <b id="hk3dLevel">${lv}/5</b></span><span>Objetivo: <b id="hk3dObj">0</b></span><span>⏱️ <b id="hk3dTime">60</b>s</span>
+      </div>
+      <canvas id="hk3dCanvas" width="960" height="540" style="width:100%;max-height:62vh;background:#09091a;border-radius:16px;display:block;touch-action:none"></canvas>
+      <div id="hk3dMsg" style="text-align:center;color:#FFD600;font-weight:900;margin:10px 0;min-height:24px">¡Listo!</div>
+      <div id="hk3dControls" style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:8px 0"></div>
+    </div>
+    <div class="game-instructions"><strong>3D ligero:</strong> está hecho para cargar rápido en celulares. Más adelante se puede convertir a Three.js/Babylon.js con modelos 3D reales.</div>`;
+    setupControls();
+    if(game.id==='bumper3d') runBumper3D(game, lv);
+    else if(game.id==='runner3d') runRunner3D(game, lv);
+    else if(game.id==='gold3d') runGold3D(game, lv);
+    else if(game.id==='sword3d') runSword3D(game, lv);
+    else runWheels3D(game, lv);
+  }
+
+  function setupControls(){
+    const c=qs('hk3dControls'); if(!c) return;
+    const btn = (label,key,wide=false)=>`<button data-k="${key}" style="min-width:${wide?'110px':'58px'};height:54px;border:none;border-radius:16px;background:linear-gradient(135deg,#7C3AED,#FF4D9D);color:#fff;font-size:${wide?'1rem':'1.4rem'};font-weight:900;box-shadow:0 4px 0 #5B21B6;cursor:pointer;touch-action:none">${label}</button>`;
+    c.innerHTML = btn('◀','left')+btn('▲','up')+btn('▼','down')+btn('▶','right')+btn('⚡ Acción','action',true);
+    c.querySelectorAll('button').forEach(b=>{
+      const k=b.dataset.k;
+      const down=e=>{e.preventDefault(); hk3dPointer[k]=true;};
+      const up=e=>{e.preventDefault(); hk3dPointer[k]=false;};
+      b.addEventListener('touchstart',down,{passive:false}); b.addEventListener('touchend',up,{passive:false}); b.addEventListener('touchcancel',up,{passive:false});
+      b.addEventListener('mousedown',down); b.addEventListener('mouseup',up); b.addEventListener('mouseleave',up);
+    });
+  }
+
+  document.addEventListener('keydown', e=>{
+    if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' ','a','d','w','s'].includes(e.key)) e.preventDefault();
+    if(e.key==='ArrowLeft'||e.key==='a') hk3dKeys.left=true;
+    if(e.key==='ArrowRight'||e.key==='d') hk3dKeys.right=true;
+    if(e.key==='ArrowUp'||e.key==='w') hk3dKeys.up=true;
+    if(e.key==='ArrowDown'||e.key==='s') hk3dKeys.down=true;
+    if(e.key===' ') hk3dKeys.action=true;
+  }, {passive:false});
+  document.addEventListener('keyup', e=>{
+    if(e.key==='ArrowLeft'||e.key==='a') hk3dKeys.left=false;
+    if(e.key==='ArrowRight'||e.key==='d') hk3dKeys.right=false;
+    if(e.key==='ArrowUp'||e.key==='w') hk3dKeys.up=false;
+    if(e.key==='ArrowDown'||e.key==='s') hk3dKeys.down=false;
+    if(e.key===' ') hk3dKeys.action=false;
+  });
+  function input(k){ return !!(hk3dKeys[k] || hk3dPointer[k]); }
+
+  function canvas(){ const cv=qs('hk3dCanvas'); return {cv, ctx:cv?cv.getContext('2d'):null, W:cv?cv.width:960, H:cv?cv.height:540}; }
+  function project(x,z,y=0){ const cam=520; const s=cam/(cam+z); return {x:480+x*s, y:390-y*s-z*.20, s}; }
+  function drawGround(ctx,W,H,color1='#172554',color2='#0f172a'){
+    const g=ctx.createLinearGradient(0,160,0,H); g.addColorStop(0,color1); g.addColorStop(1,color2); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    for(let i=0;i<14;i++){ const z=i*90; const p1=project(-520,z), p2=project(520,z); ctx.fillRect(p1.x,p1.y,p2.x-p1.x,2); }
+    for(let x=-500;x<=500;x+=100){ const p1=project(x,0), p2=project(x,1200); ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.strokeStyle='rgba(255,255,255,.04)'; ctx.stroke(); }
+  }
+  function drawSprite(ctx, obj, emoji, color='#7C3AED'){
+    const p=project(obj.x,obj.z,obj.y||0), w=(obj.w||70)*p.s, h=(obj.h||50)*p.s;
+    ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(p.x,p.y+h*.42,w*.55,h*.22,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=color; roundRect(ctx,p.x-w/2,p.y-h/2,w,h,Math.max(8,12*p.s)); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.65)'; ctx.lineWidth=Math.max(1,3*p.s); ctx.stroke();
+    ctx.font=Math.max(18,34*p.s)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(emoji,p.x,p.y);
+  }
+  function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function setHud(obj,time,msg){ if(qs('hk3dObj')) qs('hk3dObj').textContent=obj; if(qs('hk3dTime')) qs('hk3dTime').textContent=Math.max(0,Math.ceil(time)); if(qs('hk3dMsg')) qs('hk3dMsg').textContent=msg||''; }
+  function collision(a,b,dist=70){ const dx=a.x-b.x, dz=a.z-b.z; return Math.hypot(dx,dz)<dist; }
+  function reward(game, win){
+    if(!win) return;
+    const lv = levelOf(game.id); const coins = 20 + lv*15; const pts = 60 + lv*35;
+    try{ if(typeof darRecompensa==='function') darRecompensa(coins,pts, lv>=5?'🏆 Premio final 3D '+game.name:'Nivel '+lv+' 3D '+game.name); }catch(e){}
+    const p=progress(); const cur=p[game.id]||{level:1,finales:0};
+    if(lv>=5){ cur.level=1; cur.finales=(cur.finales||0)+1; try{ if(typeof awardBadge==='function') awardBadge('first_win'); }catch(e){} }
+    else cur.level=lv+1;
+    p[game.id]=cur; saveProgress(p);
+    playBeep('win');
+    showEnd(game, true, coins, pts, lv>=5);
+  }
+  function showEnd(game, win, coins=0, pts=0, final=false){
+    hk3dRunning=false;
+    const msg=qs('hk3dMsg'); if(msg) msg.textContent=win?'🎉 ¡Ganaste!':'😅 Intenta de nuevo';
+    const box=document.createElement('div');
+    box.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.76);z-index:9000;display:flex;align-items:center;justify-content:center;padding:18px';
+    box.innerHTML=`<div style="background:white;border:5px solid #FFD600;border-radius:26px;max-width:420px;width:100%;padding:22px;text-align:center;color:#2D1B4E;font-family:Nunito,sans-serif">
+      <div style="font-size:3.7rem">${win?(final?'🏆':'🎉'):'💪'}</div>
+      <h2 style="font-family:'Fredoka One',cursive;margin:8px 0">${win?(final?'¡Recompensa final 3D!':'¡Nivel superado!'):'Sigue practicando'}</h2>
+      <p style="font-weight:900">${safe(game.name)}</p>
+      ${win?`<div style="background:#FFF4D6;border-radius:16px;padding:12px;margin:12px 0;font-weight:900">+${coins} 🪙 &nbsp; +${pts} ⭐</div><p style="color:#7A6B9D;font-weight:800">${final?'Misión reiniciada para volver a ganar premios.':'Desbloqueaste el siguiente nivel.'}</p>`:`<p style="color:#7A6B9D;font-weight:800">Puedes repetir el nivel y ganar tu recompensa.</p>`}
+      <button id="hk3dAgain" style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);color:#fff;border:none;border-radius:18px;padding:12px 22px;font-weight:900;cursor:pointer;margin-top:10px">${win?'Continuar':'Reintentar'}</button>
+    </div>`;
+    document.body.appendChild(box);
+    qs('hk3dAgain').onclick=()=>{ box.remove(); startGame3D(game); };
+  }
+
+  function runBumper3D(game, lv){
+    const {cv,ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let player={x:-120,z:120,w:90,h:58,hp:100,vx:0,vz:0}, bot={x:120,z:300,w:90,h:58,hp:100,vx:0,vz:0};
+    let hits=0, target=2+lv, time=65-lv*4, last=performance.now();
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt;
+      let ax=(input('right')?1:0)-(input('left')?1:0), az=(input('down')?1:0)-(input('up')?1:0); const turbo=input('action')?1.8:1;
+      player.vx += ax*420*dt*turbo; player.vz += az*420*dt*turbo; player.vx*=.92; player.vz*=.92; player.x+=player.vx*dt; player.z+=player.vz*dt;
+      const dx=player.x-bot.x,dz=player.z-bot.z,len=Math.hypot(dx,dz)||1; bot.vx += dx/len*240*dt; bot.vz += dz/len*240*dt; bot.vx*=.92; bot.vz*=.92; bot.x+=bot.vx*dt; bot.z+=bot.vz*dt;
+      [player,bot].forEach(o=>{o.x=Math.max(-420,Math.min(420,o.x)); o.z=Math.max(40,Math.min(900,o.z));});
+      if(collision(player,bot,82)){ const power=Math.hypot(player.vx-bot.vx,player.vz-bot.vz); const nx=(bot.x-player.x)/(Math.hypot(bot.x-player.x,bot.z-player.z)||1), nz=(bot.z-player.z)/(Math.hypot(bot.x-player.x,bot.z-player.z)||1); bot.vx+=nx*power*.7; bot.vz+=nz*power*.7; player.vx-=nx*power*.25; player.vz-=nz*power*.25; if(power>190){ hits++; bot.hp-=12+lv*2; playBeep('coin'); }}
+      drawGround(ctx,W,H,'#134e4a','#0f172a'); drawSprite(ctx,bot,'🚙','#FF4D9D'); drawSprite(ctx,player,'🚗','#2563EB');
+      setHud(hits+'/'+target,time,`Choques fuertes: ${hits}/${target} ${input('action')?'⚡ TURBO':''}`);
+      if(hits>=target || bot.hp<=0) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runRunner3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let lane=1, y=0, vy=0, dist=0, coins=0, time=70, last=performance.now(), cooldown=0;
+    const need=3+lv, goal=950+lv*260; const objs=[];
+    for(let i=0;i<24;i++) objs.push({z:300+i*170, lane:Math.floor(Math.random()*3), type:Math.random()<.45?'coin':'box', hit:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cooldown-=dt;
+      if(input('left')&&cooldown<=0){lane=Math.max(0,lane-1); cooldown=.18;} if(input('right')&&cooldown<=0){lane=Math.min(2,lane+1); cooldown=.18;} if((input('up')||input('action'))&&y<=1){vy=350;}
+      vy-=820*dt; y+=vy*dt; if(y<0){y=0;vy=0;} dist+=180*dt+lv*18*dt;
+      drawGround(ctx,W,H,'#172554','#0a0a14'); ctx.fillStyle='rgba(255,214,0,.16)'; ctx.fillRect(260,150,440,300);
+      const player={x:(lane-1)*150,z:120,y:y,w:75,h:75};
+      objs.forEach(o=>{ let rz=o.z-dist; if(rz<-80){ o.z+=24*170; o.lane=Math.floor(Math.random()*3); o.type=Math.random()<.5?'coin':'box'; o.hit=false; rz=o.z-dist; }
+        if(rz>0&&rz<1150&&!o.hit){ drawSprite(ctx,{x:(o.lane-1)*150,z:rz,y:0,w:55,h:55},o.type==='coin'?'🪙':'📦',o.type==='coin'?'#FFD600':'#7C2D12'); if(o.lane===lane && rz<150 && rz>65){ if(o.type==='coin'){coins++; o.hit=true; playBeep('coin');} else if(y<42){return showEnd(game,false);} }}
+      });
+      drawSprite(ctx,player,'🏃','#16A34A'); setHud(`${coins}/${need} monedas`,time,`Distancia ${Math.floor(dist)}/${goal} ${y>0?'🦘':''}`);
+      if(dist>=goal && coins>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runGold3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let player={x:0,z:180,w:66,h:66,vx:0,vz:0}, time=65, got=0, need=5+lv*2, last=performance.now();
+    const items=[]; for(let i=0;i<need+6;i++) items.push({x:-380+Math.random()*760,z:80+Math.random()*760,type:Math.random()<.82?'coin':'trap',taken:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt;
+      player.vx=((input('right')?1:0)-(input('left')?1:0))*300; player.vz=((input('down')?1:0)-(input('up')?1:0))*300; if(input('action')){player.vx*=1.35;player.vz*=1.35;}
+      player.x+=player.vx*dt; player.z+=player.vz*dt; player.x=Math.max(-430,Math.min(430,player.x)); player.z=Math.max(40,Math.min(900,player.z));
+      drawGround(ctx,W,H,'#064e3b','#0f172a');
+      items.forEach(it=>{ if(it.taken) return; drawSprite(ctx,{x:it.x,z:it.z,w:50,h:50},it.type==='coin'?'🪙':'🪨',it.type==='coin'?'#F59E0B':'#57534E'); if(collision(player,it,55)){ if(it.type==='coin'){got++; it.taken=true; playBeep('coin');} else return showEnd(game,false); } });
+      drawSprite(ctx,player,'🦊','#7C3AED'); setHud(`${got}/${need} monedas`,time,`${input('action')?'⚡ Rápido':''}`);
+      if(got>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runSword3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let p={x:-180,z:260,w:70,h:100,hp:100,atk:0}, b={x:180,z:260,w:70,h:100,hp:70+lv*18,atk:0}, time=70, last=performance.now(), acd=0, bcd=0;
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; acd-=dt; bcd-=dt; p.atk=Math.max(0,p.atk-dt); b.atk=Math.max(0,b.atk-dt);
+      p.x += ((input('right')?1:0)-(input('left')?1:0))*260*dt; p.z += ((input('down')?1:0)-(input('up')?1:0))*180*dt; p.x=Math.max(-420,Math.min(420,p.x)); p.z=Math.max(90,Math.min(700,p.z));
+      const dx=p.x-b.x, dz=p.z-b.z, d=Math.hypot(dx,dz)||1; b.x += dx/d*(130+lv*20)*dt; b.z += dz/d*(95+lv*14)*dt;
+      if(input('action')&&acd<=0){ p.atk=.18; acd=.55; if(d<115){ b.hp-=18; playBeep('coin'); } }
+      if(d<100&&bcd<=0){ b.atk=.18; bcd=.85; p.hp-=10+lv*2; }
+      drawGround(ctx,W,H,'#312e81','#0a0a14'); drawSprite(ctx,b,b.atk?'💥':'🧛','#DC2626'); drawSprite(ctx,p,p.atk?'⚔️':'🛡️','#2563EB');
+      ctx.fillStyle='#fff'; ctx.font='bold 18px Nunito'; ctx.textAlign='center'; ctx.fillText(`Tú ❤️ ${Math.max(0,p.hp)}     Rival ❤️ ${Math.max(0,b.hp)}`, W/2, 40);
+      setHud(`Rival ${Math.max(0,Math.ceil(b.hp))}❤️`,time,input('action')?'⚔️ Atacando':'Acércate y usa Acción');
+      if(b.hp<=0) return reward(game,true); if(p.hp<=0||time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runWheels3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let x=0, speed=210+lv*20, dist=0, time=70, last=performance.now(), hits=0, goal=1000+lv*320;
+    const obs=[]; for(let i=0;i<24;i++) obs.push({x:-360+Math.random()*720,z:240+i*160,type:Math.random()<.25?'ramp':'cone',hit:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; dist+=speed*dt; x += ((input('right')?1:0)-(input('left')?1:0))*310*dt; if(input('action')) speed=250+lv*26; else speed=210+lv*20; x=Math.max(-410,Math.min(410,x));
+      drawGround(ctx,W,H,'#7C2D12','#111827');
+      obs.forEach(o=>{let rz=o.z-dist; if(rz<-80){o.z+=24*160;o.x=-360+Math.random()*720;o.type=Math.random()<.25?'ramp':'cone';o.hit=false;rz=o.z-dist;} if(rz>0&&rz<1150&&!o.hit){ drawSprite(ctx,{x:o.x,z:rz,w:60,h:60},o.type==='ramp'?'🟨':'🚧',o.type==='ramp'?'#EAB308':'#EA580C'); if(Math.abs(o.x-x)<62&&rz<145&&rz>70){ if(o.type==='ramp'){ speed+=60; o.hit=true; playBeep('coin'); } else { hits++; o.hit=true; if(hits>=3) return showEnd(game,false); } } }});
+      drawSprite(ctx,{x,z:110,w:90,h:60},'🛞','#0EA5E9'); setHud(`${Math.floor(dist)}/${goal}`,time,`Golpes ${hits}/3 ${input('action')?'⚡ Turbo':''}`);
+      if(dist>=goal) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+})();
+</script>
+
 </body>
 </html>
