@@ -548,8 +548,99 @@
     box-shadow: 0 8px 24px rgba(108,58,255,0.4); max-width: 90%; text-align: center;
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
+
+
+  /* ──── OPTIMIZACIÓN CELULAR ──── */
+  @media (max-width: 768px) {
+    html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+    body { overflow-x: hidden; }
+    button, .game-card, .cat-pill, .featured-card, input, textarea, select {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #particles, .star { display: none !important; }
+    .fade-up { opacity: 1 !important; transform: none !important; }
+    .game-card:hover, .cat-pill:hover, .featured-card:hover, .btn-primary:hover, .btn-secondary:hover {
+      transform: none !important;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.15) !important;
+    }
+    * { scroll-behavior: auto !important; }
+    .game-grid { content-visibility: auto; contain-intrinsic-size: 1000px; }
+    .modal-overlay { padding: 0 !important; align-items: stretch !important; justify-content: stretch !important; }
+    .modal { width: 100vw !important; height: 100dvh !important; max-width: 100vw !important; max-height: 100dvh !important; border-radius: 0 !important; border-width: 0 !important; }
+    .modal-header { flex-shrink: 0; position: sticky; top: 0; z-index: 5; }
+    .modal-body { height: calc(100dvh - 58px) !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch; padding: 10px !important; }
+    .game-container { border-radius: 14px !important; }
+    .stats { gap: 8px !important; padding: 12px 8px 20px !important; }
+    .stat { padding: 8px 10px !important; min-width: 88px; }
+    .stat-num { font-size: 1.35rem !important; }
+    .stat-label { font-size: .68rem !important; }
+    .lobby-table { min-width: 520px; }
+    .lobby-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    input, textarea { font-size: 16px !important; }
+    .touch-controls { position: sticky; bottom: 8px; z-index: 3; }
+  }
+
+
+
+/* ===== HugoKids móvil estable ===== */
+@media (max-width: 768px) {
+  html, body { max-width: 100%; overflow-x: hidden !important; }
+  #particles, .star, .hero-glow { display: none !important; }
+  * { animation-duration: 0.001s !important; scroll-behavior: auto !important; }
+  button, .game-card, .featured-card, .cat-pill, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  nav { position: sticky !important; top: 0; z-index: 500; }
+  .hero { padding: 22px 12px 18px !important; }
+  .hero h1 { font-size: 2.2rem !important; line-height: 1.05 !important; }
+  .hero p { font-size: .92rem !important; margin-bottom: 14px !important; }
+  .stats { display: grid !important; grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 8px !important; padding: 10px 12px 18px !important; }
+  .stat { min-width: 0 !important; padding: 10px 6px !important; }
+  .stat-num { font-size: 1.45rem !important; }
+  .stat-label { font-size: .68rem !important; }
+  .online-lobby { padding: 0 10px 18px !important; }
+  .lobby-card { padding: 12px !important; border-radius: 18px !important; overflow-x: auto !important; }
+  .lobby-table { min-width: 640px !important; }
+  .lobby-btn { min-height: 36px !important; }
+  .game-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 10px !important; }
+  .game-card { transform: none !important; box-shadow: 0 4px 10px rgba(0,0,0,.12) !important; }
+  .game-card:active, button:active { transform: scale(.98) !important; }
+  .modal-overlay { padding: 0 !important; align-items: stretch !important; justify-content: stretch !important; }
+  .modal { width: 100vw !important; height: 100dvh !important; max-width: 100vw !important; max-height: 100dvh !important; border-radius: 0 !important; border: 0 !important; }
+  .modal-header { position: sticky !important; top: 0 !important; z-index: 10 !important; min-height: 58px !important; padding: 10px 12px !important; }
+  .modal-body { height: calc(100dvh - 58px) !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch !important; padding: 10px !important; }
+  input, textarea, select { font-size: 16px !important; }
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+// Modo móvil estable: sin doble toque, sin fullscreen forzado y sin tareas pesadas repetidas.
+window.HK_IS_MOBILE = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+window.addEventListener('error', function(e){ console.warn('HugoKids error controlado:', e.message); });
+window.addEventListener('unhandledrejection', function(e){ console.warn('HugoKids promesa controlada:', e.reason); });
+
+// En móvil se desactivan inicializadores duplicados/pesados que se habían acumulado en versiones anteriores.
+(function(){
+  if (!window.HK_IS_MOBILE) return;
+  const nativeSetTimeout = window.setTimeout.bind(window);
+  window.setTimeout = function(fn, delay){
+    const args = Array.prototype.slice.call(arguments, 2);
+    try {
+      const src = String(fn || '');
+      const heavy = /hgInjectExtraOnlineGames|hgAddMoreOnlineCards|hgFixCategoriasOnline|hgSyncWindowOnline|initHkSupabaseFix/.test(src);
+      if (heavy && Number(delay || 0) < 2500) {
+        return nativeSetTimeout(function(){}, 1);
+      }
+    } catch(e) {}
+    return nativeSetTimeout(fn, delay, ...args);
+  };
+})();
+
+document.addEventListener('DOMContentLoaded', function(){
+  if (window.HK_IS_MOBILE) document.body.classList.add('hk-mobile');
+});
+</script>
+
 </head>
 <body>
 
@@ -1800,10 +1891,11 @@ function iniciarPulsoActividad() {
   if (_pulsoActividad) clearInterval(_pulsoActividad);
   marcarActividadUsuario();
   cargarJugadoresOnlineDesdePerfiles();
+  const espera = window.HK_IS_MOBILE ? 60000 : 15000;
   _pulsoActividad = setInterval(() => {
     marcarActividadUsuario();
     cargarJugadoresOnlineDesdePerfiles();
-  }, 15000);
+  }, espera);
 }
 async function cargarJugadoresOnlineDesdePerfiles() {
   const c = getSupabase();
@@ -1832,6 +1924,24 @@ async function cargarJugadoresOnlineDesdePerfiles() {
     if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline();
     if (typeof refrescarListaAmigos === 'function') refrescarListaAmigos();
   } catch(e) { console.warn('online perfiles', e); }
+}
+
+
+// Evita muchas consultas seguidas a Supabase en celular, que era una causa del congelamiento.
+if (typeof cargarJugadoresOnlineDesdePerfiles === 'function') {
+  const _hkCargarJugadoresOriginal = cargarJugadoresOnlineDesdePerfiles;
+  let _hkCargarJugadoresActivo = false;
+  let _hkCargarJugadoresUltima = 0;
+  cargarJugadoresOnlineDesdePerfiles = async function(force = false) {
+    const ahora = Date.now();
+    const minimo = window.HK_IS_MOBILE ? 12000 : 4500;
+    if (!force && (_hkCargarJugadoresActivo || (ahora - _hkCargarJugadoresUltima) < minimo)) return;
+    _hkCargarJugadoresActivo = true;
+    _hkCargarJugadoresUltima = ahora;
+    try { return await _hkCargarJugadoresOriginal.apply(this, arguments); }
+    catch(e) { console.warn('Carga usuarios online controlada', e); }
+    finally { _hkCargarJugadoresActivo = false; }
+  };
 }
 
 // ── SISTEMA DE AMIGOS POR CÓDIGO PERMANENTE ──
@@ -2105,7 +2215,8 @@ function salirSalaOnline() {
 // ── FLOATING EMOJIS ──
 const pContainer = document.getElementById('particles');
 const floatEmojis = ['⭐','🎮','🕹️','🎯','🏆','✨','🎲','🍭','🌟','🎈','🚀','💫'];
-for (let i = 0; i < 24; i++) {
+const cantidadParticulas = window.HK_IS_MOBILE ? 0 : 24;
+for (let i = 0; i < cantidadParticulas; i++) {
   const s = document.createElement('div');
   s.className = 'star';
   s.textContent = floatEmojis[Math.floor(Math.random()*floatEmojis.length)];
@@ -2115,14 +2226,18 @@ for (let i = 0; i < 24; i++) {
     --d:${(Math.random()*6+5).toFixed(1)}s;
     animation-delay:${(Math.random()*5).toFixed(1)}s;
   `;
-  pContainer.appendChild(s);
+  if (pContainer) pContainer.appendChild(s);
 }
 
 // ── SCROLL ANIMATIONS ──
-const observer = new IntersectionObserver(entries => {
-  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-}, { threshold: 0.1 });
-document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+if (window.HK_IS_MOBILE || !('IntersectionObserver' in window)) {
+  document.querySelectorAll('.fade-up').forEach(el => el.classList.add('visible'));
+} else {
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+}
 
 // ── TOAST ──
 function showToast(msg) {
@@ -2549,7 +2664,11 @@ function makeActionButton(label, onTap) {
 
 // ── MODAL ──
 let activeGame = null;
+let _hkOpeningGame = false;
 function openGame(id) {
+  if (_hkOpeningGame) return;
+  _hkOpeningGame = true;
+  setTimeout(() => { _hkOpeningGame = false; }, 650);
   stopAllGames();
   const modal = document.getElementById('modalOverlay');
   const body = document.getElementById('modalBody');
@@ -2625,6 +2744,8 @@ function openGame(id) {
 
 // Solicitar pantalla completa real del navegador (con respaldo visual si no se puede)
 function requestFullscreen() {
+  // En celular se usa pantalla completa visual. Forzar fullscreen real puede congelar algunos navegadores.
+  if (window.HK_IS_MOBILE) return;
   try {
     const el = document.documentElement;
     if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
@@ -2653,7 +2774,11 @@ function actualizarBotonCuenta() {
   }
 }
 
+let _hkOpeningCuenta = false;
 function openCuenta() {
+  if (_hkOpeningCuenta) return;
+  _hkOpeningCuenta = true;
+  setTimeout(() => { _hkOpeningCuenta = false; }, 650);
   stopAllGames();
   const modal = document.getElementById('modalOverlay');
   const body = document.getElementById('modalBody');
@@ -2688,7 +2813,7 @@ function renderLogin() {
           <input id="logPass" type="password" placeholder="Tu contraseña" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
           <button type="button" onclick="togglePasswordVisibility('logPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:none;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
         </div>
-        <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;font-size:0.8rem;text-decoration:none">¿Olvidaste tu contraseña?</a></div>
+        <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;font-size:0.8rem;text-decoration:none">¿Olvidaste usuario o contraseña?</a></div>
         <button id="btnLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:14px">Ingresar ▶</button>
         <div style="text-align:center;color:#aaa;font-size:0.85rem">¿No tienes cuenta? <a href="#" id="irRegistro" style="color:#FFD600;font-weight:800;text-decoration:none">Crear cuenta</a></div>
       </div>
@@ -2829,9 +2954,9 @@ function renderPanelUsuario() {
         <input id="miNombreInput" type="text" maxlength="14" value="${nombre.replace(/"/g,'&quot;')}" style="background:transparent;border:none;border-bottom:2px solid rgba(255,255,255,0.2);color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem;text-align:center;outline:none;width:80%;max-width:240px">
         <div style="color:#16A34A;font-size:0.85rem;margin-top:6px">✅ Sesión iniciada · Tus logros se guardan</div>
       </div>
-      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:360px;margin:0 auto 14px">
-        <div style="color:#aaa;font-size:0.78rem;text-align:center;margin-bottom:8px">🎨 Cambia tu personaje:</div>
-        <div id="cuentaAvatars" style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px"></div>
+      <div style="background:#13131f;border-radius:14px;padding:14px;max-width:360px;margin:0 auto 14px;text-align:center;color:#c4b5fd;font-size:.82rem;line-height:1.35">
+        🎭 El avatar se muestra una sola vez aquí. Para cambiarlo usa <b>Perfil y Medallas</b>.
+        <button id="btnCambiarAvatarPerfil" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:10px;border-radius:12px;font-weight:900;cursor:pointer">Abrir Perfil y Medallas</button>
       </div>
       <div style="background:#13131f;border-radius:14px;padding:16px;max-width:360px;margin:0 auto 14px">
         <div style="display:flex;justify-content:space-between;color:#fff;margin-bottom:8px"><span style="color:#aaa">🏅 Medallas</span><strong>${nLogros}/10</strong></div>
@@ -2857,23 +2982,8 @@ function renderPanelUsuario() {
   // nombre editable
   const ni = document.getElementById('miNombreInput');
   if (ni) ni.addEventListener('change', () => { setGuestName(ni.value); guardarPerfilNube(); updatePlayerBadge(); });
-  // selector de avatar
-  const ap = document.getElementById('cuentaAvatars');
-  if (ap) AVATARS.forEach(av => {
-    const b = document.createElement('button');
-    b.textContent = av;
-    b.style.cssText = `aspect-ratio:1;background:${av===avatar?'#16A34A':'#1a1a2e'};border:2px solid ${av===avatar?'#fff':'transparent'};border-radius:8px;font-size:1.1rem;cursor:pointer;-webkit-tap-highlight-color:transparent`;
-    const pick = e => {
-      e.preventDefault(); e.stopPropagation();
-      setGuestAvatar(av);
-      const nombreActual = document.getElementById('miNombreInput');
-      if (nombreActual) setGuestName(nombreActual.value);
-      guardarPerfilNube(); updatePlayerBadge(); SFX.click(); renderPanelUsuario();
-    };
-    b.addEventListener('touchstart', pick, {passive:false});
-    b.addEventListener('click', pick);
-    ap.appendChild(b);
-  });
+  // El avatar se cambia solo en Perfil y Medallas para evitar duplicados en Mi Cuenta.
+  bindBtn('btnCambiarAvatarPerfil', () => openProfile());
   // amigos
   const addBtn = document.getElementById('addAmigoBtn');
   if (addBtn) {
@@ -3391,10 +3501,10 @@ try { const t = localStorage.getItem('imrec_theme'); if (t && THEMES.includes(t)
 // Mostrar el jugador actual en la navbar al cargar
 setTimeout(() => { if (typeof updatePlayerBadge === 'function') updatePlayerBadge(); }, 0);
 // Iniciar sesión primero y luego presencia, para no tratar como invitado G a quien ya inició sesión.
-setTimeout(() => { if (onlineDisponible()) revisarSesion(); }, 900);
-setTimeout(() => { if (onlineDisponible()) iniciarPresenciaGlobal(); }, 1600);
-setTimeout(() => { if (onlineDisponible()) cargarJugadoresOnlineDesdePerfiles(); }, 1900);
-setTimeout(() => { if (onlineDisponible()) registrarVisita(); }, 2200);
+setTimeout(() => { if (onlineDisponible()) revisarSesion(); }, window.HK_IS_MOBILE ? 500 : 900);
+setTimeout(() => { if (onlineDisponible()) iniciarPresenciaGlobal(); }, window.HK_IS_MOBILE ? 1800 : 1600);
+setTimeout(() => { if (onlineDisponible()) cargarJugadoresOnlineDesdePerfiles(true); }, window.HK_IS_MOBILE ? 3200 : 1900);
+setTimeout(() => { if (onlineDisponible()) registrarVisita(); }, window.HK_IS_MOBILE ? 4500 : 2200);
 
 
 // ═══════════════════════════════════════════
@@ -8911,18 +9021,12 @@ if(_hgOriginalOpenGame){
   // Decisión de diseño: el avatar se cambia en un solo lugar: Perfil y Medallas.
   // Así crear cuenta queda rápido y no se repite el selector.
   function hkLimpiarAvatarPanelCuenta(){
+    // Mi Cuenta debe mostrar un solo avatar: el avatar grande de la cabecera.
+    // Si alguna versión anterior intenta crear otro panel de avatar, lo eliminamos.
     const picker = document.getElementById('cuentaAvatars');
     if (!picker) return;
     const card = picker.closest('div[style*="background:#13131f"]') || picker.parentElement;
-    if (card) {
-      card.innerHTML = `
-        <div style="text-align:center;color:#fff;font-weight:900;margin-bottom:8px">🎭 Avatar</div>
-        <div style="font-size:2.4rem;text-align:center;margin-bottom:8px">${hkSafe((typeof miIdentidadOnline==='function' ? miIdentidadOnline().emoji : '👤'))}</div>
-        <div style="color:#c4b5fd;font-size:.8rem;text-align:center;line-height:1.35">Para evitar duplicados, el avatar se cambia solo en <b>Perfil y Medallas</b>.</div>
-        <button id="hkIrPerfilAvatar" style="width:100%;margin-top:10px;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:10px;border-radius:12px;font-weight:900;cursor:pointer">Abrir Perfil y Medallas</button>`;
-      const btn = document.getElementById('hkIrPerfilAvatar');
-      if (btn) btn.onclick = function(){ try{ openProfile(); }catch(e){} };
-    }
+    if (card) card.remove();
   }
   const oldPanel = window.renderPanelUsuario;
   if (typeof oldPanel === 'function') {
@@ -8978,6 +9082,1490 @@ if(_hgOriginalOpenGame){
     }
     if (typeof hgInjectExtraOnlineGames === 'function') setTimeout(hgInjectExtraOnlineGames, 500);
   }catch(e){}
+})();
+</script>
+
+<script>
+/* HugoKids 3D ligero: juegos originales tipo arcade con profundidad, niveles y recompensa */
+(function(){
+  const HK3D_GAMES = [
+    {id:'bumper3d', emoji:'🚗', name:'Carros de Choque 3D', desc:'Empuja, esquiva y usa turbo para ganar'},
+    {id:'runner3d', emoji:'🏃', name:'Carrera Obstáculos 3D', desc:'Cambia de carril, salta obstáculos y recoge monedas'},
+    {id:'gold3d', emoji:'🪙', name:'Mascota Caza Oro 3D', desc:'Recoge monedas y cofres antes de que acabe el tiempo'},
+    {id:'sword3d', emoji:'⚔️', name:'Duelo de Espadas 3D', desc:'Ataca, cúbrete y derrota al rival'},
+    {id:'wheels3d', emoji:'🛞', name:'Ruedas Locas 3D', desc:'Maneja el carrito y evita trampas de la pista'},
+    {id:'maze3d', emoji:'🌀', name:'Laberinto Mágico 3D', desc:'Busca llaves, evita muros y llega al portal final'},
+    {id:'penalty3d', emoji:'⚽', name:'Penales 3D', desc:'Apunta, patea y marca goles antes de que el arquero tape'},
+    {id:'bridge3d', emoji:'🌉', name:'Puente Valiente 3D', desc:'Construye puentes en el momento correcto y cruza los huecos'},
+    {id:'space3d', emoji:'🚀', name:'Defensa Espacial 3D', desc:'Dispara meteoritos y protege tu nave hasta la meta'},
+    {id:'dino3d', emoji:'🦖', name:'Dino Aventura 3D', desc:'Salta cactus, recoge huevos y llega al volcán final'},
+    {id:'target3d', emoji:'🎯', name:'Tiro al Blanco 3D', desc:'Mueve la mira y acierta objetivos rápidos para ganar'},
+    {id:'rescue3d', emoji:'🐶', name:'Rescate de Mascotas 3D', desc:'Encuentra mascotas perdidas y evita trampas del bosque'},
+    {id:'crystal3d', emoji:'💎', name:'Camino de Cristales 3D', desc:'Recuerda la ruta correcta y avanza por cristales seguros'}
+  ];
+
+  let hk3dRunning = false;
+  let hk3dRAF = null;
+  let hk3dKeys = {};
+  let hk3dPointer = {left:false,right:false,up:false,down:false,action:false};
+  const LS_KEY = 'hugokids_3d_progress_v1';
+
+  function safe(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function qs(id){ return document.getElementById(id); }
+  function progress(){ try{return JSON.parse(localStorage.getItem(LS_KEY)||'{}')}catch(e){return {}} }
+  function saveProgress(p){ try{localStorage.setItem(LS_KEY, JSON.stringify(p));}catch(e){} }
+  function levelOf(id){ const p=progress(); return Math.max(1, Math.min(5, Number(p[id]?.level||1))); }
+  function toast3d(msg){ if(typeof showToast==='function') showToast(msg); else alert(msg); }
+  function playBeep(type){ try{ if(window.SFX && SFX[type]) SFX[type](); else if(typeof tone==='function') tone(type==='win'?720:260,.12); }catch(e){} }
+
+  function stop3D(){
+    hk3dRunning = false;
+    if(hk3dRAF) cancelAnimationFrame(hk3dRAF);
+    hk3dRAF = null;
+    hk3dKeys = {};
+    hk3dPointer = {left:false,right:false,up:false,down:false,action:false};
+  }
+  const oldStop = window.stopAllGames;
+  if(typeof oldStop === 'function'){
+    window.stopAllGames = function(){ stop3D(); return oldStop.apply(this, arguments); };
+  } else {
+    window.stopAllGames = stop3D;
+  }
+
+  function injectCards(){
+    const grid = qs('gameGrid');
+    if(!grid || qs('card-bumper3d')) return;
+    const sep = document.createElement('div');
+    sep.id='hk3dSeparator';
+    sep.style.cssText='grid-column:1/-1;background:rgba(255,255,255,.92);border:4px solid #FFD600;border-radius:24px;padding:18px;text-align:center;box-shadow:0 8px 18px rgba(0,0,0,.18)';
+    sep.innerHTML='<div style="font-family:\'Fredoka One\',cursive;font-size:1.45rem;color:#5B21B6">🚀 Zona 3D HugoKids</div><div style="font-weight:800;color:#7A6B9D;margin-top:4px">Juegos originales con niveles, monedas y recompensa final.</div>';
+    grid.appendChild(sep);
+    HK3D_GAMES.forEach(g=>{
+      const card=document.createElement('div');
+      card.className='game-card fade-up visible';
+      card.id='card-'+g.id;
+      card.dataset.cat='arcade racing adventure online multi';
+      card.dataset.name=(g.name+' '+g.desc+' 3d tres dimensiones').toLowerCase();
+      card.onclick=()=>openGame3D(g.id);
+      card.innerHTML=`
+        <div class="game-thumb"><div class="game-thumb-bg" style="background:linear-gradient(135deg,#0EA5E9,#7C3AED 55%,#FF4D9D)"></div><span class="game-thumb-emoji">${g.emoji}</span></div>
+        <div class="game-badge badge-hot">3D</div>
+        <div class="game-info"><div class="game-name">${g.name}</div><div class="game-meta"><span class="game-cat cat-online">Nivel ${levelOf(g.id)}/5</span><span class="game-stars">⭐⭐⭐⭐⭐</span></div></div>`;
+      grid.appendChild(card);
+    });
+    const gc=qs('gameCount'); if(gc) gc.textContent=document.querySelectorAll('.game-card').length+' juegos';
+    const statNums = document.querySelectorAll('.stats .stat-num');
+    if(statNums && statNums[0]) statNums[0].textContent = document.querySelectorAll('.game-card').length;
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(injectCards,500)); else setTimeout(injectCards,300);
+
+  function openGame3D(id){
+    try{ if(typeof stopAllGames==='function') stopAllGames(); }catch(e){ stop3D(); }
+    const game = HK3D_GAMES.find(g=>g.id===id) || HK3D_GAMES[0];
+    const modal=qs('modalOverlay'), body=qs('modalBody'), title=qs('modalTitle');
+    if(!modal || !body || !title) return;
+    modal.classList.add('open','fs');
+    document.body.style.overflow='hidden';
+    try{ if(typeof requestFullscreen==='function') requestFullscreen(); }catch(e){}
+    title.textContent = game.emoji + ' ' + game.name;
+    body.innerHTML = renderRules(game);
+    bindRules(game);
+  }
+  window.openGame3D = openGame3D;
+
+  function renderRules(game){
+    const lv = levelOf(game.id);
+    return `<div class="game-container" style="background:radial-gradient(circle at top,#1e1b4b,#050511);padding:22px;color:#fff;min-height:520px">
+      <div style="text-align:center;max-width:760px;margin:0 auto">
+        <div style="font-size:4rem">${game.emoji}</div>
+        <h2 style="font-family:'Fredoka One',cursive;margin:8px 0 6px">${safe(game.name)}</h2>
+        <div style="display:inline-block;background:#FFD600;color:#2D1B4E;border-radius:18px;padding:6px 14px;font-weight:900;margin:5px 0 14px">Nivel ${lv} de 5</div>
+        <p style="color:#ddd;font-weight:800;line-height:1.5">${safe(game.desc)}. Supera el objetivo del nivel para ganar monedas y avanzar hasta la recompensa final.</p>
+      </div>
+      <div id="hk3dRulesText" style="background:#16162a;border:2px solid rgba(255,255,255,.12);border-radius:20px;padding:16px;max-width:850px;margin:18px auto;color:#eee;line-height:1.55;font-weight:700">
+        ${rulesText(game.id, lv)}
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px">
+        <button id="hk3dReadBtn" style="background:#1f2937;color:#fff;border:2px solid #7C3AED;border-radius:18px;padding:12px 18px;font-weight:900;cursor:pointer">📖 Leer reglas</button>
+        <button id="hk3dSpeakBtn" style="background:#2563EB;color:#fff;border:none;border-radius:18px;padding:12px 18px;font-weight:900;cursor:pointer">🔊 Escuchar reglas</button>
+        <button id="hk3dStartBtn" style="background:linear-gradient(135deg,#16A34A,#7C3AED);color:#fff;border:none;border-radius:18px;padding:12px 22px;font-weight:900;cursor:pointer">▶ Iniciar juego</button>
+      </div>
+      <div style="text-align:center;color:#c4b5fd;font-size:.86rem;margin-top:14px">Las reglas no se reproducen solas. El jugador decide si leerlas o escucharlas.</div>
+    </div>`;
+  }
+
+  function rulesText(id, lv){
+    const common = `<b>Meta:</b> completa el objetivo antes de perder. <b>Controles:</b> usa flechas del teclado o los botones en pantalla. <b>Recompensa:</b> al ganar recibes monedas y puntos; en nivel 5 recibes premio final.`;
+    const txt = {
+      bumper3d:`<b>Carros de Choque 3D:</b> mueve tu carro, recoge turbos y golpea al carro rival. En nivel ${lv}, necesitas lograr ${2+lv} choques fuertes antes de que acabe el tiempo. ${common}`,
+      runner3d:`<b>Carrera Obstáculos 3D:</b> cambia de carril, salta rampas y evita cajas. En nivel ${lv}, llega a la meta recogiendo al menos ${3+lv} monedas. ${common}`,
+      gold3d:`<b>Mascota Caza Oro 3D:</b> recoge monedas y cofres en la arena. Evita rocas y trampas. En nivel ${lv}, junta ${5+lv*2} monedas. ${common}`,
+      sword3d:`<b>Duelo de Espadas 3D:</b> acércate, ataca con el botón de acción y retrocede para esquivar. En nivel ${lv}, derrota al rival con cuidado. ${common}`,
+      wheels3d:`<b>Ruedas Locas 3D:</b> maneja por una pista con curvas, conos y rampas. En nivel ${lv}, sobrevive hasta la bandera final. ${common}`,
+      maze3d:`<b>Laberinto Mágico 3D:</b> cambia de carril para evitar muros, recoge ${2+lv} llaves y llega al portal. ${common}`,
+      penalty3d:`<b>Penales 3D:</b> mueve la mira, espera el momento y presiona acción para patear. En nivel ${lv}, marca ${2+lv} goles. ${common}`,
+      bridge3d:`<b>Puente Valiente 3D:</b> avanza y presiona acción justo antes de cada hueco para crear un puente. En nivel ${lv}, cruza ${3+lv} huecos. ${common}`,
+      space3d:`<b>Defensa Espacial 3D:</b> mueve la nave y dispara con acción para destruir meteoritos. En nivel ${lv}, destruye ${6+lv*2} meteoritos. ${common}`,
+      dino3d:`<b>Dino Aventura 3D:</b> salta cactus con arriba o acción, recoge huevos y llega al volcán. En nivel ${lv}, recoge ${3+lv} huevos. ${common}`,
+      target3d:`<b>Tiro al Blanco 3D:</b> mueve la mira y dispara con acción cuando esté sobre el objetivo. En nivel ${lv}, acierta ${4+lv} blancos. ${common}`,
+      rescue3d:`<b>Rescate de Mascotas 3D:</b> busca mascotas en el bosque, evita jaulas y llévalas a casa. En nivel ${lv}, rescata ${2+lv} mascotas. ${common}`,
+      crystal3d:`<b>Camino de Cristales 3D:</b> observa la ruta marcada, recuerda los carriles y avanza solo por cristales seguros. En nivel ${lv}, supera ${4+lv} pasos. ${common}`
+    };
+    return txt[id] || common;
+  }
+
+  function bindRules(game){
+    const speakBtn=qs('hk3dSpeakBtn'), readBtn=qs('hk3dReadBtn'), startBtn=qs('hk3dStartBtn');
+    if(readBtn) readBtn.onclick=()=>toast3d('📖 Reglas listas para leer en pantalla');
+    if(speakBtn) speakBtn.onclick=()=>{
+      const el=qs('hk3dRulesText');
+      const text=(el?el.textContent:'').replace(/\s+/g,' ').trim();
+      try{
+        if(typeof speakText==='function') speakText(text);
+        else if('speechSynthesis' in window){ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.lang='es-ES'; u.rate=.92; speechSynthesis.speak(u); }
+      }catch(e){ toast3d('Tu navegador no permitió el audio'); }
+    };
+    if(startBtn) startBtn.onclick=()=>startGame3D(game);
+  }
+
+  function startGame3D(game){
+    stop3D();
+    const body=qs('modalBody'); if(!body) return;
+    const lv=levelOf(game.id);
+    body.innerHTML = `<div class="game-container" style="background:#050511;color:#fff;padding:12px;border-radius:18px">
+      <div id="hk3dHud" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#111126;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:10px 12px;margin-bottom:10px;font-weight:900">
+        <span>${game.emoji} ${safe(game.name)}</span><span>Nivel: <b id="hk3dLevel">${lv}/5</b></span><span>Objetivo: <b id="hk3dObj">0</b></span><span>⏱️ <b id="hk3dTime">60</b>s</span>
+      </div>
+      <canvas id="hk3dCanvas" width="960" height="540" style="width:100%;max-height:62vh;background:#09091a;border-radius:16px;display:block;touch-action:none"></canvas>
+      <div id="hk3dMsg" style="text-align:center;color:#FFD600;font-weight:900;margin:10px 0;min-height:24px">¡Listo!</div>
+      <div id="hk3dControls" style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:8px 0"></div>
+    </div>
+    <div class="game-instructions"><strong>3D ligero:</strong> está hecho para cargar rápido en celulares. Más adelante se puede convertir a Three.js/Babylon.js con modelos 3D reales.</div>`;
+    setupControls();
+    if(game.id==='bumper3d') runBumper3D(game, lv);
+    else if(game.id==='runner3d') runRunner3D(game, lv);
+    else if(game.id==='gold3d') runGold3D(game, lv);
+    else if(game.id==='sword3d') runSword3D(game, lv);
+    else if(game.id==='wheels3d') runWheels3D(game, lv);
+    else if(game.id==='maze3d') runMaze3D(game, lv);
+    else if(game.id==='penalty3d') runPenalty3D(game, lv);
+    else if(game.id==='bridge3d') runBridge3D(game, lv);
+    else if(game.id==='space3d') runSpace3D(game, lv);
+    else if(game.id==='dino3d') runDino3D(game, lv);
+    else if(game.id==='target3d') runTarget3D(game, lv);
+    else if(game.id==='rescue3d') runRescue3D(game, lv);
+    else if(game.id==='crystal3d') runCrystal3D(game, lv);
+    else runWheels3D(game, lv);
+  }
+
+  function setupControls(){
+    const c=qs('hk3dControls'); if(!c) return;
+    const btn = (label,key,wide=false)=>`<button data-k="${key}" style="min-width:${wide?'110px':'58px'};height:54px;border:none;border-radius:16px;background:linear-gradient(135deg,#7C3AED,#FF4D9D);color:#fff;font-size:${wide?'1rem':'1.4rem'};font-weight:900;box-shadow:0 4px 0 #5B21B6;cursor:pointer;touch-action:none">${label}</button>`;
+    c.innerHTML = btn('◀','left')+btn('▲','up')+btn('▼','down')+btn('▶','right')+btn('⚡ Acción','action',true);
+    c.querySelectorAll('button').forEach(b=>{
+      const k=b.dataset.k;
+      const down=e=>{e.preventDefault(); hk3dPointer[k]=true;};
+      const up=e=>{e.preventDefault(); hk3dPointer[k]=false;};
+      b.addEventListener('touchstart',down,{passive:false}); b.addEventListener('touchend',up,{passive:false}); b.addEventListener('touchcancel',up,{passive:false});
+      b.addEventListener('mousedown',down); b.addEventListener('mouseup',up); b.addEventListener('mouseleave',up);
+    });
+  }
+
+  document.addEventListener('keydown', e=>{
+    if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' ','a','d','w','s'].includes(e.key)) e.preventDefault();
+    if(e.key==='ArrowLeft'||e.key==='a') hk3dKeys.left=true;
+    if(e.key==='ArrowRight'||e.key==='d') hk3dKeys.right=true;
+    if(e.key==='ArrowUp'||e.key==='w') hk3dKeys.up=true;
+    if(e.key==='ArrowDown'||e.key==='s') hk3dKeys.down=true;
+    if(e.key===' ') hk3dKeys.action=true;
+  }, {passive:false});
+  document.addEventListener('keyup', e=>{
+    if(e.key==='ArrowLeft'||e.key==='a') hk3dKeys.left=false;
+    if(e.key==='ArrowRight'||e.key==='d') hk3dKeys.right=false;
+    if(e.key==='ArrowUp'||e.key==='w') hk3dKeys.up=false;
+    if(e.key==='ArrowDown'||e.key==='s') hk3dKeys.down=false;
+    if(e.key===' ') hk3dKeys.action=false;
+  });
+  function input(k){ return !!(hk3dKeys[k] || hk3dPointer[k]); }
+
+  function canvas(){ const cv=qs('hk3dCanvas'); return {cv, ctx:cv?cv.getContext('2d'):null, W:cv?cv.width:960, H:cv?cv.height:540}; }
+  function project(x,z,y=0){ const cam=520; const s=cam/(cam+z); return {x:480+x*s, y:390-y*s-z*.20, s}; }
+  function drawGround(ctx,W,H,color1='#172554',color2='#0f172a'){
+    const g=ctx.createLinearGradient(0,160,0,H); g.addColorStop(0,color1); g.addColorStop(1,color2); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    for(let i=0;i<14;i++){ const z=i*90; const p1=project(-520,z), p2=project(520,z); ctx.fillRect(p1.x,p1.y,p2.x-p1.x,2); }
+    for(let x=-500;x<=500;x+=100){ const p1=project(x,0), p2=project(x,1200); ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.strokeStyle='rgba(255,255,255,.04)'; ctx.stroke(); }
+  }
+  function drawSprite(ctx, obj, emoji, color='#7C3AED'){
+    const p=project(obj.x,obj.z,obj.y||0), w=(obj.w||70)*p.s, h=(obj.h||50)*p.s;
+    ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(p.x,p.y+h*.42,w*.55,h*.22,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=color; roundRect(ctx,p.x-w/2,p.y-h/2,w,h,Math.max(8,12*p.s)); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.65)'; ctx.lineWidth=Math.max(1,3*p.s); ctx.stroke();
+    ctx.font=Math.max(18,34*p.s)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(emoji,p.x,p.y);
+  }
+  function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function setHud(obj,time,msg){ if(qs('hk3dObj')) qs('hk3dObj').textContent=obj; if(qs('hk3dTime')) qs('hk3dTime').textContent=Math.max(0,Math.ceil(time)); if(qs('hk3dMsg')) qs('hk3dMsg').textContent=msg||''; }
+  function collision(a,b,dist=70){ const dx=a.x-b.x, dz=a.z-b.z; return Math.hypot(dx,dz)<dist; }
+  function reward(game, win){
+    if(!win) return;
+    const lv = levelOf(game.id); const coins = 20 + lv*15; const pts = 60 + lv*35;
+    try{ if(typeof darRecompensa==='function') darRecompensa(coins,pts, lv>=5?'🏆 Premio final 3D '+game.name:'Nivel '+lv+' 3D '+game.name); }catch(e){}
+    const p=progress(); const cur=p[game.id]||{level:1,finales:0};
+    if(lv>=5){ cur.level=1; cur.finales=(cur.finales||0)+1; try{ if(typeof awardBadge==='function') awardBadge('first_win'); }catch(e){} }
+    else cur.level=lv+1;
+    p[game.id]=cur; saveProgress(p);
+    playBeep('win');
+    showEnd(game, true, coins, pts, lv>=5);
+  }
+  function showEnd(game, win, coins=0, pts=0, final=false){
+    hk3dRunning=false;
+    const msg=qs('hk3dMsg'); if(msg) msg.textContent=win?'🎉 ¡Ganaste!':'😅 Intenta de nuevo';
+    const box=document.createElement('div');
+    box.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.76);z-index:9000;display:flex;align-items:center;justify-content:center;padding:18px';
+    box.innerHTML=`<div style="background:white;border:5px solid #FFD600;border-radius:26px;max-width:420px;width:100%;padding:22px;text-align:center;color:#2D1B4E;font-family:Nunito,sans-serif">
+      <div style="font-size:3.7rem">${win?(final?'🏆':'🎉'):'💪'}</div>
+      <h2 style="font-family:'Fredoka One',cursive;margin:8px 0">${win?(final?'¡Recompensa final 3D!':'¡Nivel superado!'):'Sigue practicando'}</h2>
+      <p style="font-weight:900">${safe(game.name)}</p>
+      ${win?`<div style="background:#FFF4D6;border-radius:16px;padding:12px;margin:12px 0;font-weight:900">+${coins} 🪙 &nbsp; +${pts} ⭐</div><p style="color:#7A6B9D;font-weight:800">${final?'Misión reiniciada para volver a ganar premios.':'Desbloqueaste el siguiente nivel.'}</p>`:`<p style="color:#7A6B9D;font-weight:800">Puedes repetir el nivel y ganar tu recompensa.</p>`}
+      <button id="hk3dAgain" style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);color:#fff;border:none;border-radius:18px;padding:12px 22px;font-weight:900;cursor:pointer;margin-top:10px">${win?'Continuar':'Reintentar'}</button>
+    </div>`;
+    document.body.appendChild(box);
+    qs('hk3dAgain').onclick=()=>{ box.remove(); startGame3D(game); };
+  }
+
+  function runBumper3D(game, lv){
+    const {cv,ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let player={x:-120,z:120,w:90,h:58,hp:100,vx:0,vz:0}, bot={x:120,z:300,w:90,h:58,hp:100,vx:0,vz:0};
+    let hits=0, target=2+lv, time=65-lv*4, last=performance.now();
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt;
+      let ax=(input('right')?1:0)-(input('left')?1:0), az=(input('down')?1:0)-(input('up')?1:0); const turbo=input('action')?1.8:1;
+      player.vx += ax*420*dt*turbo; player.vz += az*420*dt*turbo; player.vx*=.92; player.vz*=.92; player.x+=player.vx*dt; player.z+=player.vz*dt;
+      const dx=player.x-bot.x,dz=player.z-bot.z,len=Math.hypot(dx,dz)||1; bot.vx += dx/len*240*dt; bot.vz += dz/len*240*dt; bot.vx*=.92; bot.vz*=.92; bot.x+=bot.vx*dt; bot.z+=bot.vz*dt;
+      [player,bot].forEach(o=>{o.x=Math.max(-420,Math.min(420,o.x)); o.z=Math.max(40,Math.min(900,o.z));});
+      if(collision(player,bot,82)){ const power=Math.hypot(player.vx-bot.vx,player.vz-bot.vz); const nx=(bot.x-player.x)/(Math.hypot(bot.x-player.x,bot.z-player.z)||1), nz=(bot.z-player.z)/(Math.hypot(bot.x-player.x,bot.z-player.z)||1); bot.vx+=nx*power*.7; bot.vz+=nz*power*.7; player.vx-=nx*power*.25; player.vz-=nz*power*.25; if(power>190){ hits++; bot.hp-=12+lv*2; playBeep('coin'); }}
+      drawGround(ctx,W,H,'#134e4a','#0f172a'); drawSprite(ctx,bot,'🚙','#FF4D9D'); drawSprite(ctx,player,'🚗','#2563EB');
+      setHud(hits+'/'+target,time,`Choques fuertes: ${hits}/${target} ${input('action')?'⚡ TURBO':''}`);
+      if(hits>=target || bot.hp<=0) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runRunner3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let lane=1, y=0, vy=0, dist=0, coins=0, time=70, last=performance.now(), cooldown=0;
+    const need=3+lv, goal=950+lv*260; const objs=[];
+    for(let i=0;i<24;i++) objs.push({z:300+i*170, lane:Math.floor(Math.random()*3), type:Math.random()<.45?'coin':'box', hit:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cooldown-=dt;
+      if(input('left')&&cooldown<=0){lane=Math.max(0,lane-1); cooldown=.18;} if(input('right')&&cooldown<=0){lane=Math.min(2,lane+1); cooldown=.18;} if((input('up')||input('action'))&&y<=1){vy=350;}
+      vy-=820*dt; y+=vy*dt; if(y<0){y=0;vy=0;} dist+=180*dt+lv*18*dt;
+      drawGround(ctx,W,H,'#172554','#0a0a14'); ctx.fillStyle='rgba(255,214,0,.16)'; ctx.fillRect(260,150,440,300);
+      const player={x:(lane-1)*150,z:120,y:y,w:75,h:75};
+      objs.forEach(o=>{ let rz=o.z-dist; if(rz<-80){ o.z+=24*170; o.lane=Math.floor(Math.random()*3); o.type=Math.random()<.5?'coin':'box'; o.hit=false; rz=o.z-dist; }
+        if(rz>0&&rz<1150&&!o.hit){ drawSprite(ctx,{x:(o.lane-1)*150,z:rz,y:0,w:55,h:55},o.type==='coin'?'🪙':'📦',o.type==='coin'?'#FFD600':'#7C2D12'); if(o.lane===lane && rz<150 && rz>65){ if(o.type==='coin'){coins++; o.hit=true; playBeep('coin');} else if(y<42){return showEnd(game,false);} }}
+      });
+      drawSprite(ctx,player,'🏃','#16A34A'); setHud(`${coins}/${need} monedas`,time,`Distancia ${Math.floor(dist)}/${goal} ${y>0?'🦘':''}`);
+      if(dist>=goal && coins>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runGold3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let player={x:0,z:180,w:66,h:66,vx:0,vz:0}, time=65, got=0, need=5+lv*2, last=performance.now();
+    const items=[]; for(let i=0;i<need+6;i++) items.push({x:-380+Math.random()*760,z:80+Math.random()*760,type:Math.random()<.82?'coin':'trap',taken:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt;
+      player.vx=((input('right')?1:0)-(input('left')?1:0))*300; player.vz=((input('down')?1:0)-(input('up')?1:0))*300; if(input('action')){player.vx*=1.35;player.vz*=1.35;}
+      player.x+=player.vx*dt; player.z+=player.vz*dt; player.x=Math.max(-430,Math.min(430,player.x)); player.z=Math.max(40,Math.min(900,player.z));
+      drawGround(ctx,W,H,'#064e3b','#0f172a');
+      items.forEach(it=>{ if(it.taken) return; drawSprite(ctx,{x:it.x,z:it.z,w:50,h:50},it.type==='coin'?'🪙':'🪨',it.type==='coin'?'#F59E0B':'#57534E'); if(collision(player,it,55)){ if(it.type==='coin'){got++; it.taken=true; playBeep('coin');} else return showEnd(game,false); } });
+      drawSprite(ctx,player,'🦊','#7C3AED'); setHud(`${got}/${need} monedas`,time,`${input('action')?'⚡ Rápido':''}`);
+      if(got>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runSword3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let p={x:-180,z:260,w:70,h:100,hp:100,atk:0}, b={x:180,z:260,w:70,h:100,hp:70+lv*18,atk:0}, time=70, last=performance.now(), acd=0, bcd=0;
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; acd-=dt; bcd-=dt; p.atk=Math.max(0,p.atk-dt); b.atk=Math.max(0,b.atk-dt);
+      p.x += ((input('right')?1:0)-(input('left')?1:0))*260*dt; p.z += ((input('down')?1:0)-(input('up')?1:0))*180*dt; p.x=Math.max(-420,Math.min(420,p.x)); p.z=Math.max(90,Math.min(700,p.z));
+      const dx=p.x-b.x, dz=p.z-b.z, d=Math.hypot(dx,dz)||1; b.x += dx/d*(130+lv*20)*dt; b.z += dz/d*(95+lv*14)*dt;
+      if(input('action')&&acd<=0){ p.atk=.18; acd=.55; if(d<115){ b.hp-=18; playBeep('coin'); } }
+      if(d<100&&bcd<=0){ b.atk=.18; bcd=.85; p.hp-=10+lv*2; }
+      drawGround(ctx,W,H,'#312e81','#0a0a14'); drawSprite(ctx,b,b.atk?'💥':'🧛','#DC2626'); drawSprite(ctx,p,p.atk?'⚔️':'🛡️','#2563EB');
+      ctx.fillStyle='#fff'; ctx.font='bold 18px Nunito'; ctx.textAlign='center'; ctx.fillText(`Tú ❤️ ${Math.max(0,p.hp)}     Rival ❤️ ${Math.max(0,b.hp)}`, W/2, 40);
+      setHud(`Rival ${Math.max(0,Math.ceil(b.hp))}❤️`,time,input('action')?'⚔️ Atacando':'Acércate y usa Acción');
+      if(b.hp<=0) return reward(game,true); if(p.hp<=0||time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runWheels3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let x=0, speed=210+lv*20, dist=0, time=70, last=performance.now(), hits=0, goal=1000+lv*320;
+    const obs=[]; for(let i=0;i<24;i++) obs.push({x:-360+Math.random()*720,z:240+i*160,type:Math.random()<.25?'ramp':'cone',hit:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; dist+=speed*dt; x += ((input('right')?1:0)-(input('left')?1:0))*310*dt; if(input('action')) speed=250+lv*26; else speed=210+lv*20; x=Math.max(-410,Math.min(410,x));
+      drawGround(ctx,W,H,'#7C2D12','#111827');
+      obs.forEach(o=>{let rz=o.z-dist; if(rz<-80){o.z+=24*160;o.x=-360+Math.random()*720;o.type=Math.random()<.25?'ramp':'cone';o.hit=false;rz=o.z-dist;} if(rz>0&&rz<1150&&!o.hit){ drawSprite(ctx,{x:o.x,z:rz,w:60,h:60},o.type==='ramp'?'🟨':'🚧',o.type==='ramp'?'#EAB308':'#EA580C'); if(Math.abs(o.x-x)<62&&rz<145&&rz>70){ if(o.type==='ramp'){ speed+=60; o.hit=true; playBeep('coin'); } else { hits++; o.hit=true; if(hits>=3) return showEnd(game,false); } } }});
+      drawSprite(ctx,{x,z:110,w:90,h:60},'🛞','#0EA5E9'); setHud(`${Math.floor(dist)}/${goal}`,time,`Golpes ${hits}/3 ${input('action')?'⚡ Turbo':''}`);
+      if(dist>=goal) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runMaze3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let lane=1, dist=0, keys=0, time=75, last=performance.now(), cooldown=0;
+    const need=2+lv, goal=980+lv*240; const objs=[];
+    for(let i=0;i<26;i++) objs.push({z:260+i*150,lane:Math.floor(Math.random()*3),type:Math.random()<.38?'key':'wall',hit:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cooldown-=dt; dist+=(170+lv*18)*dt;
+      if(input('left')&&cooldown<=0){lane=Math.max(0,lane-1); cooldown=.18;} if(input('right')&&cooldown<=0){lane=Math.min(2,lane+1); cooldown=.18;}
+      drawGround(ctx,W,H,'#312e81','#020617');
+      ctx.fillStyle='rgba(255,255,255,.08)'; ctx.fillRect(285,140,390,340);
+      objs.forEach(o=>{ let rz=o.z-dist; if(rz<-80){ o.z+=26*150; o.lane=Math.floor(Math.random()*3); o.type=Math.random()<.35?'key':'wall'; o.hit=false; rz=o.z-dist; }
+        if(rz>0&&rz<1150&&!o.hit){ drawSprite(ctx,{x:(o.lane-1)*145,z:rz,w:o.type==='key'?48:85,h:o.type==='key'?48:80},o.type==='key'?'🔑':'🧱',o.type==='key'?'#FFD600':'#7C3AED');
+          if(o.lane===lane && rz<145 && rz>70){ if(o.type==='key'){keys++; o.hit=true; playBeep('coin');} else { return showEnd(game,false); } }
+        }
+      });
+      drawSprite(ctx,{x:(lane-1)*145,z:115,w:72,h:72},'🧙','#2563EB');
+      if(dist>goal-120) drawSprite(ctx,{x:0,z:goal-dist+150,w:90,h:90},'🌀','#16A34A');
+      setHud(`${keys}/${need} llaves`,time,`Carril ${lane+1} · evita muros`);
+      if(dist>=goal && keys>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runPenalty3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let aim=0, dir=1, keeper=0, kdir=1, goals=0, shots=0, time=70, last=performance.now(), cd=0;
+    const need=2+lv, maxShots=need+3;
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cd-=dt;
+      aim += dir*(250+lv*35)*dt; if(aim>260){aim=260;dir=-1;} if(aim<-260){aim=-260;dir=1;}
+      keeper += kdir*(180+lv*24)*dt; if(keeper>220){keeper=220;kdir=-1;} if(keeper<-220){keeper=-220;kdir=1;}
+      if((input('left')||input('right'))){ aim += ((input('right')?1:0)-(input('left')?1:0))*260*dt; aim=Math.max(-280,Math.min(280,aim)); }
+      if(input('action')&&cd<=0){ shots++; cd=.55; const blocked=Math.abs(aim-keeper)<75; if(!blocked){goals++; playBeep('coin');} else playBeep('lose'); }
+      drawGround(ctx,W,H,'#065f46','#022c22');
+      const goalP=project(0,720); ctx.strokeStyle='#fff'; ctx.lineWidth=8; ctx.strokeRect(goalP.x-300,goalP.y-170,600,170);
+      drawSprite(ctx,{x:keeper,z:670,w:92,h:95},'🧤','#FF4D9D');
+      drawSprite(ctx,{x:aim,z:525,w:48,h:48},'🎯','#FFD600');
+      drawSprite(ctx,{x:0,z:115,w:65,h:65},'⚽','#fff');
+      setHud(`${goals}/${need} goles`,time,`Disparos ${shots}/${maxShots} · acción = patear`);
+      if(goals>=need) return reward(game,true); if(shots>=maxShots||time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runBridge3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let dist=0, built=0, time=75, last=performance.now(), cd=0, safeFlash=0;
+    const need=3+lv, goal=900+lv*240; const gaps=[]; for(let i=0;i<need+3;i++) gaps.push({z:260+i*190,done:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cd-=dt; safeFlash-=dt; dist+=(145+lv*18)*dt;
+      let danger=false, nextGap=null;
+      gaps.forEach(g=>{ const rz=g.z-dist; if(rz>45&&rz<120&&!g.done){ danger=true; nextGap=g; } });
+      if(input('action')&&cd<=0){ cd=.45; if(danger&&nextGap){ nextGap.done=true; built++; safeFlash=.35; playBeep('coin'); } else { safeFlash=.2; } }
+      drawGround(ctx,W,H,'#0f172a','#111827');
+      // camino principal
+      ctx.fillStyle='rgba(245,158,11,.22)'; const a=project(-120,0), b=project(120,950); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(420,150); ctx.lineTo(540,150); ctx.lineTo(b.x,b.y); ctx.closePath(); ctx.fill();
+      gaps.forEach(g=>{ const rz=g.z-dist; if(rz>-80&&rz<900){ drawSprite(ctx,{x:0,z:rz,w:120,h:40},g.done?'🪵':'🕳️',g.done?'#A16207':'#000'); } if(rz<50&&rz>10&&!g.done){ return showEnd(game,false); } });
+      drawSprite(ctx,{x:0,z:120,w:78,h:78},'🧒','#2563EB');
+      setHud(`${built}/${need} puentes`,time,`${danger?'⚠️ Presiona Acción para construir':'Avanza y prepárate'} ${safeFlash>0?'✅':''}`);
+      if(dist>=goal && built>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runSpace3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let ship={x:0,z:115,w:74,h:74}, shots=[], kills=0, hits=0, time=75, last=performance.now(), cd=0;
+    const need=6+lv*2; const rocks=[]; for(let i=0;i<12;i++) rocks.push({x:-420+Math.random()*840,z:260+Math.random()*850,v:90+Math.random()*80,hit:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cd-=dt;
+      ship.x += ((input('right')?1:0)-(input('left')?1:0))*360*dt; ship.z += ((input('down')?1:0)-(input('up')?1:0))*150*dt; ship.x=Math.max(-440,Math.min(440,ship.x)); ship.z=Math.max(80,Math.min(280,ship.z));
+      if(input('action')&&cd<=0){ shots.push({x:ship.x,z:ship.z+55}); cd=.22; playBeep('coin'); }
+      shots.forEach(s=>s.z+=620*dt); shots=shots.filter(s=>s.z<1150);
+      drawGround(ctx,W,H,'#020617','#111827');
+      for(let i=0;i<80;i++){ ctx.fillStyle='rgba(255,255,255,.55)'; ctx.fillRect((i*83+Math.floor(performance.now()/20))%W, (i*47)%H, 2,2); }
+      rocks.forEach(r=>{ r.z-=r.v*dt; if(r.z<20){ r.z=980; r.x=-420+Math.random()*840; r.v=90+Math.random()*90; r.hit=false; }
+        drawSprite(ctx,{x:r.x,z:r.z,w:58,h:58},'☄️','#7C2D12');
+        shots.forEach(s=>{ if(Math.hypot(s.x-r.x,s.z-r.z)<58){ r.z=980; r.x=-420+Math.random()*840; kills++; s.z=1400; playBeep('coin'); } });
+        if(collision(ship,r,58)){ hits++; r.z=980; if(hits>=3) return showEnd(game,false); }
+      });
+      shots.forEach(s=>drawSprite(ctx,{x:s.x,z:s.z,w:24,h:42},'✨','#FFD600'));
+      drawSprite(ctx,ship,'🚀','#2563EB');
+      setHud(`${kills}/${need} meteoritos`,time,`Golpes ${hits}/3 · acción = disparar`);
+      if(kills>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runDino3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let y=0, vy=0, dist=0, eggs=0, time=70, last=performance.now(); const need=3+lv, goal=880+lv*260;
+    const objs=[]; for(let i=0;i<24;i++) objs.push({z:250+i*150,type:Math.random()<.42?'egg':'cactus',hit:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; dist+=(175+lv*16)*dt;
+      if((input('up')||input('action'))&&y<=1){ vy=390; }
+      vy-=880*dt; y+=vy*dt; if(y<0){ y=0; vy=0; }
+      drawGround(ctx,W,H,'#78350f','#1c1917');
+      objs.forEach(o=>{ let rz=o.z-dist; if(rz<-80){ o.z+=24*150; o.type=Math.random()<.42?'egg':'cactus'; o.hit=false; rz=o.z-dist; }
+        if(rz>0&&rz<1000&&!o.hit){ drawSprite(ctx,{x:0,z:rz,w:o.type==='egg'?45:70,h:o.type==='egg'?45:80},o.type==='egg'?'🥚':'🌵',o.type==='egg'?'#FDE68A':'#16A34A'); if(rz<145&&rz>70){ if(o.type==='egg'){eggs++; o.hit=true; playBeep('coin');} else if(y<55){ return showEnd(game,false); } } }
+      });
+      drawSprite(ctx,{x:0,z:120,y,w:92,h:85},'🦖','#65A30D');
+      setHud(`${eggs}/${need} huevos`,time,`${y>0?'🦘 Saltando':'Arriba/Acción = saltar'}`);
+      if(dist>=goal && eggs>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runTarget3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let aim={x:0,z:430}, hit=0, miss=0, time=70, last=performance.now(), cd=0;
+    const need=4+lv; let target={x:-320+Math.random()*640,z:280+Math.random()*500,w:70,h:70};
+    function newTarget(){ target={x:-360+Math.random()*720,z:240+Math.random()*590,w:65,h:65}; }
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cd-=dt;
+      aim.x += ((input('right')?1:0)-(input('left')?1:0))*420*dt; aim.z += ((input('down')?1:0)-(input('up')?1:0))*360*dt; aim.x=Math.max(-430,Math.min(430,aim.x)); aim.z=Math.max(80,Math.min(880,aim.z));
+      if(input('action')&&cd<=0){ cd=.35; if(Math.hypot(aim.x-target.x,aim.z-target.z)<70){ hit++; playBeep('coin'); newTarget(); } else { miss++; playBeep('lose'); if(miss>=5) return showEnd(game,false); } }
+      drawGround(ctx,W,H,'#1e1b4b','#0a0a14');
+      drawSprite(ctx,target,'🎈','#FF4D9D');
+      const p=project(aim.x,aim.z); ctx.strokeStyle='#FFD600'; ctx.lineWidth=5; ctx.beginPath(); ctx.arc(p.x,p.y,34,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(p.x-46,p.y); ctx.lineTo(p.x+46,p.y); ctx.moveTo(p.x,p.y-46); ctx.lineTo(p.x,p.y+46); ctx.stroke();
+      setHud(`${hit}/${need} aciertos`,time,`Fallos ${miss}/5 · acción = disparar`);
+      if(hit>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runRescue3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let p={x:0,z:150,w:70,h:70,vx:0,vz:0}, resc=0, time=75, last=performance.now(); const need=2+lv;
+    const things=[]; for(let i=0;i<need+7;i++) things.push({x:-420+Math.random()*840,z:90+Math.random()*780,type:Math.random()<.55?'pet':'trap',taken:false});
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt;
+      p.vx=((input('right')?1:0)-(input('left')?1:0))*(input('action')?390:300); p.vz=((input('down')?1:0)-(input('up')?1:0))*(input('action')?390:300); p.x+=p.vx*dt; p.z+=p.vz*dt; p.x=Math.max(-430,Math.min(430,p.x)); p.z=Math.max(40,Math.min(900,p.z));
+      drawGround(ctx,W,H,'#14532d','#052e16');
+      things.forEach(it=>{ if(it.taken) return; drawSprite(ctx,{x:it.x,z:it.z,w:55,h:55},it.type==='pet'?(Math.random()<.5?'🐶':'🐱'):'🪤',it.type==='pet'?'#F59E0B':'#7F1D1D'); if(collision(p,it,58)){ if(it.type==='pet'){ resc++; it.taken=true; playBeep('coin');} else return showEnd(game,false); } });
+      drawSprite(ctx,p,'🧒','#2563EB'); setHud(`${resc}/${need} mascotas`,time,`${input('action')?'⚡ Corriendo':'Rescata sin tocar trampas'}`);
+      if(resc>=need) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+  function runCrystal3D(game, lv){
+    const {ctx,W,H}=canvas(); if(!ctx) return; hk3dRunning=true;
+    let step=0, lane=1, time=75, last=performance.now(), cooldown=0, preview=2.8;
+    const total=4+lv, route=Array.from({length:total},()=>Math.floor(Math.random()*3));
+    function loop(t){ if(!hk3dRunning) return; const dt=Math.min(.04,(t-last)/1000); last=t; time-=dt; cooldown-=dt; preview-=dt;
+      if(input('left')&&cooldown<=0){lane=Math.max(0,lane-1); cooldown=.18;} if(input('right')&&cooldown<=0){lane=Math.min(2,lane+1); cooldown=.18;}
+      if((input('up')||input('action'))&&cooldown<=0){ cooldown=.3; if(lane===route[step]){ step++; playBeep('coin'); } else return showEnd(game,false); }
+      drawGround(ctx,W,H,'#0f172a','#1e1b4b');
+      for(let i=0;i<total;i++){
+        for(let l=0;l<3;l++){
+          const safe=(route[i]===l); const showSafe=preview>0 || i<step;
+          drawSprite(ctx,{x:(l-1)*145,z:170+i*110,w:72,h:36}, safe&&showSafe?'💎':'⬛', safe&&showSafe?'#22D3EE':'#334155');
+        }
+      }
+      drawSprite(ctx,{x:(lane-1)*145,z:110,w:70,h:70},'🧒','#7C3AED');
+      setHud(`${step}/${total} pasos`,time,`${preview>0?'Mira la ruta y recuerda':'Izq/Der y Acción/Arriba para avanzar'}`);
+      if(step>=total) return reward(game,true); if(time<=0) return showEnd(game,false);
+      hk3dRAF=requestAnimationFrame(loop);
+    } hk3dRAF=requestAnimationFrame(loop);
+  }
+
+})();
+</script>
+
+<script>
+/* =========================================================
+   CORRECCIÓN SUPABASE 2026-06-15
+   - Usuarios registrados contados desde public.perfiles
+   - Nombres SIEMPRE EN MAYÚSCULA y no repetidos
+   - Código U permanente por usuario
+   - Registros importantes guardados en Supabase
+   - La contraseña se maneja con Supabase Auth (segura/hasheada)
+========================================================= */
+(function(){
+  const HK = window.HK_DB = window.HK_DB || {};
+
+  function hkToast(msg){
+    try { if (typeof showToast === 'function') return showToast(msg); } catch(e){}
+    alert(msg);
+  }
+  function hkSupabase(){
+    try { return (typeof getSupabase === 'function') ? getSupabase() : null; } catch(e){ return null; }
+  }
+  function hkEmailOk(email){
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email||'').trim());
+  }
+  function hkNormalizarNombre(nombre){
+    return String(nombre || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
+  }
+  function hkNormalizarEmail(email){ return String(email || '').trim().toLowerCase(); }
+  function hkNumeroDesdeId(uuid){
+    if (typeof numeroDesdeId === 'function') return numeroDesdeId(uuid);
+    let h = 0; uuid = String(uuid || Date.now());
+    for (let i = 0; i < uuid.length; i++) h = (h * 31 + uuid.charCodeAt(i)) % 900000;
+    return String(100000 + h);
+  }
+  function hkCodigoDesdeId(uuid){ return 'U' + hkNumeroDesdeId(uuid); }
+
+  window.hkNormalizarNombre = hkNormalizarNombre;
+
+  async function hkBuscarNombre(nombreUpper){
+    const c = hkSupabase(); if (!c) return { data:null, error:'Sin conexión' };
+    const n = hkNormalizarNombre(nombreUpper);
+    try {
+      // El nombre se guarda en mayúscula. ilike ayuda si existen registros antiguos en minúscula.
+      const r = await c.from('perfiles').select('id,nombre,codigo_publico').ilike('nombre', n).limit(1).maybeSingle();
+      if (r && r.data) return { data:r.data, error:null };
+      return { data:null, error:null };
+    } catch(e) { return { data:null, error:e.message || String(e) }; }
+  }
+  window.hkBuscarNombre = hkBuscarNombre;
+
+  async function hkNombreDisponible(nombreUpper, idActual){
+    const r = await hkBuscarNombre(nombreUpper);
+    if (!r.data) return true;
+    return !!(idActual && r.data.id === idActual);
+  }
+
+  // Crear cuenta: nombre en mayúscula, nombre no repetido, perfil completo en Supabase.
+  window.registrarCuenta = async function(email, password, nombre){
+    const c = hkSupabase();
+    if (!c) return { error:'No se pudo conectar a Supabase. Revisa internet o la URL/Anon Key.' };
+
+    const em = hkNormalizarEmail(email);
+    const nom = hkNormalizarNombre(nombre);
+
+    if (!nom) return { error:'Escribe un nombre de jugador.' };
+    if (nom.length < 3) return { error:'El nombre debe tener mínimo 3 letras.' };
+    if (nom.length > 14) return { error:'El nombre debe tener máximo 14 caracteres.' };
+    if (!/^[A-ZÁÉÍÓÚÜÑ0-9 ]+$/.test(nom)) return { error:'Usa solo letras, números y espacios en el nombre.' };
+    if (!hkEmailOk(em)) return { error:'Escribe un correo real válido.' };
+    if (!password || String(password).length < 6) return { error:'La contraseña debe tener al menos 6 caracteres.' };
+
+    const libre = await hkNombreDisponible(nom, null);
+    if (!libre) return { error:'Ese nombre de jugador ya existe. Elige otro para que cada usuario tenga su nombre propio.' };
+
+    try {
+      const { data, error } = await c.auth.signUp({
+        email: em,
+        password: String(password),
+        options: { data: { nombre: nom } }
+      });
+      if (error) return { error: (typeof traducirError === 'function') ? traducirError(error.message) : error.message };
+
+      if (data && data.user) {
+        window.usuarioActual = data.user;
+        try { usuarioActual = data.user; } catch(e) {}
+        const id = data.user.id;
+        const num = hkNumeroDesdeId(id);
+        const cod = 'U' + num;
+        const avatar = (typeof getGuestAvatar === 'function') ? getGuestAvatar() : '👤';
+        const logros = (typeof getBadges === 'function') ? getBadges() : [];
+        const amigos = (typeof getAmigos === 'function') ? getAmigos() : [];
+
+        const perfil = {
+          id,
+          nombre: nom,
+          avatar,
+          correo: em,
+          numero_amigo: num,
+          codigo_publico: cod,
+          tipo_cuenta: 'usuario',
+          monedas: 0,
+          puntos: 0,
+          oro: 0,
+          trofeos: 0,
+          logros,
+          medallas: logros,
+          records: {},
+          amigos,
+          comprados: [],
+          titulo: '',
+          ultima_actividad: new Date().toISOString()
+        };
+
+        const ins = await c.from('perfiles').upsert(perfil, { onConflict:'id' }).select('*').maybeSingle();
+        if (ins && ins.error) {
+          const m = String(ins.error.message || '').toLowerCase();
+          if (m.includes('duplicate') || m.includes('unique')) return { error:'Ese nombre o código ya existe. Elige otro nombre.' };
+          // Si faltan columnas, el SQL de abajo lo corrige. No impedimos la cuenta auth si ya se creó.
+          console.warn('Perfil incompleto. Ejecuta el SQL de estructura.', ins.error.message);
+        }
+        try { localStorage.setItem('im_usercode', cod); localStorage.removeItem('im_guestid'); } catch(e){}
+        try { if (typeof setGuestName === 'function') setGuestName(nom); } catch(e){}
+        try { if (typeof cargarPerfilNube === 'function') await cargarPerfilNube(); } catch(e){}
+        try { if (typeof guardarCorreoPerfilActual === 'function') await guardarCorreoPerfilActual(); } catch(e){}
+        try { if (typeof hkActualizarContadores === 'function') await hkActualizarContadores(); } catch(e){}
+        try { if (typeof hkCargarUsuariosRegistrados === 'function') await hkCargarUsuariosRegistrados(); } catch(e){}
+        try { if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline(); } catch(e){}
+      }
+      return { ok:true };
+    } catch(e) {
+      return { error:'Error al crear cuenta: ' + (e.message || e) };
+    }
+  };
+
+  // Asegurar perfil: convierte nombre a mayúscula, genera U permanente, sincroniza columnas.
+  const oldAsegurarPerfilUsuario = window.asegurarPerfilUsuario || (typeof asegurarPerfilUsuario === 'function' ? asegurarPerfilUsuario : null);
+  window.asegurarPerfilUsuario = async function(){
+    const c = hkSupabase();
+    if (!c) return null;
+    try {
+      if (!window.usuarioActual && typeof usuarioActual !== 'undefined') window.usuarioActual = usuarioActual;
+      if (!window.usuarioActual) {
+        const s = await c.auth.getSession();
+        if (s && s.data && s.data.session) {
+          window.usuarioActual = s.data.session.user;
+          try { usuarioActual = s.data.session.user; } catch(e){}
+        }
+      }
+      if (!window.usuarioActual && typeof usuarioActual !== 'undefined') window.usuarioActual = usuarioActual;
+      if (!window.usuarioActual) return oldAsegurarPerfilUsuario ? oldAsegurarPerfilUsuario() : null;
+
+      const user = window.usuarioActual;
+      const id = user.id;
+      const email = hkNormalizarEmail(user.email);
+      const num = hkNumeroDesdeId(id);
+      const cod = 'U' + num;
+      const nombreBase = hkNormalizarNombre(
+        (typeof getGuestName === 'function' ? getGuestName() : '') ||
+        (user.user_metadata && user.user_metadata.nombre) ||
+        (email ? email.split('@')[0] : 'JUGADOR')
+      );
+      const avatar = (typeof getGuestAvatar === 'function') ? getGuestAvatar() : '👤';
+
+      let r = await c.from('perfiles').select('*').eq('id', id).maybeSingle();
+      let actual = r.data || null;
+      const nombreFinal = hkNormalizarNombre((actual && actual.nombre) || nombreBase || ('JUGADOR ' + num.slice(-3)));
+      const logros = Array.isArray(actual && actual.logros) ? actual.logros : ((typeof getBadges === 'function') ? getBadges() : []);
+      const amigos = Array.isArray(actual && actual.amigos) ? actual.amigos : ((typeof getAmigos === 'function') ? getAmigos() : []);
+      const payload = {
+        id,
+        nombre: nombreFinal,
+        avatar: (actual && actual.avatar) || avatar,
+        correo: email,
+        numero_amigo: (actual && actual.numero_amigo) || num,
+        codigo_publico: (actual && actual.codigo_publico) || cod,
+        tipo_cuenta:'usuario',
+        monedas: (actual && Number.isFinite(Number(actual.monedas))) ? Number(actual.monedas) : 0,
+        puntos: (actual && Number.isFinite(Number(actual.puntos))) ? Number(actual.puntos) : 0,
+        oro: (actual && Number.isFinite(Number(actual.oro))) ? Number(actual.oro) : ((actual && Number.isFinite(Number(actual.monedas))) ? Number(actual.monedas) : 0),
+        trofeos: (actual && Number.isFinite(Number(actual.trofeos))) ? Number(actual.trofeos) : 0,
+        logros,
+        medallas: Array.isArray(actual && actual.medallas) ? actual.medallas : logros,
+        records: (actual && actual.records && typeof actual.records === 'object') ? actual.records : {},
+        amigos,
+        comprados: Array.isArray(actual && actual.comprados) ? actual.comprados : [],
+        ultima_actividad: new Date().toISOString()
+      };
+      const up = await c.from('perfiles').upsert(payload, { onConflict:'id' }).select('*').maybeSingle();
+      if (up && up.data) {
+        window.perfilNube = up.data;
+        try { perfilNube = up.data; } catch(e){}
+      }
+      try { localStorage.setItem('im_usercode', String(payload.codigo_publico).toUpperCase()); localStorage.removeItem('im_guestid'); } catch(e){}
+      try { if (typeof setGuestName === 'function') setGuestName(payload.nombre); } catch(e){}
+      try { if (typeof setGuestAvatar === 'function') setGuestAvatar(payload.avatar); } catch(e){}
+      try { if (typeof updatePlayerBadge === 'function') updatePlayerBadge(); } catch(e){}
+      return (up && up.data) || payload;
+    } catch(e) {
+      console.warn('asegurarPerfilUsuario HK', e);
+      return oldAsegurarPerfilUsuario ? oldAsegurarPerfilUsuario() : null;
+    }
+  };
+  try { asegurarPerfilUsuario = window.asegurarPerfilUsuario; } catch(e){}
+
+  // Contadores: no usar head:true solamente; algunos proyectos devuelven count 0 aunque existan filas por RLS.
+  window.hkActualizarContadores = async function(){
+    const c = hkSupabase(); if (!c) return;
+    try {
+      const r = await c.from('perfiles').select('id,tipo_cuenta').limit(10000);
+      if (!r.error && Array.isArray(r.data)) {
+        const total = r.data.filter(x => String(x.tipo_cuenta || 'usuario').toLowerCase() !== 'invitado').length;
+        const el = document.getElementById('registeredCount'); if (el) el.textContent = String(total);
+      } else {
+        const cr = await c.from('perfiles').select('id', { count:'exact' });
+        if (!cr.error && Array.isArray(cr.data)) { const el = document.getElementById('registeredCount'); if (el) el.textContent = String(cr.data.length); }
+      }
+    } catch(e) { console.warn('contador perfiles', e); }
+    try {
+      const v = await c.from('visitas').select('id').limit(100000);
+      if (!v.error && Array.isArray(v.data)) { const el = document.getElementById('visitorCount'); if (el) el.textContent = String(v.data.length); }
+    } catch(e) { console.warn('contador visitas', e); }
+  };
+  try { hkActualizarContadores = window.hkActualizarContadores; } catch(e){}
+
+  // Cargar usuarios registrados: más tolerante y actualiza contador.
+  window.hkCargarUsuariosRegistrados = async function(){
+    const c = hkSupabase(); if (!c) return window.hkUsuariosRegistrados || [];
+    try {
+      const r = await c.from('perfiles')
+        .select('id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta,ultima_actividad')
+        .order('nombre', { ascending:true })
+        .limit(200);
+      if (r.error || !Array.isArray(r.data)) {
+        console.warn('No se pudo leer perfiles. Revisa políticas RLS SELECT.', r.error && r.error.message);
+        return window.hkUsuariosRegistrados || [];
+      }
+      window.hkUsuariosRegistrados = r.data.map(p => {
+        const raw = String(p.codigo_publico || (p.numero_amigo ? ('U' + p.numero_amigo) : '')).toUpperCase().replace(/^UU/, 'U');
+        return {
+          id: raw,
+          codigo: raw,
+          name: hkNormalizarNombre(p.nombre || ('JUGADOR ' + raw.replace('U',''))),
+          emoji: p.avatar || '👤',
+          tipo: String(p.tipo_cuenta || 'usuario').toLowerCase(),
+          ultima_actividad: p.ultima_actividad || null,
+          fuente:'perfiles'
+        };
+      }).filter(u => u.codigo && u.codigo.startsWith('U') && u.tipo !== 'invitado');
+      try { await window.hkActualizarContadores(); } catch(e){}
+      return window.hkUsuariosRegistrados;
+    } catch(e) { console.warn('usuarios registrados', e); return window.hkUsuariosRegistrados || []; }
+  };
+  try { hkCargarUsuariosRegistrados = window.hkCargarUsuariosRegistrados; } catch(e){}
+
+  // Guardar perfil completo en Supabase: logros/medallas/amigos/avatar/nombre/correo.
+  window.guardarPerfilNube = async function(){
+    const c = hkSupabase();
+    const user = window.usuarioActual || (typeof usuarioActual !== 'undefined' ? usuarioActual : null);
+    if (!c || !user) return;
+    try {
+      const yo = (typeof miIdentidadOnline === 'function') ? miIdentidadOnline() : { name:'JUGADOR', emoji:'👤' };
+      const logros = (typeof getBadges === 'function') ? getBadges() : [];
+      const amigos = (typeof getAmigos === 'function') ? getAmigos() : [];
+      await c.from('perfiles').update({
+        nombre: hkNormalizarNombre(yo.name),
+        avatar: yo.emoji,
+        correo: hkNormalizarEmail(user.email),
+        logros,
+        medallas: logros,
+        amigos,
+        ultima_actividad: new Date().toISOString()
+      }).eq('id', user.id);
+    } catch(e) { console.warn('guardarPerfilNube HK', e); }
+  };
+  try { guardarPerfilNube = window.guardarPerfilNube; } catch(e){}
+
+  // Recompensas: monedas + puntos + oro se reflejan en Supabase.
+  window.darRecompensa = async function(monedas, puntos, motivo){
+    const user = window.usuarioActual || (typeof usuarioActual !== 'undefined' ? usuarioActual : null);
+    if (!user) return;
+    const c = hkSupabase(); if (!c) return;
+    let p = window.perfilNube || (typeof perfilNube !== 'undefined' ? perfilNube : null) || {};
+    const newMonedas = Number(p.monedas || 0) + Number(monedas || 0);
+    const newPuntos = Number(p.puntos || 0) + Number(puntos || 0);
+    const newOro = Number(p.oro || p.monedas || 0) + Number(monedas || 0);
+    p = { ...p, monedas:newMonedas, puntos:newPuntos, oro:newOro };
+    window.perfilNube = p; try { perfilNube = p; } catch(e){}
+    try { await c.from('perfiles').update({ monedas:newMonedas, puntos:newPuntos, oro:newOro, ultima_actividad:new Date().toISOString() }).eq('id', user.id); }
+    catch(e) { try { await c.from('perfiles').update({ monedas:newMonedas, puntos:newPuntos }).eq('id', user.id); } catch(err){} }
+    try { if (typeof mostrarGanancia === 'function') mostrarGanancia(Number(monedas||0), Number(puntos||0), motivo); } catch(e){}
+    try { if (typeof actualizarSaldoVisible === 'function') actualizarSaldoVisible(); } catch(e){}
+  };
+  try { darRecompensa = window.darRecompensa; } catch(e){}
+
+  // Records: además de localStorage, se guardan en records JSONB.
+  const oldSaveRecord = window.saveRecord || (typeof saveRecord === 'function' ? saveRecord : null);
+  window.saveRecord = function(gameId, value, cmp){
+    let saved = value;
+    try { saved = oldSaveRecord ? oldSaveRecord(gameId, value, cmp || 'max') : value; } catch(e){}
+    const c = hkSupabase();
+    const user = window.usuarioActual || (typeof usuarioActual !== 'undefined' ? usuarioActual : null);
+    if (c && user) {
+      setTimeout(async () => {
+        try {
+          const p = window.perfilNube || (typeof perfilNube !== 'undefined' ? perfilNube : null) || {};
+          const rec = (p.records && typeof p.records === 'object') ? { ...p.records } : {};
+          rec[gameId] = saved;
+          p.records = rec;
+          window.perfilNube = p; try { perfilNube = p; } catch(e){}
+          await c.from('perfiles').update({ records: rec, ultima_actividad:new Date().toISOString() }).eq('id', user.id);
+        } catch(e){}
+      }, 0);
+    }
+    return saved;
+  };
+  try { saveRecord = window.saveRecord; } catch(e){}
+
+  // Mejorar texto de recuperación en login cuando se renderice.
+  function hkActualizarTextoLogin(){
+    const a = document.getElementById('olvideLink');
+    if (a) a.textContent = '¿Olvidaste usuario o contraseña?';
+    const reg = document.getElementById('regNombre');
+    if (reg) {
+      reg.placeholder = 'Tu nombre único';
+      reg.addEventListener('input', () => { reg.value = hkNormalizarNombre(reg.value); });
+    }
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(async () => { hkActualizarTextoLogin(); try{ await window.hkCargarUsuariosRegistrados(); await window.hkActualizarContadores(); if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline(); }catch(e){} }, 900);
+    setTimeout(async () => { try{ await window.hkCargarUsuariosRegistrados(); await window.hkActualizarContadores(); if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline(); }catch(e){} }, 3500);
+  });
+  try { new MutationObserver(hkActualizarTextoLogin).observe(document.body, {childList:true, subtree:true}); } catch(e){}
+  setInterval(async () => { try{ await window.hkCargarUsuariosRegistrados(); await window.hkActualizarContadores(); }catch(e){} }, 15000);
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   HUGOKIDS FIX ESTABLE: cuenta, usuarios, contadores y tabla
+   Evita congelamientos: carga datos con control, sin bucles pesados.
+   ══════════════════════════════════════════════════════════ */
+(function(){
+  const HK = { profiles: [], loading: false, lastLoad: 0, booted: false };
+
+  function sb(){ try { return getSupabase(); } catch(e) { return null; } }
+  function toast(m){ try { showToast(m); } catch(e) { alert(m); } }
+  function html(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function upperName(v){ return String(v || '').trim().replace(/\s+/g,' ').toUpperCase(); }
+  function emailOk(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim()); }
+  function codeFrom(p){
+    let raw = String((p && (p.codigo_publico || p.codigo || p.num || p.id_publico)) || '').trim().toUpperCase();
+    if (!raw && p && p.numero_amigo != null) raw = 'U' + String(p.numero_amigo).trim();
+    raw = raw.replace(/\s+/g,'');
+    if (/^\d+$/.test(raw)) raw = 'U' + raw;
+    raw = raw.replace(/^UU+/, 'U');
+    return raw;
+  }
+  function myCode(){ try { return codeFrom({ codigo_publico: getGuestId() }); } catch(e) { return ''; } }
+  function signed(){ try { return !!usuarioActual; } catch(e) { return false; } }
+  function friendCodes(){
+    const out = new Set();
+    try { (getAmigos() || []).forEach(a => { const c = codeFrom(a); if (c) out.add(c); }); } catch(e) {}
+    try { const p = perfilNube; if (p && Array.isArray(p.amigos)) p.amigos.forEach(a => { const c = codeFrom(a); if (c) out.add(c); }); } catch(e) {}
+    return out;
+  }
+  function isOnline(p){
+    const c = codeFrom(p);
+    try { if (typeof conectadosAhora !== 'undefined' && conectadosAhora && conectadosAhora[c]) return true; } catch(e) {}
+    const at = p && (p.ultima_actividad || p.at);
+    if (!at) return false;
+    const t = new Date(at).getTime();
+    return Number.isFinite(t) && (Date.now() - t) <= 3 * 60 * 1000;
+  }
+  function setText(id, value){ const el = document.getElementById(id); if (el) el.textContent = String(value); }
+
+  async function refreshSession(){
+    const c = sb(); if (!c) return null;
+    try {
+      const { data } = await c.auth.getSession();
+      if (data && data.session && data.session.user) {
+        usuarioActual = data.session.user;
+        window.usuarioActual = data.session.user;
+      }
+    } catch(e) {}
+    try { return usuarioActual || null; } catch(e) { return null; }
+  }
+
+  async function fetchProfiles(force){
+    const now = Date.now();
+    if (!force && HK.profiles.length && (now - HK.lastLoad) < 8000) return HK.profiles;
+    if (HK.loading) return HK.profiles;
+    const c = sb(); if (!c) return HK.profiles;
+    HK.loading = true;
+    try {
+      let r = await c.from('perfiles')
+        .select('id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta,ultima_actividad,amigos,correo,monedas,puntos,oro,trofeos,logros,medallas,records,comprados,titulo')
+        .order('nombre', { ascending: true })
+        .limit(500);
+      if (r.error) r = await c.from('perfiles').select('*').limit(500);
+      if (r.error) {
+        console.warn('HugoKids perfiles:', r.error.message);
+        return HK.profiles;
+      }
+      const data = Array.isArray(r.data) ? r.data : [];
+      HK.profiles = data.map(p => {
+        const codigo = codeFrom(p);
+        return {
+          ...p,
+          codigo,
+          codigo_publico: codigo,
+          nombre: upperName(p.nombre || ('JUGADOR ' + (codigo || '').replace('U',''))),
+          avatar: p.avatar || '👤',
+          tipo_cuenta: String(p.tipo_cuenta || 'usuario').toLowerCase() === 'invitado' ? 'invitado' : 'usuario'
+        };
+      }).filter(p => p.codigo && p.codigo.startsWith('U') && p.tipo_cuenta === 'usuario');
+      window.hkUsuariosRegistrados = HK.profiles.map(p => ({
+        id: p.codigo,
+        codigo: p.codigo,
+        name: p.nombre,
+        nombre: p.nombre,
+        emoji: p.avatar,
+        avatar: p.avatar,
+        tipo: 'usuario',
+        tipo_cuenta: 'usuario',
+        ultima_actividad: p.ultima_actividad,
+        fuente: 'perfiles'
+      }));
+      setText('registeredCount', HK.profiles.length);
+      return HK.profiles;
+    } catch(e) {
+      console.warn('HugoKids fetchProfiles:', e);
+      return HK.profiles;
+    } finally {
+      HK.loading = false;
+      HK.lastLoad = Date.now();
+    }
+  }
+
+  async function refreshVisitors(){
+    const c = sb(); if (!c) return;
+    try {
+      let r = await c.from('visitas').select('id', { count: 'exact', head: true });
+      if (!r.error && typeof r.count === 'number') { setText('visitorCount', r.count); return; }
+      r = await c.from('visitas').select('id').limit(100000);
+      if (!r.error && Array.isArray(r.data)) setText('visitorCount', r.data.length);
+    } catch(e) {}
+  }
+
+  function renderPlayersTable(list){
+    const tb = document.getElementById('tablaJugadoresOnline');
+    if (!tb) return;
+    const me = myCode();
+    const amigos = friendCodes();
+    const rows = (list || HK.profiles || [])
+      .filter(p => p.codigo && p.codigo !== me)
+      .sort((a,b) => {
+        const ao = isOnline(a) ? 1 : 0, bo = isOnline(b) ? 1 : 0;
+        if (bo !== ao) return bo - ao;
+        const af = amigos.has(a.codigo) ? 1 : 0, bf = amigos.has(b.codigo) ? 1 : 0;
+        if (bf !== af) return bf - af;
+        return String(a.nombre || '').localeCompare(String(b.nombre || ''));
+      });
+    const onlineTotal = rows.filter(isOnline).length + (me && me.startsWith('U') ? 1 : 0);
+    const onEl = document.getElementById('onlineCount');
+    if (onEl) onEl.textContent = '🟢 ' + onlineTotal;
+
+    if (!rows.length) {
+      tb.innerHTML = `<tr><td colspan="3" style="text-align:center;color:#7A6B9D;border-radius:14px">
+        Hay ${HK.profiles.length} usuario(s) registrado(s), pero no hay otros usuarios para mostrar.
+      </td></tr>`;
+      return;
+    }
+
+    tb.innerHTML = rows.map(u => {
+      const on = isOnline(u);
+      const friend = amigos.has(u.codigo);
+      const canUseOnline = signed() && on;
+      return `<tr>
+        <td>
+          <div class="lobby-player">
+            <div class="lobby-avatar">${html(u.avatar || '👤')}</div>
+            <div>
+              <div class="lobby-name">${html(u.nombre || 'JUGADOR')}</div>
+              <div class="lobby-num">${html(u.codigo)} · Usuario registrado</div>
+              ${friend ? '<div style="color:#7C3AED;font-size:.76rem;font-weight:900;margin-top:2px">🤝 Mi amigo</div>' : ''}
+            </div>
+          </div>
+        </td>
+        <td><span style="font-weight:900;color:${on ? '#16A34A' : '#6B7280'}">${on ? '🟢 En línea' : '⚫ Fuera de línea'}</span></td>
+        <td>
+          <button data-hk-add="${html(u.codigo)}" ${(!signed() || friend) ? 'disabled' : ''} class="lobby-btn lobby-add" style="opacity:${(!signed() || friend) ? '.55' : '1'};cursor:${(!signed() || friend) ? 'not-allowed' : 'pointer'}">🤝 Invitar a agregarse</button>
+          <button data-hk-play="${html(u.codigo)}" ${canUseOnline ? '' : 'disabled'} class="lobby-btn lobby-play" style="opacity:${canUseOnline ? '1' : '.55'};cursor:${canUseOnline ? 'pointer' : 'not-allowed'}">🎮 Invitar a jugar</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    tb.querySelectorAll('button[data-hk-add]').forEach(btn => {
+      if (btn.disabled) return;
+      btn.onclick = async e => {
+        e.preventDefault(); e.stopPropagation();
+        const code = btn.dataset.hkAdd;
+        try {
+          if (typeof enviarSolicitudAmistad === 'function') await enviarSolicitudAmistad(code);
+          else if (typeof agregarAmigo === 'function') await agregarAmigo(code);
+          else toast('No se encontró la función de solicitud de amistad.');
+        } catch(err) { toast('No se pudo enviar la invitación.'); }
+      };
+    });
+    tb.querySelectorAll('button[data-hk-play]').forEach(btn => {
+      if (btn.disabled) return;
+      btn.onclick = e => {
+        e.preventDefault(); e.stopPropagation();
+        try { invitarAmigo(btn.dataset.hkPlay); } catch(err) { toast('No se pudo invitar a jugar.'); }
+      };
+    });
+  }
+
+  async function loadAll(force){
+    const profiles = await fetchProfiles(force);
+    renderPlayersTable(profiles);
+    await refreshVisitors();
+    return profiles;
+  }
+
+  window.hkActualizarContadores = async () => loadAll(true);
+  window.hkCargarUsuariosRegistrados = async () => { await loadAll(true); return window.hkUsuariosRegistrados || []; };
+  window.refrescarTablaJugadoresOnline = function(){
+    renderPlayersTable(HK.profiles);
+    if (!HK.profiles.length || Date.now() - HK.lastLoad > 8000) setTimeout(() => loadAll(true), 0);
+  };
+  window.cargarJugadoresOnlineDesdePerfiles = async function(){
+    await loadAll(true);
+  };
+
+  async function nombreDisponible(nombre){
+    const c = sb(); if (!c) return true;
+    const nom = upperName(nombre);
+    try {
+      const r = await c.from('perfiles').select('id,nombre').ilike('nombre', nom).limit(1);
+      return !(r.data && r.data.length);
+    } catch(e) { return true; }
+  }
+
+  window.registrarCuenta = async function(email, password, nombre){
+    const c = sb(); if (!c) return { error: 'No hay conexión con Supabase.' };
+    const em = String(email || '').trim().toLowerCase();
+    const nom = upperName(nombre);
+    if (!nom || nom.length < 3) return { error: 'El nombre debe tener mínimo 3 letras.' };
+    if (!emailOk(em)) return { error: 'Escribe un correo válido.' };
+    if (!password || String(password).length < 6) return { error: 'La contraseña debe tener mínimo 6 caracteres.' };
+    if (!(await nombreDisponible(nom))) return { error: 'Ese nombre de usuario ya existe. Elige otro.' };
+
+    try {
+      const sign = await c.auth.signUp({ email: em, password: String(password), options: { data: { nombre: nom } } });
+      if (sign.error) return { error: (typeof traducirError === 'function') ? traducirError(sign.error.message) : sign.error.message };
+      const user = sign.data && sign.data.user;
+      if (user) {
+        usuarioActual = user; window.usuarioActual = user;
+        const num = (typeof numeroDesdeId === 'function') ? numeroDesdeId(user.id) : String(Math.floor(100000 + Math.random() * 900000));
+        const codigo = 'U' + String(num).replace(/^U/, '');
+        const avatar = (typeof getGuestAvatar === 'function') ? getGuestAvatar() : '👤';
+        const completo = {
+          id: user.id,
+          nombre: nom,
+          correo: em,
+          avatar,
+          numero_amigo: String(num).replace(/^U/, ''),
+          codigo_publico: codigo,
+          tipo_cuenta: 'usuario',
+          ultima_actividad: new Date().toISOString(),
+          monedas: 0,
+          puntos: 0,
+          oro: 0,
+          trofeos: 0,
+          logros: [],
+          medallas: [],
+          records: {},
+          amigos: [],
+          comprados: [],
+          titulo: ''
+        };
+        let ins = await c.from('perfiles').upsert(completo, { onConflict: 'id' }).select('*').maybeSingle();
+        if (ins.error) {
+          const basico = {
+            id: user.id,
+            nombre: nom,
+            avatar,
+            numero_amigo: String(num).replace(/^U/, ''),
+            codigo_publico: codigo,
+            tipo_cuenta: 'usuario',
+            ultima_actividad: new Date().toISOString(),
+            logros: [],
+            records: {},
+            amigos: []
+          };
+          ins = await c.from('perfiles').upsert(basico, { onConflict: 'id' }).select('*').maybeSingle();
+        }
+        if (ins.error) return { error: 'La cuenta se creó en Auth, pero no se pudo guardar el perfil. Revisa las políticas RLS de perfiles.' };
+        try { localStorage.setItem('im_usercode', codigo); localStorage.removeItem('im_guestid'); } catch(e) {}
+        try { setGuestName(nom); setGuestAvatar(avatar); } catch(e) {}
+        perfilNube = ins.data || completo; window.perfilNube = perfilNube;
+        await loadAll(true);
+      }
+      return { ok: true };
+    } catch(e) {
+      return { error: 'Error al crear cuenta: ' + (e && e.message ? e.message : e) };
+    }
+  };
+  try { registrarCuenta = window.registrarCuenta; } catch(e) {}
+
+  window.iniciarSesion = async function(email, password){
+    const c = sb(); if (!c) return { error: 'No hay conexión con Supabase.' };
+    try {
+      const { data, error } = await c.auth.signInWithPassword({ email: String(email || '').trim().toLowerCase(), password: String(password || '') });
+      if (error) return { error: (typeof traducirError === 'function') ? traducirError(error.message) : error.message };
+      usuarioActual = data.user; window.usuarioActual = data.user;
+      try { await asegurarPerfilUsuario(); } catch(e) {}
+      try { await cargarPerfilNube(); } catch(e) {}
+      await loadAll(true);
+      return { ok: true };
+    } catch(e) { return { error: 'Error al iniciar sesión.' }; }
+  };
+  try { iniciarSesion = window.iniciarSesion; } catch(e) {}
+
+  function modalBase(titulo){
+    try { if (typeof stopAllGames === 'function') stopAllGames(); } catch(e) {}
+    const modal = document.getElementById('modalOverlay');
+    const body = document.getElementById('modalBody');
+    const title = document.getElementById('modalTitle');
+    if (!modal || !body || !title) return null;
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    try { activeGame = 'cuenta'; } catch(e) {}
+    title.textContent = titulo || '🔐 Mi cuenta';
+    return body;
+  }
+  function bindClick(id, fn){
+    const el = document.getElementById(id); if (!el) return;
+    el.onclick = async e => { e.preventDefault(); await fn(e); };
+  }
+
+  window.renderLogin = function(){
+    const body = document.getElementById('modalBody'); if (!body) return;
+    body.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:24px;min-height:340px;color:white">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="font-size:2.4rem">🎮</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:1.35rem">Ingresa a HugoKids</div>
+          <div style="color:#86efac;font-size:.84rem;margin-top:6px">Tus amigos, monedas, medallas y trofeos se guardan en Supabase.</div>
+        </div>
+        <div style="max-width:380px;margin:0 auto">
+          <input id="logEmail" type="email" autocomplete="email" placeholder="Correo" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;color:white;font-weight:800;margin-bottom:10px">
+          <div style="position:relative;margin-bottom:8px">
+            <input id="logPass" type="password" autocomplete="current-password" placeholder="Contraseña" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px 46px 12px 12px;color:white;font-weight:800">
+            <button type="button" onclick="togglePasswordVisibility('logPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:0;color:white;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
+          </div>
+          <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;text-decoration:none;font-size:.84rem;font-weight:800">¿Olvidaste usuario o contraseña?</a></div>
+          <button id="btnLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:0;color:white;padding:14px;border-radius:14px;font-weight:900;font-size:1rem;cursor:pointer">Ingresar ▶</button>
+          <div style="text-align:center;color:#aaa;font-size:.86rem;margin-top:14px">¿No tienes cuenta? <a href="#" id="irRegistro" style="color:#FFD600;font-weight:900;text-decoration:none">Crear cuenta</a></div>
+        </div>
+      </div>`;
+    bindClick('btnLogin', async () => {
+      const em = document.getElementById('logEmail').value;
+      const pw = document.getElementById('logPass').value;
+      if (!em || !pw) return toast('⚠️ Escribe correo y contraseña.');
+      toast('Ingresando...');
+      const r = await window.iniciarSesion(em, pw);
+      if (r.error) return toast('❌ ' + r.error);
+      toast('✅ Sesión iniciada.');
+      try { actualizarBotonCuenta(); } catch(e) {}
+      if (typeof renderPanelUsuario === 'function') renderPanelUsuario();
+    });
+    bindClick('irRegistro', () => window.renderRegistro());
+    bindClick('olvideLink', () => { if (typeof renderRecuperar === 'function') renderRecuperar(); });
+  };
+  try { renderLogin = window.renderLogin; } catch(e) {}
+
+  window.renderRegistro = function(){
+    const body = document.getElementById('modalBody'); if (!body) return;
+    body.innerHTML = `
+      <div class="game-container" style="background:#0a0a14;padding:24px;min-height:360px;color:white">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="font-size:2.4rem">✨</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:1.35rem">Crear cuenta nueva</div>
+          <div style="color:#FFD600;font-size:.84rem;margin-top:6px">El nombre será ÚNICO y se guardará en MAYÚSCULA.</div>
+        </div>
+        <div style="max-width:380px;margin:0 auto">
+          <input id="regNombre" type="text" maxlength="16" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="NOMBRE DE USUARIO" style="text-transform:uppercase;width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;color:white;font-weight:900;margin-bottom:10px">
+          <input id="regEmail" type="email" autocomplete="email" placeholder="Correo" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;color:white;font-weight:800;margin-bottom:10px">
+          <div style="position:relative;margin-bottom:14px">
+            <input id="regPass" type="password" autocomplete="new-password" placeholder="Contraseña mínimo 6 caracteres" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px 46px 12px 12px;color:white;font-weight:800">
+            <button type="button" onclick="togglePasswordVisibility('regPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:0;color:white;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
+          </div>
+          <button id="btnRegistro" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:0;color:white;padding:14px;border-radius:14px;font-weight:900;font-size:1rem;cursor:pointer">Crear mi cuenta ▶</button>
+          <div style="text-align:center;color:#aaa;font-size:.86rem;margin-top:14px">¿Ya tienes cuenta? <a href="#" id="irLogin" style="color:#FFD600;font-weight:900;text-decoration:none">Ingresar</a></div>
+        </div>
+      </div>`;
+    const name = document.getElementById('regNombre');
+    if (name) name.addEventListener('input', () => { name.value = upperName(name.value); });
+    bindClick('btnRegistro', async () => {
+      const nom = upperName(document.getElementById('regNombre').value);
+      const em = document.getElementById('regEmail').value;
+      const pw = document.getElementById('regPass').value;
+      if (!nom || !em || !pw) return toast('⚠️ Completa todos los campos.');
+      toast('Creando cuenta...');
+      const r = await window.registrarCuenta(em, pw, nom);
+      if (r.error) return toast('❌ ' + r.error);
+      toast('🎉 Cuenta creada y perfil guardado.');
+      try { actualizarBotonCuenta(); } catch(e) {}
+      if (typeof renderPanelUsuario === 'function') renderPanelUsuario();
+    });
+    bindClick('irLogin', () => window.renderLogin());
+  };
+  try { renderRegistro = window.renderRegistro; } catch(e) {}
+
+  window.openCuenta = function(){
+    const body = modalBase('🔐 Mi cuenta');
+    if (!body) return;
+    refreshSession().then(() => {
+      if (signed() && typeof renderPanelUsuario === 'function') renderPanelUsuario();
+      else window.renderLogin();
+    });
+  };
+  try { openCuenta = window.openCuenta; } catch(e) {}
+
+  function boot(){
+    if (HK.booted) return;
+    HK.booted = true;
+    const b = document.getElementById('cuentaBtn');
+    if (b) b.onclick = e => { e.preventDefault(); window.openCuenta(); };
+    refreshSession().finally(() => loadAll(true));
+    setTimeout(() => loadAll(true), 1500);
+    setTimeout(() => loadAll(true), 5000);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+  setInterval(() => loadAll(true), 30000);
+})();
+</script>
+
+
+<script>
+document.addEventListener('visibilitychange', function(){
+  if (document.hidden && window.HK_IS_MOBILE && typeof stopAllGames === 'function' && document.getElementById('modalOverlay') && !document.getElementById('modalOverlay').classList.contains('open')) {
+    try { stopAllGames(); } catch(e) {}
+  }
+});
+</script>
+
+
+<script>
+/* ===== Corrección final móvil: cuenta estable + usuarios online ===== */
+(function(){
+  const ST = { profiles: [], loading:false, last:0, sessionChecked:false };
+  function c(){ try { return getSupabase(); } catch(e){ return null; } }
+  function toast(m){ try { showToast(m); } catch(e){ console.log(m); } }
+  function html(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function upper(v){ return String(v||'').trim().replace(/\s+/g,' ').toUpperCase(); }
+  function emailOk(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||'').trim()); }
+  function codeFrom(p){
+    let raw = String((p && (p.codigo_publico || p.codigo || p.num || p.id_publico)) || '').trim().toUpperCase().replace(/\s+/g,'');
+    if (!raw && p && p.numero_amigo != null) raw = 'U' + String(p.numero_amigo).trim();
+    if (/^\d+$/.test(raw)) raw = 'U' + raw;
+    return raw.replace(/^UU+/, 'U');
+  }
+  function meCode(){ try { return codeFrom({codigo_publico:getGuestId()}); } catch(e){ return ''; } }
+  function signed(){ try { return !!usuarioActual; } catch(e){ return false; } }
+  function setTxt(id,v){ const el=document.getElementById(id); if(el) el.textContent=String(v); }
+  function isOn(p){
+    const at = p && p.ultima_actividad;
+    if (!at) return false;
+    const t = new Date(at).getTime();
+    return Number.isFinite(t) && Date.now()-t < 3*60*1000;
+  }
+  function friendSet(){
+    const s=new Set();
+    try{ (getAmigos()||[]).forEach(a=>{const x=codeFrom(a); if(x) s.add(x);}); }catch(e){}
+    try{ if(perfilNube && Array.isArray(perfilNube.amigos)) perfilNube.amigos.forEach(a=>{const x=codeFrom(a); if(x) s.add(x);}); }catch(e){}
+    return s;
+  }
+
+  // En móvil ya no usamos touchstart para botones: solo click normal, evita doble ejecución y bloqueos.
+  window.bindBtn = function(id, fn){
+    const el=document.getElementById(id); if(!el) return;
+    let busy=false;
+    el.onclick = async function(e){
+      e.preventDefault(); e.stopPropagation();
+      if(busy) return; busy=true;
+      try { await fn(e); } finally { setTimeout(()=>busy=false, 450); }
+    };
+  };
+  try { bindBtn = window.bindBtn; } catch(e) {}
+
+  async function session(){
+    const sb=c(); if(!sb) return null;
+    try{
+      const r=await sb.auth.getSession();
+      if(r.data && r.data.session && r.data.session.user){
+        usuarioActual = r.data.session.user; window.usuarioActual = usuarioActual;
+      }
+    }catch(e){}
+    return signed() ? usuarioActual : null;
+  }
+
+  async function heartbeat(){
+    const sb=c(); if(!sb || !signed()) return;
+    try{ await sb.from('perfiles').update({ultima_actividad:new Date().toISOString()}).eq('id', usuarioActual.id); }catch(e){}
+  }
+
+  async function cargarUsuarios(force){
+    const sb=c(); if(!sb) return ST.profiles;
+    if(ST.loading) return ST.profiles;
+    if(!force && ST.profiles.length && Date.now()-ST.last < 12000) return ST.profiles;
+    ST.loading=true;
+    try{
+      let r = await sb.from('perfiles').select('id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta,ultima_actividad,amigos').order('nombre',{ascending:true}).limit(300);
+      if(r.error) r = await sb.from('perfiles').select('*').limit(300);
+      if(r.error){
+        const tb=document.getElementById('tablaJugadoresOnline');
+        if(tb) tb.innerHTML = `<tr><td colspan="3" style="text-align:center;color:#dc2626;border-radius:14px">No puedo leer usuarios de Supabase. Revisa políticas SELECT de perfiles.</td></tr>`;
+        return ST.profiles;
+      }
+      ST.profiles = (r.data||[]).map(p=>({
+        ...p,
+        codigo: codeFrom(p),
+        nombre: upper(p.nombre || 'JUGADOR'),
+        avatar: p.avatar || '👤',
+        tipo_cuenta: String(p.tipo_cuenta || 'usuario').toLowerCase()
+      })).filter(p=>p.codigo && p.codigo.startsWith('U') && p.tipo_cuenta !== 'invitado');
+      ST.last=Date.now();
+      setTxt('registeredCount', ST.profiles.length);
+      window.hkUsuariosRegistrados = ST.profiles.map(p=>({id:p.codigo,codigo:p.codigo,name:p.nombre,nombre:p.nombre,emoji:p.avatar,avatar:p.avatar,ultima_actividad:p.ultima_actividad,tipo:'usuario'}));
+    }catch(e){ console.warn('cargarUsuarios', e); }
+    finally{ ST.loading=false; }
+    return ST.profiles;
+  }
+
+  async function cargarVisitas(){
+    const sb=c(); if(!sb) return;
+    try{
+      let r=await sb.from('visitas').select('id',{count:'exact',head:true});
+      if(!r.error && typeof r.count==='number'){ setTxt('visitorCount', r.count); return; }
+      r=await sb.from('visitas').select('id').limit(100000);
+      if(!r.error && Array.isArray(r.data)) setTxt('visitorCount', r.data.length);
+    }catch(e){}
+  }
+
+  function pintarTabla(){
+    const tb=document.getElementById('tablaJugadoresOnline'); if(!tb) return;
+    const me=meCode();
+    const amigos=friendSet();
+    const list=(ST.profiles||[]).filter(p=>p.codigo!==me).sort((a,b)=>{
+      const ao=isOn(a)?1:0, bo=isOn(b)?1:0; if(bo-ao) return bo-ao;
+      const af=amigos.has(a.codigo)?1:0, bf=amigos.has(b.codigo)?1:0; if(bf-af) return bf-af;
+      return String(a.nombre).localeCompare(String(b.nombre));
+    });
+    const online = (ST.profiles||[]).filter(isOn).length;
+    setTxt('onlineCount', '🟢 ' + online);
+    const mini=document.querySelector('.lobby-mini');
+    if(mini) mini.innerHTML = '🟢 En línea · ⚫ Fuera de línea · 🤝 Mi amigo<br>🔐 Solo usuarios registrados pueden jugar online. Si está fuera de línea, el botón se bloquea.';
+
+    if(!list.length){
+      tb.innerHTML = `<tr><td colspan="3" style="text-align:center;color:#7A6B9D;border-radius:14px">Hay ${ST.profiles.length} usuario(s) registrado(s). Cuando otro usuario entre, aparecerá aquí con su estado.</td></tr>`;
+      return;
+    }
+    tb.innerHTML = list.map(u=>{
+      const on=isOn(u), friend=amigos.has(u.codigo), can=signed() && on;
+      return `<tr>
+        <td><div class="lobby-player"><div class="lobby-avatar">${html(u.avatar)}</div><div><div class="lobby-name">${html(u.nombre)}</div><div class="lobby-num">${html(u.codigo)} · Usuario registrado</div>${friend?'<div style="color:#7C3AED;font-size:.76rem;font-weight:900">🤝 Mi amigo</div>':''}</div></div></td>
+        <td><span style="font-weight:900;color:${on?'#16A34A':'#6B7280'}">${on?'🟢 En línea':'⚫ Fuera de línea'}</span></td>
+        <td>
+          <button data-hkadd="${html(u.codigo)}" ${(!signed()||friend||!on)?'disabled':''} class="lobby-btn lobby-add" style="opacity:${(!signed()||friend||!on)?.55:1};cursor:${(!signed()||friend||!on)?'not-allowed':'pointer'}">🤝 Invitar a agregarse</button>
+          <button data-hkplay="${html(u.codigo)}" ${can?'':'disabled'} class="lobby-btn lobby-play" style="opacity:${can?1:.55};cursor:${can?'pointer':'not-allowed'}">🎮 Invitar a jugar</button>
+        </td>
+      </tr>`;
+    }).join('');
+    tb.querySelectorAll('[data-hkadd]').forEach(b=>{ b.onclick=async e=>{ e.preventDefault(); if(b.disabled) return; const code=b.dataset.hkadd; try{ if(typeof enviarSolicitudAmistad==='function') await enviarSolicitudAmistad(code); else if(typeof agregarAmigo==='function') await agregarAmigo(code); toast('🤝 Invitación enviada.'); }catch(err){ toast('No se pudo invitar a agregarse.'); } }; });
+    tb.querySelectorAll('[data-hkplay]').forEach(b=>{ b.onclick=e=>{ e.preventDefault(); if(b.disabled) return; try{ invitarAmigo(b.dataset.hkplay); }catch(err){ toast('No se pudo invitar a jugar.'); } }; });
+  }
+
+  async function refrescarTodo(force){
+    await session();
+    await heartbeat();
+    await cargarUsuarios(force);
+    pintarTabla();
+    cargarVisitas();
+    actualizarBotonCuenta();
+  }
+
+  window.refrescarTablaJugadoresOnline = function(){ pintarTabla(); cargarUsuarios(false).then(pintarTabla); };
+  window.hkCargarUsuariosRegistrados = async function(){ await cargarUsuarios(true); pintarTabla(); return window.hkUsuariosRegistrados||[]; };
+  window.hkActualizarContadores = async function(){ await refrescarTodo(true); };
+
+  window.actualizarBotonCuenta = function(){
+    const btn=document.getElementById('cuentaBtn'); if(!btn) return;
+    if(signed()){
+      const n = upper((perfilNube && perfilNube.nombre) || (usuarioActual && usuarioActual.email ? usuarioActual.email.split('@')[0] : 'USUARIO'));
+      btn.textContent = '👤 ' + (n.length>9 ? n.slice(0,9)+'…' : n);
+      btn.title = 'Cuenta: cerrar sesión o cambiar cuenta';
+    }else{
+      btn.textContent = 'Crear cuenta';
+      btn.title = 'Crear cuenta o iniciar sesión';
+    }
+  };
+  try { actualizarBotonCuenta = window.actualizarBotonCuenta; } catch(e){}
+
+  function modalBody(t){
+    const modal=document.getElementById('modalOverlay'), body=document.getElementById('modalBody'), title=document.getElementById('modalTitle');
+    if(!modal||!body||!title) return null;
+    modal.classList.add('open'); document.body.style.overflow='hidden'; title.textContent=t || '🔐 Mi cuenta';
+    try { activeGame='cuenta'; } catch(e){}
+    return body;
+  }
+  function field(id,type,ph,auto){ return `<input id="${id}" type="${type}" autocomplete="${auto||'off'}" placeholder="${ph}" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;color:white;font-weight:900;margin-bottom:10px">`; }
+  function eye(id){ return `<button type="button" onclick="togglePasswordVisibility('${id}', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:0;color:white;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>`; }
+
+  window.renderLogin = function(){
+    const body=document.getElementById('modalBody'); if(!body) return;
+    body.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:22px;min-height:330px;color:white"><div style="text-align:center;margin-bottom:14px"><div style="font-size:2.2rem">🎮</div><div style="font-family:'Fredoka One',cursive;font-size:1.25rem">Ingresa a HugoKids</div><div style="color:#86efac;font-size:.82rem;margin-top:4px">Tus datos se guardan en Supabase.</div></div><div style="max-width:360px;margin:0 auto">${field('logEmail','email','Correo','email')}<div style="position:relative;margin-bottom:8px"><input id="logPass" type="password" autocomplete="current-password" placeholder="Contraseña" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px 46px 12px 12px;color:white;font-weight:900">${eye('logPass')}</div><div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;text-decoration:none;font-size:.84rem;font-weight:900">¿Olvidaste usuario o contraseña?</a></div><button id="btnLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:0;color:white;padding:14px;border-radius:14px;font-weight:900;font-size:1rem;cursor:pointer">Ingresar ▶</button><div style="text-align:center;color:#aaa;font-size:.86rem;margin-top:14px">¿No tienes cuenta? <a href="#" id="irRegistro" style="color:#FFD600;font-weight:900;text-decoration:none">Crear cuenta</a></div></div></div>`;
+    bindBtn('btnLogin', async()=>{ const em=document.getElementById('logEmail').value, pw=document.getElementById('logPass').value; if(!em||!pw) return toast('⚠️ Escribe correo y contraseña.'); toast('Ingresando...'); const r=await iniciarSesion(em,pw); if(r.error) return toast('❌ '+r.error); await refrescarTodo(true); toast('✅ Sesión iniciada.'); renderCuentaActiva(); });
+    const reg=document.getElementById('irRegistro'); if(reg) reg.onclick=e=>{e.preventDefault(); renderRegistro();};
+    const olv=document.getElementById('olvideLink'); if(olv) olv.onclick=e=>{e.preventDefault(); if(typeof renderRecuperar==='function') renderRecuperar();};
+  };
+  try { renderLogin = window.renderLogin; } catch(e){}
+
+  window.renderRegistro = function(){
+    const body=document.getElementById('modalBody'); if(!body) return;
+    body.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:22px;min-height:350px;color:white"><div style="text-align:center;margin-bottom:14px"><div style="font-size:2.2rem">✨</div><div style="font-family:'Fredoka One',cursive;font-size:1.25rem">Crear cuenta nueva</div><div style="color:#FFD600;font-size:.82rem;margin-top:4px">Nombre ÚNICO en MAYÚSCULA.</div></div><div style="max-width:360px;margin:0 auto"><input id="regNombre" maxlength="16" placeholder="NOMBRE DE USUARIO" autocomplete="off" autocorrect="off" spellcheck="false" style="text-transform:uppercase;width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px;color:white;font-weight:900;margin-bottom:10px">${field('regEmail','email','Correo','email')}<div style="position:relative;margin-bottom:14px"><input id="regPass" type="password" autocomplete="new-password" placeholder="Contraseña mínimo 6 caracteres" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:12px 46px 12px 12px;color:white;font-weight:900">${eye('regPass')}</div><button id="btnRegistro" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:0;color:white;padding:14px;border-radius:14px;font-weight:900;font-size:1rem;cursor:pointer">Crear mi cuenta ▶</button><div style="text-align:center;color:#aaa;font-size:.86rem;margin-top:14px">¿Ya tienes cuenta? <a href="#" id="irLogin" style="color:#FFD600;font-weight:900;text-decoration:none">Ingresar</a></div></div></div>`;
+    const nm=document.getElementById('regNombre'); if(nm) nm.addEventListener('input',()=>nm.value=upper(nm.value));
+    bindBtn('btnRegistro', async()=>{ const nom=upper(document.getElementById('regNombre').value), em=document.getElementById('regEmail').value, pw=document.getElementById('regPass').value; if(!nom||!em||!pw) return toast('⚠️ Completa todos los campos.'); toast('Creando cuenta...'); const r=await registrarCuenta(em,pw,nom); if(r.error) return toast('❌ '+r.error); await refrescarTodo(true); toast('🎉 Cuenta creada.'); renderCuentaActiva(); });
+    const login=document.getElementById('irLogin'); if(login) login.onclick=e=>{e.preventDefault(); renderLogin();};
+  };
+  try { renderRegistro = window.renderRegistro; } catch(e){}
+
+  function renderCuentaActiva(){
+    const body=document.getElementById('modalBody'); if(!body) return;
+    const n=upper((perfilNube&&perfilNube.nombre) || (usuarioActual&&usuarioActual.email?usuarioActual.email.split('@')[0]:'USUARIO'));
+    const av=(perfilNube&&perfilNube.avatar)||'👤'; const code=meCode();
+    body.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:24px;color:white;text-align:center;min-height:300px"><div style="font-size:3rem">${html(av)}</div><div style="font-family:'Fredoka One',cursive;font-size:1.4rem;margin:6px 0">${html(n)}</div><div style="color:#16A34A;font-weight:900;margin-bottom:16px">${html(code||'USUARIO REGISTRADO')}</div><div style="background:#101827;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px;margin:0 auto 14px;max-width:360px;color:#c7d2fe">✅ Sesión iniciada. Puedes cerrar sesión o cambiar de cuenta.</div><div style="display:flex;flex-direction:column;gap:10px;max-width:360px;margin:0 auto"><button id="hkGoProfile" style="background:#7C3AED;color:white;border:0;border-radius:14px;padding:13px;font-weight:900">👤 Ver perfil y medallas</button><button id="hkChangeAccount" style="background:#F59E0B;color:white;border:0;border-radius:14px;padding:13px;font-weight:900">🔁 Cambiar cuenta</button><button id="hkLogout" style="background:#dc2626;color:white;border:0;border-radius:14px;padding:13px;font-weight:900">Cerrar sesión</button></div></div>`;
+    bindBtn('hkGoProfile', ()=>{ try{ closeModal(); }catch(e){} try{ openProfile(); }catch(e){} });
+    bindBtn('hkChangeAccount', async()=>{ await cerrarSesion(); await refrescarTodo(true); renderLogin(); });
+    bindBtn('hkLogout', async()=>{ await cerrarSesion(); await refrescarTodo(true); toast('Sesión cerrada.'); renderLogin(); });
+  }
+
+  window.openCuenta = function(){
+    const body=modalBody(signed()?'👤 Cuenta':'🔐 Crear cuenta / ingresar');
+    if(!body) return;
+    body.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:30px;text-align:center;color:white">Cargando cuenta...</div>`;
+    session().then(()=>{ actualizarBotonCuenta(); signed()?renderCuentaActiva():renderLogin(); }).catch(()=>renderLogin());
+  };
+  try { openCuenta = window.openCuenta; } catch(e){}
+
+  // Registro robusto: MAYÚSCULA, nombre único y perfil en Supabase.
+  const oldRegistrar = window.registrarCuenta || (typeof registrarCuenta==='function'?registrarCuenta:null);
+  window.registrarCuenta = async function(email,password,nombre){
+    const sb=c(); if(!sb) return {error:'No hay conexión con Supabase.'};
+    const em=String(email||'').trim().toLowerCase(), nom=upper(nombre);
+    if(nom.length<3) return {error:'El nombre debe tener mínimo 3 letras.'};
+    if(!emailOk(em)) return {error:'Escribe un correo válido.'};
+    if(String(password||'').length<6) return {error:'La contraseña debe tener mínimo 6 caracteres.'};
+    try{
+      const check=await sb.from('perfiles').select('id,nombre').ilike('nombre',nom).limit(1);
+      if(check.data && check.data.length) return {error:'Ese nombre ya existe. Elige otro.'};
+    }catch(e){}
+    try{
+      const sign=await sb.auth.signUp({email:em,password:String(password),options:{data:{nombre:nom}}});
+      if(sign.error) return {error:(typeof traducirError==='function')?traducirError(sign.error.message):sign.error.message};
+      usuarioActual=sign.data.user; window.usuarioActual=usuarioActual;
+      if(usuarioActual){
+        const num=(typeof numeroDesdeId==='function')?numeroDesdeId(usuarioActual.id):String(Math.floor(100000+Math.random()*900000));
+        const codigo='U'+String(num).replace(/^U/,'');
+        const av=(typeof getGuestAvatar==='function')?getGuestAvatar():'👤';
+        const perfil={id:usuarioActual.id,nombre:nom,correo:em,avatar:av,numero_amigo:String(num).replace(/^U/,''),codigo_publico:codigo,tipo_cuenta:'usuario',ultima_actividad:new Date().toISOString(),monedas:0,puntos:0,oro:0,trofeos:0,logros:[],medallas:[],records:{},amigos:[],comprados:[],titulo:''};
+        let ins=await sb.from('perfiles').upsert(perfil,{onConflict:'id'}).select('*').maybeSingle();
+        if(ins.error){
+          const basico={id:usuarioActual.id,nombre:nom,avatar:av,numero_amigo:String(num).replace(/^U/,''),codigo_publico:codigo,tipo_cuenta:'usuario',ultima_actividad:new Date().toISOString(),logros:[],records:{},amigos:[]};
+          ins=await sb.from('perfiles').upsert(basico,{onConflict:'id'}).select('*').maybeSingle();
+        }
+        if(ins.error) return {error:'La cuenta se creó, pero no se pudo guardar el perfil. Revisa RLS de perfiles.'};
+        perfilNube=ins.data||perfil; window.perfilNube=perfilNube;
+        try{ localStorage.setItem('im_usercode',codigo); setGuestName(nom); setGuestAvatar(av); }catch(e){}
+      }
+      return {ok:true};
+    }catch(e){
+      return oldRegistrar ? oldRegistrar(email,password,nom) : {error:'Error al crear cuenta.'};
+    }
+  };
+  try { registrarCuenta = window.registrarCuenta; } catch(e){}
+
+  function bootStable(){
+    const b=document.getElementById('cuentaBtn'); if(b) b.onclick=e=>{e.preventDefault(); openCuenta();};
+    refrescarTodo(true);
+    setTimeout(()=>refrescarTodo(true), 2500);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', bootStable); else bootStable();
+  setInterval(()=>refrescarTodo(false), 60000);
 })();
 </script>
 
