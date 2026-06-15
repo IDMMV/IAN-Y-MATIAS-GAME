@@ -452,6 +452,12 @@
   .lobby-add { background:#7C3AED; color:white; }
   .lobby-play { background:#16A34A; color:white; }
   .lobby-warn { background:#F59E0B; color:white; }
+  .lobby-btn:disabled { background:#9CA3AF !important; color:#F3F4F6 !important; cursor:not-allowed !important; opacity:.65; }
+  .lobby-status-pill { display:inline-flex; align-items:center; gap:6px; font-weight:900; border-radius:999px; padding:5px 10px; font-size:.78rem; }
+  .lobby-status-on { color:#047857; background:#D1FAE5; }
+  .lobby-status-off { color:#4B5563; background:#E5E7EB; }
+  .lobby-friend-mark { display:inline-block; color:#7C3AED; background:#EDE9FE; border-radius:999px; padding:4px 9px; font-weight:900; font-size:.74rem; margin-top:4px; }
+  .lobby-note { margin-top:10px; background:#FFF7ED; border:1px solid #FDBA74; color:#9A3412; border-radius:14px; padding:10px 12px; font-weight:800; font-size:.86rem; }
   @media (max-width:600px){
     .online-lobby{padding:0 14px 24px}.lobby-card{padding:12px;border-radius:20px}.lobby-table th:nth-child(2),.lobby-table td:nth-child(2){display:none}.lobby-btn{padding:7px 9px;font-size:.76rem}.lobby-name{max-width:120px}
   }
@@ -595,7 +601,8 @@
   <div class="stat"><div class="stat-num">51</div><div class="stat-label">Juegos</div></div>
   <div class="stat"><div class="stat-num">7</div><div class="stat-label">Categorías</div></div>
   <div class="stat"><div class="stat-num" id="onlineCount" style="color:#16A34A">🟢 1</div><div class="stat-label">En línea</div></div>
-  <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Diversión</div></div>
+  <div class="stat"><div class="stat-num" id="registeredCount">0</div><div class="stat-label">Usuarios registrados</div></div>
+  <div class="stat"><div class="stat-num" id="visitorCount">0</div><div class="stat-label">Visitantes</div></div>
 </div>
 
 
@@ -605,8 +612,13 @@
   <div class="lobby-card">
     <div class="lobby-head">
       <div>
-        <div class="lobby-title">👥 Jugadores en línea</div>
-        <div class="lobby-mini">Agrega amigos permanentes o envía solicitud para jugar.</div>
+        <div class="lobby-title">👥 Jugadores y amigos</div>
+        <div class="lobby-mini">
+          <span style="color:#16A34A;font-weight:900">🟢 En línea</span> ·
+          <span style="color:#6B7280;font-weight:900">⚫ Fuera de línea</span> ·
+          <span style="color:#7C3AED;font-weight:900">🤝 Mi amigo</span><br>
+          🔐 Solo usuarios registrados pueden agregar amigos y jugar online. Los invitados solo pueden probar juegos locales.
+        </div>
       </div>
       <button class="lobby-btn lobby-warn" onclick="openCuenta()">🔐 Mi cuenta</button>
     </div>
@@ -615,6 +627,7 @@
         <thead><tr><th>Jugador</th><th>Estado</th><th>Acciones</th></tr></thead>
         <tbody id="tablaJugadoresOnline"><tr><td colspan="3" style="text-align:center;color:#7A6B9D;border-radius:14px">Conectando jugadores...</td></tr></tbody>
       </table>
+      <div class="lobby-note">🔐 Para jugar online o aceptar solicitudes, ambos deben tener cuenta iniciada. Si un usuario está fuera de línea, el botón de invitar a jugar queda deshabilitado.</div>
     </div>
   </div>
 </div>
@@ -8144,6 +8157,241 @@ if(_hgOriginalOpenGame){
   };
 
 })();
+
+
+/* ══════════════════════════════════════════════════════════
+   CORRECCIÓN 2026-06: ESTADOS ONLINE/OFFLINE, CONTADORES,
+   AMIGO VISIBLE Y BOTONES SOLO SI ESTÁ EN LÍNEA
+   ══════════════════════════════════════════════════════════ */
+(function(){
+  function hkToast(msg){ try{ showToast(msg); }catch(e){ alert(msg); } }
+  function hkHtml(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function hkCode(v){ try{ return normalizarCodigoAmigo(v); }catch(e){ return String(v||'').toUpperCase().replace(/\s+/g,''); } }
+  function hkMiCodigo(){ try{ return hkCode(getGuestId()); }catch(e){ return ''; } }
+  function hkEsRegistrado(){ try{ return !!soyUsuarioRegistrado(); }catch(e){ return false; } }
+  function hkAmigos(){ try{ return Array.isArray(getAmigos()) ? getAmigos() : []; }catch(e){ return []; } }
+  function hkOnlineMap(){
+    try{ if (typeof conectadosAhora !== 'undefined' && conectadosAhora) return conectadosAhora; }catch(e){}
+    return window.conectadosAhora || {};
+  }
+  function hkOnlineInfo(code){
+    code = hkCode(code);
+    const m = hkOnlineMap();
+    return m[code] || m[String(code||'')] || null;
+  }
+  function hkIsOnlineUser(u){
+    const code = hkCode(u.codigo || u.id || u.num);
+    if (hkOnlineInfo(code)) return true;
+    const at = u.ultima_actividad || u.at;
+    if (!at) return false;
+    const t = new Date(at).getTime();
+    return Number.isFinite(t) && (Date.now() - t) <= 2 * 60 * 1000;
+  }
+  function hkSetText(id, value){ const el = document.getElementById(id); if (el) el.textContent = value; }
+
+  window.hkUsuariosRegistrados = window.hkUsuariosRegistrados || [];
+
+  async function hkActualizarContadores(){
+    const c = typeof getSupabase === 'function' ? getSupabase() : null;
+    if (!c) return;
+    try{
+      const r = await c.from('perfiles').select('*', { count:'exact', head:true });
+      if (!r.error && typeof r.count === 'number') hkSetText('registeredCount', String(r.count));
+    }catch(e){}
+    try{
+      const v = await c.from('visitas').select('*', { count:'exact', head:true });
+      if (!v.error && typeof v.count === 'number') hkSetText('visitorCount', String(v.count));
+    }catch(e){}
+  }
+  window.hkActualizarContadores = hkActualizarContadores;
+
+  async function hkCargarUsuariosRegistrados(){
+    const c = typeof getSupabase === 'function' ? getSupabase() : null;
+    if (!c) return [];
+    try{
+      const { data, error } = await c.from('perfiles')
+        .select('id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta,ultima_actividad')
+        .order('nombre', { ascending:true })
+        .limit(120);
+      if (error || !Array.isArray(data)) return window.hkUsuariosRegistrados || [];
+      window.hkUsuariosRegistrados = data.map(p => {
+        const code = hkCode(p.codigo_publico || p.numero_amigo);
+        return {
+          id: code,
+          codigo: code,
+          name: p.nombre || ('Jugador #' + code),
+          emoji: p.avatar || '👤',
+          tipo: String(p.tipo_cuenta || 'usuario').toLowerCase(),
+          ultima_actividad: p.ultima_actividad || null,
+          fuente: 'perfiles'
+        };
+      }).filter(u => u.codigo && u.codigo.startsWith('U'));
+      return window.hkUsuariosRegistrados;
+    }catch(e){ return window.hkUsuariosRegistrados || []; }
+  }
+  window.hkCargarUsuariosRegistrados = hkCargarUsuariosRegistrados;
+
+  function hkPrepararLobby(){
+    const mini = document.querySelector('.lobby-mini');
+    if (mini && !mini.dataset.hkLegend) {
+      mini.dataset.hkLegend = '1';
+      mini.innerHTML = '<span style="color:#16A34A;font-weight:900">🟢 En línea</span> · <span style="color:#6B7280;font-weight:900">⚫ Fuera de línea</span> · <span style="color:#7C3AED;font-weight:900">🤝 Mi amigo</span><br>🔐 Solo usuarios registrados pueden agregar amigos y jugar online. Los invitados solo pueden probar juegos locales.';
+    }
+  }
+
+  function hkUnionJugadores(){
+    const yo = hkMiCodigo();
+    const map = new Map();
+    // 1) Todos los usuarios registrados conocidos por Supabase.
+    (window.hkUsuariosRegistrados || []).forEach(u => {
+      const code = hkCode(u.codigo || u.id);
+      if (!code || code === yo) return;
+      map.set(code, { ...u, id:code, codigo:code, esRegistrado:true });
+    });
+    // 2) Mis amigos, aunque estén fuera de línea y no hayan cargado en la lista anterior.
+    hkAmigos().forEach(a => {
+      const code = hkCode(a.num || a.codigo || a.id);
+      if (!code || code === yo) return;
+      const prev = map.get(code) || {};
+      map.set(code, { ...prev, id:code, codigo:code, name:prev.name || a.alias || ('Jugador #' + code), emoji:prev.emoji || a.avatar || '👤', esRegistrado:code.startsWith('U') });
+    });
+    // 3) Conectados reales: usuarios U e invitados G.
+    Object.entries(hkOnlineMap()).forEach(([id,u]) => {
+      const code = hkCode(id || (u && u.id));
+      if (!code || code === yo) return;
+      const prev = map.get(code) || {};
+      map.set(code, { ...prev, ...(u||{}), id:code, codigo:code, name:(u&&u.name)||prev.name||'Jugador', emoji:(u&&u.emoji)||prev.emoji||'👤', tipo:(u&&u.tipo)||prev.tipo, esRegistrado:code.startsWith('U') && String((u&&u.tipo)||prev.tipo||'usuario').toLowerCase() !== 'invitado', ultima_actividad:(u&&u.at)||prev.ultima_actividad });
+    });
+    return [...map.values()].sort((a,b) => {
+      const ao = hkIsOnlineUser(a) ? 1 : 0, bo = hkIsOnlineUser(b) ? 1 : 0;
+      if (bo !== ao) return bo - ao;
+      const af = hkAmigos().some(x => hkCode(x.num) === hkCode(a.codigo)) ? 1 : 0;
+      const bf = hkAmigos().some(x => hkCode(x.num) === hkCode(b.codigo)) ? 1 : 0;
+      if (bf !== af) return bf - af;
+      return String(a.name||'').localeCompare(String(b.name||''));
+    });
+  }
+
+  window.refrescarTablaJugadoresOnline = function(){
+    hkPrepararLobby();
+    const tb = document.getElementById('tablaJugadoresOnline');
+    if (!tb) return;
+    const yoEsUsuario = hkEsRegistrado();
+    const idsAmigos = new Set(hkAmigos().map(a => hkCode(a.num)));
+    const lista = hkUnionJugadores();
+    const totalOnline = lista.filter(hkIsOnlineUser).length + (yoEsUsuario ? 1 : 0);
+    const el = document.getElementById('onlineCount');
+    if (el) el.textContent = '🟢 ' + Math.max(yoEsUsuario ? 1 : 0, totalOnline);
+    if (!lista.length) {
+      tb.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#7A6B9D;border-radius:14px">No hay otros jugadores registrados o conectados para mostrar. Cuando otro usuario cree cuenta, aparecerá aquí.</td></tr>';
+      return;
+    }
+    tb.innerHTML = lista.map(u => {
+      const code = hkCode(u.codigo || u.id);
+      const esUsuario = code.startsWith('U') && String(u.tipo || 'usuario').toLowerCase() !== 'invitado';
+      const online = hkIsOnlineUser(u);
+      const esAmigo = idsAmigos.has(code);
+      const status = online
+        ? '<span class="lobby-status-pill lobby-status-on">🟢 En línea</span>'
+        : '<span class="lobby-status-pill lobby-status-off">⚫ Fuera de línea</span>';
+      const friendMark = esAmigo ? '<div class="lobby-friend-mark">🤝 Mi amigo</div>' : '';
+      let acciones = '';
+      if (!yoEsUsuario) {
+        acciones = '<span style="color:#f59e0b;font-weight:900">🔐 Inicia sesión para jugar online</span>';
+      } else if (!esUsuario) {
+        acciones = '<span style="color:#f59e0b;font-weight:900">Invitado temporal: no puede jugar online</span>';
+      } else if (!online) {
+        acciones = `${esAmigo ? '<span style="color:#7C3AED;font-weight:900;margin-right:8px">🤝 Mi amigo</span>' : '<button class="lobby-btn lobby-add" disabled>🤝 Invitar a agregarse</button>'}<button class="lobby-btn lobby-play" disabled>🎮 Invitar a jugar</button>`;
+      } else {
+        acciones = `${esAmigo ? '<span style="color:#7C3AED;font-weight:900;margin-right:8px">🤝 Mi amigo</span>' : `<button class="lobby-btn lobby-add" data-friend-request="${hkHtml(code)}">🤝 Invitar a agregarse</button>`}<button class="lobby-btn lobby-play" data-play-online="${hkHtml(code)}">🎮 Invitar a jugar</button>`;
+      }
+      return `<tr>
+        <td><div class="lobby-player"><div class="lobby-avatar">${hkHtml(u.emoji || '👤')}</div><div><div class="lobby-name">${hkHtml(u.name || 'Jugador')}</div><div class="lobby-num">${hkHtml(code)} · ${esUsuario ? 'Usuario registrado' : 'Invitado temporal'}</div>${friendMark}</div></div></td>
+        <td>${status}</td>
+        <td>${acciones}</td>
+      </tr>`;
+    }).join('');
+    tb.querySelectorAll('button[data-friend-request]').forEach(b => {
+      b.onclick = e => { e.preventDefault(); e.stopPropagation(); if (typeof enviarSolicitudAmistad === 'function') enviarSolicitudAmistad(b.dataset.friendRequest); else hkToast('No se pudo iniciar la solicitud.'); };
+    });
+    tb.querySelectorAll('button[data-play-online]').forEach(b => {
+      b.onclick = e => { e.preventDefault(); e.stopPropagation(); window.invitarAmigo(b.dataset.playOnline); };
+    });
+  };
+
+  const hkPrevInvitar = window.invitarAmigo;
+  window.invitarAmigo = async function(codigo){
+    if (!hkEsRegistrado()) { hkToast('🔐 Solo los usuarios registrados pueden jugar online. Inicia sesión o crea una cuenta.'); try{ openCuenta(); }catch(e){} return false; }
+    const code = hkCode(codigo);
+    if (!code || !code.startsWith('U')) { hkToast('🔐 Solo usuarios registrados con código U pueden jugar online.'); return false; }
+    if (!hkOnlineInfo(code)) { hkToast('⚫ Ese usuario está fuera de línea. El botón se habilita cuando esté conectado.'); return false; }
+    return hkPrevInvitar ? hkPrevInvitar.call(this, code) : false;
+  };
+
+  const hkPrevSolicitar = window.enviarSolicitudAmistad;
+  window.enviarSolicitudAmistad = async function(codigo){
+    if (!hkEsRegistrado()) { hkToast('🔐 Solo los usuarios registrados pueden agregar amigos.'); try{ openCuenta(); }catch(e){} return false; }
+    const code = hkCode(codigo);
+    if (!code || !code.startsWith('U')) { hkToast('Solo se puede invitar a agregarse a usuarios registrados con código U.'); return false; }
+    if (!hkOnlineInfo(code)) { hkToast('⚫ Ese usuario está fuera de línea. Debe estar conectado para aceptar la solicitud.'); return false; }
+    return hkPrevSolicitar ? hkPrevSolicitar.call(this, code) : false;
+  };
+  window.agregarAmigo = window.enviarSolicitudAmistad;
+
+  // Mejorar lista de amigos del perfil: muestra amigo + online/offline y solo habilita invitar si está online.
+  const hkPrevLista = window.refrescarListaAmigos;
+  window.refrescarListaAmigos = function(){
+    const cont = document.getElementById('listaAmigos');
+    if (!cont) { if (typeof hkPrevLista === 'function') hkPrevLista(); return; }
+    const amigos = hkAmigos();
+    if (!amigos.length) { cont.innerHTML = '<div style="color:#666;font-size:0.78rem;text-align:center">Aún no tienes amigos agregados</div>'; return; }
+    cont.innerHTML = amigos.map(a => {
+      const code = hkCode(a.num);
+      const on = hkOnlineInfo(code);
+      const online = !!on;
+      const nombre = on ? on.name : (a.alias || ('Amigo #' + code));
+      const emoji = on ? on.emoji : (a.avatar || '👤');
+      return `<div style="display:flex;align-items:center;gap:8px;background:#13131f;border-radius:10px;padding:8px;margin-bottom:6px">
+        <span style="font-size:1.3rem">${hkHtml(emoji)}</span>
+        <div style="flex:1;min-width:0">
+          <div style="color:#fff;font-weight:800;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${hkHtml(nombre)} <span style="color:#a78bfa;font-size:.72rem">🤝 Mi amigo</span></div>
+          <div style="color:${online?'#16A34A':'#888'};font-size:0.7rem">${online?'🟢 En línea':'⚫ Fuera de línea'} · ${hkHtml(code)}</div>
+        </div>
+        <button data-inv="${hkHtml(code)}" ${online?'':'disabled'} style="background:${online?'#16A34A':'#6B7280'};border:none;color:#fff;padding:7px 12px;border-radius:10px;font-weight:800;font-size:0.78rem;cursor:${online?'pointer':'not-allowed'};-webkit-tap-highlight-color:transparent">🎮 Invitar a jugar</button>
+        <button data-del="${hkHtml(code)}" style="background:rgba(220,38,38,0.2);border:none;color:#f87171;padding:7px 9px;border-radius:10px;cursor:pointer;-webkit-tap-highlight-color:transparent">🗑️</button>
+      </div>`;
+    }).join('');
+    cont.querySelectorAll('button[data-inv]').forEach(b => {
+      if (b.disabled) return;
+      const f = e => { e.preventDefault(); e.stopPropagation(); window.invitarAmigo(b.dataset.inv); };
+      b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+    });
+    cont.querySelectorAll('button[data-del]').forEach(b => {
+      const f = e => { e.preventDefault(); e.stopPropagation(); try{ quitarAmigo(b.dataset.del); }catch(err){} try{ SFX.click(); }catch(err){} try{ renderProfile(); }catch(err){ refrescarListaAmigos(); } };
+      b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+    });
+  };
+
+  // Sobrescribir la carga de perfiles para que la tabla muestre conectados y fuera de línea.
+  try{
+    const hkOldCargar = typeof cargarJugadoresOnlineDesdePerfiles === 'function' ? cargarJugadoresOnlineDesdePerfiles : null;
+    cargarJugadoresOnlineDesdePerfiles = async function(){
+      try{ if (hkOldCargar) await hkOldCargar(); }catch(e){}
+      await hkCargarUsuariosRegistrados();
+      await hkActualizarContadores();
+      try{ window.refrescarTablaJugadoresOnline(); }catch(e){}
+      try{ window.refrescarListaAmigos(); }catch(e){}
+    };
+  }catch(e){}
+
+  document.addEventListener('DOMContentLoaded', () => {
+    hkPrepararLobby();
+    setTimeout(async () => { await hkCargarUsuariosRegistrados(); await hkActualizarContadores(); window.refrescarTablaJugadoresOnline(); }, 1200);
+    setTimeout(async () => { await hkCargarUsuariosRegistrados(); await hkActualizarContadores(); window.refrescarTablaJugadoresOnline(); }, 3200);
+  });
+  setInterval(async () => { await hkCargarUsuariosRegistrados(); await hkActualizarContadores(); try{ window.refrescarTablaJugadoresOnline(); window.refrescarListaAmigos(); }catch(e){} }, 20000);
+})();
+
 </script>
 </body>
 </html>
