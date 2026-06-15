@@ -1326,6 +1326,7 @@ async function revisarSesion() {
     if (data && data.session) {
       usuarioActual = data.session.user;
       await asegurarPerfilUsuario();
+      await guardarCorreoPerfilActual();
       actualizarBotonCuenta();
       iniciarPresenciaGlobal();
       iniciarPulsoActividad();
@@ -1338,6 +1339,7 @@ async function revisarSesion() {
       }
       if (usuarioActual) {
         await asegurarPerfilUsuario();
+        await guardarCorreoPerfilActual();
         iniciarPresenciaGlobal();
         iniciarPulsoActividad();
       } else {
@@ -1382,6 +1384,7 @@ async function registrarCuenta(email, password, nombre) {
         logros: getBadges(), records: {}, amigos: getAmigos()
       });
       await cargarPerfilNube();
+      await guardarCorreoPerfilActual();
     }
     return { ok: true };
   } catch (e) { return { error: 'Error al crear cuenta' }; }
@@ -1395,6 +1398,7 @@ async function iniciarSesion(email, password) {
     if (error) return { error: traducirError(error.message) };
     usuarioActual = data.user;
     await asegurarPerfilUsuario();
+    await guardarCorreoPerfilActual();
     if (perfilNube && perfilNube.bloqueado) {
       await cerrarSesion();
       return { error: 'Tu cuenta está bloqueada. Contacta al administrador.' };
@@ -1418,6 +1422,63 @@ async function recuperarPassword(email) {
     if (error) return { error: traducirError(error.message) };
     return { ok: true };
   } catch (e) { return { error: 'Error' }; }
+}
+
+
+// Guarda el correo en perfiles para que luego se pueda recuperar/recordar el usuario.
+// Si aún no agregaste la columna correo en Supabase, no rompe la app: solo lo ignora.
+async function guardarCorreoPerfilActual() {
+  const c = getSupabase();
+  if (!c || !usuarioActual || !usuarioActual.email) return;
+  try {
+    await c.from('perfiles').update({ correo: usuarioActual.email }).eq('id', usuarioActual.id);
+  } catch (e) {
+    console.warn('No se pudo guardar correo en perfiles. Ejecuta el SQL de la columna correo.', e && e.message ? e.message : e);
+  }
+}
+
+// Busca la cuenta por código U, nombre de jugador o correo guardado.
+async function buscarUsuarioRecuperacion(dato) {
+  const c = getSupabase();
+  const texto = String(dato || '').trim();
+  if (!c) return { error: 'No se pudo conectar al servidor.' };
+  if (!texto) return { error: 'Escribe tu nombre, código U o correo.' };
+
+  const esCorreo = correoValido(texto);
+  const code = normalizarCodigoAmigo ? normalizarCodigoAmigo(texto) : texto.toUpperCase();
+  const numero = code && code.startsWith('U') ? code.slice(1) : texto.replace(/\D/g, '');
+
+  async function intentar(columnas, modo) {
+    try {
+      let q = c.from('perfiles').select(columnas).limit(5);
+      if (modo === 'codigo') q = q.eq('codigo_publico', code);
+      if (modo === 'numero') q = q.eq('numero_amigo', numero);
+      if (modo === 'nombre') q = q.ilike('nombre', `%${texto}%`);
+      if (modo === 'correo') q = q.eq('correo', texto.toLowerCase());
+      const { data, error } = await q;
+      if (error) return { error };
+      return { data: data || [] };
+    } catch (e) { return { error: e }; }
+  }
+
+  const columnasConCorreo = 'id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta,correo';
+  const columnasBase = 'id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta';
+  const modos = [];
+  if (code && code.startsWith('U')) modos.push('codigo');
+  if (numero && numero.length >= 3) modos.push('numero');
+  if (esCorreo) modos.push('correo');
+  modos.push('nombre');
+
+  let columnaCorreoExiste = true;
+  for (const modo of modos) {
+    let r = await intentar(columnasConCorreo, modo);
+    if (r.error) {
+      columnaCorreoExiste = false;
+      r = await intentar(columnasBase, modo);
+    }
+    if (r.data && r.data.length) return { ok: true, cuentas: r.data, columnaCorreoExiste };
+  }
+  return { ok: false, cuentas: [], columnaCorreoExiste, error: 'No encontré una cuenta con ese dato.' };
 }
 
 async function cerrarSesion() {
@@ -1864,6 +1925,11 @@ function conectarSala(codigo, esAnfitrion) {
   canalOnline.on('broadcast', { event: 'chat' }, ({ payload }) => {
     mostrarChatMsg(payload.nombre, payload.texto, payload.emoji);
   });
+  canalOnline.on('broadcast', { event: 'salida' }, ({ payload }) => {
+    const nombre = payload && payload.nombre ? payload.nombre : 'El otro jugador';
+    mostrarChatMsg('HugoKids', nombre + ' salió de la partida. Te quedaste solo en la sala.', '👋');
+    if (onRivalSalio) onRivalSalio();
+  });
   canalOnline.on('broadcast', { event: 'rival-listo' }, ({ payload }) => {
     if (onRivalConectado) onRivalConectado(payload);
     // Responder con mi info para que el otro también me detecte (handshake en ambos sentidos)
@@ -1873,6 +1939,7 @@ function conectarSala(codigo, esAnfitrion) {
   });
   // Presence: detectar quién está en la sala
   canalOnline.on('presence', { event: 'leave' }, () => {
+    mostrarChatMsg('HugoKids', 'El otro jugador salió de la partida. Te quedaste solo en la sala.', '👋');
     if (onRivalSalio) onRivalSalio();
   });
   canalOnline.subscribe(async (estado) => {
@@ -1985,7 +2052,17 @@ function enviarChatLibre(inputId) {
   enviarChatOnline(res.texto);
 }
 function salirSalaOnline() {
-  if (canalOnline) { try { getSupabase().removeChannel(canalOnline); } catch (e) {} canalOnline = null; }
+  if (canalOnline) {
+    try {
+      const ch = canalOnline;
+      const yo = miIdentidadOnline();
+      ch.send({ type: 'broadcast', event: 'salida', payload: { nombre: yo.name, emoji: yo.emoji } });
+      setTimeout(() => { try { getSupabase().removeChannel(ch); } catch (e) {} }, 250);
+    } catch (e) {
+      try { getSupabase().removeChannel(canalOnline); } catch (err) {}
+    }
+    canalOnline = null;
+  }
   salaOnline = null; onMovimientoOnline = null; onRivalConectado = null; onRivalSalio = null;
 }
 // mostrarChatMsg se define dentro del juego online
@@ -2576,7 +2653,7 @@ function renderLogin() {
           <input id="logPass" type="password" placeholder="Tu contraseña" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
           <button type="button" onclick="togglePasswordVisibility('logPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:none;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
         </div>
-        <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;font-size:0.8rem;text-decoration:none">¿Olvidaste tu contraseña?</a></div>
+        <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;font-size:0.8rem;text-decoration:none">¿Olvidaste usuario o contraseña?</a></div>
         <button id="btnLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:14px">Ingresar ▶</button>
         <div style="text-align:center;color:#aaa;font-size:0.85rem">¿No tienes cuenta? <a href="#" id="irRegistro" style="color:#FFD600;font-weight:800;text-decoration:none">Crear cuenta</a></div>
       </div>
@@ -2633,19 +2710,31 @@ function renderRegistro() {
 function renderRecuperar() {
   const body = document.getElementById('modalBody');
   body.innerHTML = `
-    <div class="game-container" style="background:#0a0a14;padding:22px;min-height:280px">
+    <div class="game-container" style="background:#0a0a14;padding:22px;min-height:420px">
       <div style="text-align:center;margin-bottom:16px">
         <div style="font-size:2.4rem">🔑</div>
-        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.2rem">Recuperar contraseña</div>
-        <div style="color:#aaa;font-size:0.82rem;margin-top:6px">Te enviaremos un correo para crear una nueva</div>
+        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.2rem">¿Olvidaste usuario o contraseña?</div>
+        <div style="color:#aaa;font-size:0.82rem;margin-top:6px">Puedes recuperar tu contraseña por correo o buscar tu cuenta por nombre/código U.</div>
       </div>
-      <div style="max-width:340px;margin:0 auto">
-        <input id="recEmail" type="email" placeholder="Tu correo" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:14px;outline:none">
-        <button id="btnRecuperar" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer;margin-bottom:12px">Enviar correo 📧</button>
+      <div style="max-width:420px;margin:0 auto;color:white">
+        <div style="background:#15152a;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:14px;margin-bottom:14px">
+          <div style="font-weight:900;margin-bottom:8px;color:#86efac">1) Recuperar contraseña</div>
+          <input id="recEmail" type="email" placeholder="Tu correo" autocomplete="email" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
+          <button id="btnRecuperar" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">Enviar correo para cambiar contraseña 📧</button>
+        </div>
+
+        <div style="background:#15152a;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:14px;margin-bottom:14px">
+          <div style="font-weight:900;margin-bottom:8px;color:#FFD600">2) Recordar mi usuario</div>
+          <div style="color:#cfc7ff;font-size:.78rem;margin-bottom:8px">Escribe tu nombre de jugador, código U o correo. Te mostraré la cuenta encontrada.</div>
+          <input id="recDatoUsuario" type="text" placeholder="Ejemplo: Jose, U156922 o correo" autocomplete="off" autocorrect="off" spellcheck="false" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;margin-bottom:10px;outline:none">
+          <button id="btnBuscarUsuario" style="width:100%;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">Buscar mi usuario 🔎</button>
+        </div>
+
         <div id="recMsg" style="margin-bottom:12px"></div>
-        <div style="text-align:center"><a href="#" id="volverLogin" style="color:#FFD600;font-weight:800;text-decoration:none;font-size:0.85rem">← Volver</a></div>
+        <div style="text-align:center"><a href="#" id="volverLogin" style="color:#FFD600;font-weight:800;text-decoration:none;font-size:0.85rem">← Volver al inicio de sesión</a></div>
       </div>
     </div>`;
+
   bindBtn('btnRecuperar', async () => {
     const em = document.getElementById('recEmail').value.trim();
     const msg = document.getElementById('recMsg');
@@ -2656,12 +2745,38 @@ function renderRecuperar() {
     const r = await recuperarPassword(em);
     if (r.error) {
       showToast('❌ ' + r.error);
-      if (msg) msg.innerHTML = `<div style="background:rgba(220,38,38,0.15);border:1px solid #dc2626;border-radius:10px;padding:10px;color:#f87171;font-size:0.8rem;text-align:center">❌ ${r.error}</div>`;
+      if (msg) msg.innerHTML = `<div style="background:rgba(220,38,38,0.15);border:1px solid #dc2626;border-radius:10px;padding:10px;color:#f87171;font-size:0.8rem;text-align:center">❌ ${escapeHtml(r.error)}</div>`;
     } else {
       showToast('📧 ¡Correo enviado!');
-      if (msg) msg.innerHTML = `<div style="background:rgba(22,163,74,0.15);border:1px solid #16A34A;border-radius:10px;padding:12px;color:#86efac;font-size:0.82rem;text-align:center">📧 <strong>¡Correo enviado!</strong><br>Revisa tu bandeja de entrada y la carpeta de spam para el enlace.</div>`;
+      if (msg) msg.innerHTML = `<div style="background:rgba(22,163,74,0.15);border:1px solid #16A34A;border-radius:10px;padding:12px;color:#86efac;font-size:0.82rem;text-align:center">📧 <strong>¡Correo enviado!</strong><br>Revisa tu bandeja de entrada y spam. Luego abre el enlace y crea tu nueva contraseña.</div>`;
     }
   });
+
+  bindBtn('btnBuscarUsuario', async () => {
+    const dato = document.getElementById('recDatoUsuario').value.trim();
+    const msg = document.getElementById('recMsg');
+    if (!dato) { showToast('⚠️ Escribe tu nombre o código U'); return; }
+    showToast('Buscando cuenta...');
+    const r = await buscarUsuarioRecuperacion(dato);
+    if (!r.ok) {
+      showToast('❌ ' + (r.error || 'No encontrado'));
+      if (msg) msg.innerHTML = `<div style="background:rgba(220,38,38,.15);border:1px solid #dc2626;border-radius:10px;padding:10px;color:#fca5a5;font-size:.82rem;text-align:center">No encontré una cuenta con ese dato.</div>`;
+      return;
+    }
+    const cuentas = (r.cuentas || []).map(p => {
+      const codigo = String(p.codigo_publico || (p.numero_amigo ? 'U' + p.numero_amigo : '')).toUpperCase();
+      const correo = p.correo ? `<div>📧 Correo: <b>${escapeHtml(p.correo)}</b></div>` : `<div style="color:#fbbf24">📧 Correo: no guardado todavía</div>`;
+      return `<div style="background:#10101c;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;margin:8px 0;text-align:left">
+        <div style="font-size:1.4rem">${escapeHtml(p.avatar || '👤')}</div>
+        <div>👤 Usuario: <b>${escapeHtml(p.nombre || 'Sin nombre')}</b></div>
+        <div>🆔 Código: <b>${escapeHtml(codigo)}</b></div>
+        ${correo}
+      </div>`;
+    }).join('');
+    const nota = r.columnaCorreoExiste ? '' : `<div style="color:#fbbf24;font-size:.78rem;margin-top:8px">Para mostrar correos debes agregar la columna <b>correo</b> en Supabase y ejecutar el SQL de actualización.</div>`;
+    if (msg) msg.innerHTML = `<div style="background:rgba(124,58,237,.15);border:1px solid #7C3AED;border-radius:12px;padding:12px;color:#fff;font-size:.84rem;text-align:center"><b>Cuenta encontrada:</b>${cuentas}${nota}</div>`;
+  });
+
   document.getElementById('volverLogin').onclick = e => { e.preventDefault(); renderLogin(); };
 }
 
@@ -8011,6 +8126,20 @@ if(_hgOriginalOpenGame){
   // Sala social: chat + elección de juego antes de entrar a la partida.
   let hgCanalSocial = null;
   let hgSocialState = {sala:null, esHost:false, peer:null};
+  let hgSaliendoPorJuego = false;
+  function hgCerrarSalaSocialPorSalida(motivo='salió de la sala'){
+    try{
+      if (!hgCanalSocial || !hgSocialState || !hgSocialState.sala || hgSaliendoPorJuego) return;
+      const ch = hgCanalSocial;
+      const yo = hgNombreYo();
+      ch.send({type:'broadcast', event:'sala_salida_v4', payload:{id:hgMiCodigo(), nombre:yo.name, emoji:yo.emoji, texto:yo.name + ' ' + motivo + '. Te quedaste solo en la sala.'}});
+      setTimeout(() => { try{ getSupabase().removeChannel(ch); }catch(e){} }, 250);
+      hgAppendSocialChat('HugoKids', 'Saliste de la sala.', '👋');
+      hgCanalSocial = null;
+      hgSocialState = {sala:null, esHost:false, peer:null};
+    }catch(e){}
+  }
+  window.hgCerrarSalaSocialPorSalida = hgCerrarSalaSocialPorSalida;
   const HG_JUEGOS_SOCIALES = [
     ['tttonline','⭕','Tres en Raya'],
     ['c4online','🔴','Conecta 4'],
@@ -8108,7 +8237,16 @@ if(_hgOriginalOpenGame){
     hgRenderSalaSocial();
     hgCanalSocial = c.channel('hugokids-social-' + sala, {config:{broadcast:{self:false}, presence:{key:hgMiCodigo()}}});
     hgCanalSocial.on('broadcast', {event:'chat_social_v3'}, ({payload}) => { if (payload) hgAppendSocialChat(payload.nombre, payload.texto, payload.emoji); });
+    hgCanalSocial.on('broadcast', {event:'sala_salida_v4'}, ({payload}) => {
+      const texto = payload && payload.texto ? payload.texto : 'Tu amigo salió de la sala. Te quedaste solo.';
+      hgAppendSocialChat('HugoKids', texto, '👋');
+      hgToast('👋 Tu amigo salió de la sala.');
+    });
     hgCanalSocial.on('broadcast', {event:'juego_elegido_v3'}, ({payload}) => { if (payload && payload.gameId) hgIniciarJuegoSocial(payload.gameId, false, payload.salaJuego || sala); });
+    hgCanalSocial.on('presence', {event:'leave'}, () => {
+      const peer = hgSocialState.peer || {name:'Tu amigo'};
+      hgAppendSocialChat('HugoKids', (peer.name || 'Tu amigo') + ' salió de la sala. Te quedaste solo.', '👋');
+    });
     hgCanalSocial.on('presence', {event:'sync'}, () => { /* reservado para mostrar conectados dentro de sala */ });
     hgCanalSocial.subscribe(async status => {
       if (status === 'SUBSCRIBED') {
@@ -8125,6 +8263,7 @@ if(_hgOriginalOpenGame){
     hgIniciarJuegoSocial(gameId, true, salaJuego);
   }
   function hgIniciarJuegoSocial(gameId, esHost, salaJuego){
+    hgSaliendoPorJuego = true;
     try{ if (hgCanalSocial) { getSupabase().removeChannel(hgCanalSocial); hgCanalSocial = null; } }catch(e){}
     try{ _autoSala = {sala:salaJuego, esAnfitrion:esHost}; }catch(e){}
     hgToast('🎮 Entrando al juego...');
@@ -8447,6 +8586,21 @@ if(_hgOriginalOpenGame){
   };
   new MutationObserver(fixChatInput).observe(document.body,{childList:true,subtree:true});
   document.addEventListener('DOMContentLoaded', fixChatInput);
+})();
+</script>
+
+
+<script>
+/* MEJORA 2026-06: avisar cuando alguien sale de la sala/chat y mejorar recuperación de usuario */
+(function(){
+  const oldCloseModal = window.closeModal;
+  window.closeModal = function(){
+    try { if (window.hgCerrarSalaSocialPorSalida) window.hgCerrarSalaSocialPorSalida('salió de la sala'); } catch(e) {}
+    if (typeof oldCloseModal === 'function') return oldCloseModal.apply(this, arguments);
+  };
+  window.addEventListener('beforeunload', function(){
+    try { if (window.hgCerrarSalaSocialPorSalida) window.hgCerrarSalaSocialPorSalida('salió de la sala'); } catch(e) {}
+  });
 })();
 </script>
 </body>
