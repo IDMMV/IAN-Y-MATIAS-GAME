@@ -2688,7 +2688,7 @@ function renderLogin() {
           <input id="logPass" type="password" placeholder="Tu contraseña" style="width:100%;box-sizing:border-box;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px 46px 12px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;outline:none">
           <button type="button" onclick="togglePasswordVisibility('logPass', this)" style="position:absolute;right:6px;top:6px;background:#2d2250;border:none;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer">👁️</button>
         </div>
-        <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;font-size:0.8rem;text-decoration:none">¿Olvidaste tu contraseña?</a></div>
+        <div style="text-align:right;margin-bottom:12px"><a href="#" id="olvideLink" style="color:#00B4D8;font-size:0.8rem;text-decoration:none">¿Olvidaste usuario o contraseña?</a></div>
         <button id="btnLogin" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;font-size:1rem;cursor:pointer;margin-bottom:14px">Ingresar ▶</button>
         <div style="text-align:center;color:#aaa;font-size:0.85rem">¿No tienes cuenta? <a href="#" id="irRegistro" style="color:#FFD600;font-weight:800;text-decoration:none">Crear cuenta</a></div>
       </div>
@@ -9463,6 +9463,343 @@ if(_hgOriginalOpenGame){
     } hk3dRAF=requestAnimationFrame(loop);
   }
 
+})();
+</script>
+
+<script>
+/* =========================================================
+   CORRECCIÓN SUPABASE 2026-06-15
+   - Usuarios registrados contados desde public.perfiles
+   - Nombres SIEMPRE EN MAYÚSCULA y no repetidos
+   - Código U permanente por usuario
+   - Registros importantes guardados en Supabase
+   - La contraseña se maneja con Supabase Auth (segura/hasheada)
+========================================================= */
+(function(){
+  const HK = window.HK_DB = window.HK_DB || {};
+
+  function hkToast(msg){
+    try { if (typeof showToast === 'function') return showToast(msg); } catch(e){}
+    alert(msg);
+  }
+  function hkSupabase(){
+    try { return (typeof getSupabase === 'function') ? getSupabase() : null; } catch(e){ return null; }
+  }
+  function hkEmailOk(email){
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email||'').trim());
+  }
+  function hkNormalizarNombre(nombre){
+    return String(nombre || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
+  }
+  function hkNormalizarEmail(email){ return String(email || '').trim().toLowerCase(); }
+  function hkNumeroDesdeId(uuid){
+    if (typeof numeroDesdeId === 'function') return numeroDesdeId(uuid);
+    let h = 0; uuid = String(uuid || Date.now());
+    for (let i = 0; i < uuid.length; i++) h = (h * 31 + uuid.charCodeAt(i)) % 900000;
+    return String(100000 + h);
+  }
+  function hkCodigoDesdeId(uuid){ return 'U' + hkNumeroDesdeId(uuid); }
+
+  window.hkNormalizarNombre = hkNormalizarNombre;
+
+  async function hkBuscarNombre(nombreUpper){
+    const c = hkSupabase(); if (!c) return { data:null, error:'Sin conexión' };
+    const n = hkNormalizarNombre(nombreUpper);
+    try {
+      // El nombre se guarda en mayúscula. ilike ayuda si existen registros antiguos en minúscula.
+      const r = await c.from('perfiles').select('id,nombre,codigo_publico').ilike('nombre', n).limit(1).maybeSingle();
+      if (r && r.data) return { data:r.data, error:null };
+      return { data:null, error:null };
+    } catch(e) { return { data:null, error:e.message || String(e) }; }
+  }
+  window.hkBuscarNombre = hkBuscarNombre;
+
+  async function hkNombreDisponible(nombreUpper, idActual){
+    const r = await hkBuscarNombre(nombreUpper);
+    if (!r.data) return true;
+    return !!(idActual && r.data.id === idActual);
+  }
+
+  // Crear cuenta: nombre en mayúscula, nombre no repetido, perfil completo en Supabase.
+  window.registrarCuenta = async function(email, password, nombre){
+    const c = hkSupabase();
+    if (!c) return { error:'No se pudo conectar a Supabase. Revisa internet o la URL/Anon Key.' };
+
+    const em = hkNormalizarEmail(email);
+    const nom = hkNormalizarNombre(nombre);
+
+    if (!nom) return { error:'Escribe un nombre de jugador.' };
+    if (nom.length < 3) return { error:'El nombre debe tener mínimo 3 letras.' };
+    if (nom.length > 14) return { error:'El nombre debe tener máximo 14 caracteres.' };
+    if (!/^[A-ZÁÉÍÓÚÜÑ0-9 ]+$/.test(nom)) return { error:'Usa solo letras, números y espacios en el nombre.' };
+    if (!hkEmailOk(em)) return { error:'Escribe un correo real válido.' };
+    if (!password || String(password).length < 6) return { error:'La contraseña debe tener al menos 6 caracteres.' };
+
+    const libre = await hkNombreDisponible(nom, null);
+    if (!libre) return { error:'Ese nombre de jugador ya existe. Elige otro para que cada usuario tenga su nombre propio.' };
+
+    try {
+      const { data, error } = await c.auth.signUp({
+        email: em,
+        password: String(password),
+        options: { data: { nombre: nom } }
+      });
+      if (error) return { error: (typeof traducirError === 'function') ? traducirError(error.message) : error.message };
+
+      if (data && data.user) {
+        window.usuarioActual = data.user;
+        try { usuarioActual = data.user; } catch(e) {}
+        const id = data.user.id;
+        const num = hkNumeroDesdeId(id);
+        const cod = 'U' + num;
+        const avatar = (typeof getGuestAvatar === 'function') ? getGuestAvatar() : '👤';
+        const logros = (typeof getBadges === 'function') ? getBadges() : [];
+        const amigos = (typeof getAmigos === 'function') ? getAmigos() : [];
+
+        const perfil = {
+          id,
+          nombre: nom,
+          avatar,
+          correo: em,
+          numero_amigo: num,
+          codigo_publico: cod,
+          tipo_cuenta: 'usuario',
+          monedas: 0,
+          puntos: 0,
+          oro: 0,
+          trofeos: 0,
+          logros,
+          medallas: logros,
+          records: {},
+          amigos,
+          comprados: [],
+          titulo: '',
+          ultima_actividad: new Date().toISOString()
+        };
+
+        const ins = await c.from('perfiles').upsert(perfil, { onConflict:'id' }).select('*').maybeSingle();
+        if (ins && ins.error) {
+          const m = String(ins.error.message || '').toLowerCase();
+          if (m.includes('duplicate') || m.includes('unique')) return { error:'Ese nombre o código ya existe. Elige otro nombre.' };
+          // Si faltan columnas, el SQL de abajo lo corrige. No impedimos la cuenta auth si ya se creó.
+          console.warn('Perfil incompleto. Ejecuta el SQL de estructura.', ins.error.message);
+        }
+        try { localStorage.setItem('im_usercode', cod); localStorage.removeItem('im_guestid'); } catch(e){}
+        try { if (typeof setGuestName === 'function') setGuestName(nom); } catch(e){}
+        try { if (typeof cargarPerfilNube === 'function') await cargarPerfilNube(); } catch(e){}
+        try { if (typeof guardarCorreoPerfilActual === 'function') await guardarCorreoPerfilActual(); } catch(e){}
+        try { if (typeof hkActualizarContadores === 'function') await hkActualizarContadores(); } catch(e){}
+        try { if (typeof hkCargarUsuariosRegistrados === 'function') await hkCargarUsuariosRegistrados(); } catch(e){}
+        try { if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline(); } catch(e){}
+      }
+      return { ok:true };
+    } catch(e) {
+      return { error:'Error al crear cuenta: ' + (e.message || e) };
+    }
+  };
+
+  // Asegurar perfil: convierte nombre a mayúscula, genera U permanente, sincroniza columnas.
+  const oldAsegurarPerfilUsuario = window.asegurarPerfilUsuario || (typeof asegurarPerfilUsuario === 'function' ? asegurarPerfilUsuario : null);
+  window.asegurarPerfilUsuario = async function(){
+    const c = hkSupabase();
+    if (!c) return null;
+    try {
+      if (!window.usuarioActual && typeof usuarioActual !== 'undefined') window.usuarioActual = usuarioActual;
+      if (!window.usuarioActual) {
+        const s = await c.auth.getSession();
+        if (s && s.data && s.data.session) {
+          window.usuarioActual = s.data.session.user;
+          try { usuarioActual = s.data.session.user; } catch(e){}
+        }
+      }
+      if (!window.usuarioActual && typeof usuarioActual !== 'undefined') window.usuarioActual = usuarioActual;
+      if (!window.usuarioActual) return oldAsegurarPerfilUsuario ? oldAsegurarPerfilUsuario() : null;
+
+      const user = window.usuarioActual;
+      const id = user.id;
+      const email = hkNormalizarEmail(user.email);
+      const num = hkNumeroDesdeId(id);
+      const cod = 'U' + num;
+      const nombreBase = hkNormalizarNombre(
+        (typeof getGuestName === 'function' ? getGuestName() : '') ||
+        (user.user_metadata && user.user_metadata.nombre) ||
+        (email ? email.split('@')[0] : 'JUGADOR')
+      );
+      const avatar = (typeof getGuestAvatar === 'function') ? getGuestAvatar() : '👤';
+
+      let r = await c.from('perfiles').select('*').eq('id', id).maybeSingle();
+      let actual = r.data || null;
+      const nombreFinal = hkNormalizarNombre((actual && actual.nombre) || nombreBase || ('JUGADOR ' + num.slice(-3)));
+      const logros = Array.isArray(actual && actual.logros) ? actual.logros : ((typeof getBadges === 'function') ? getBadges() : []);
+      const amigos = Array.isArray(actual && actual.amigos) ? actual.amigos : ((typeof getAmigos === 'function') ? getAmigos() : []);
+      const payload = {
+        id,
+        nombre: nombreFinal,
+        avatar: (actual && actual.avatar) || avatar,
+        correo: email,
+        numero_amigo: (actual && actual.numero_amigo) || num,
+        codigo_publico: (actual && actual.codigo_publico) || cod,
+        tipo_cuenta:'usuario',
+        monedas: (actual && Number.isFinite(Number(actual.monedas))) ? Number(actual.monedas) : 0,
+        puntos: (actual && Number.isFinite(Number(actual.puntos))) ? Number(actual.puntos) : 0,
+        oro: (actual && Number.isFinite(Number(actual.oro))) ? Number(actual.oro) : ((actual && Number.isFinite(Number(actual.monedas))) ? Number(actual.monedas) : 0),
+        trofeos: (actual && Number.isFinite(Number(actual.trofeos))) ? Number(actual.trofeos) : 0,
+        logros,
+        medallas: Array.isArray(actual && actual.medallas) ? actual.medallas : logros,
+        records: (actual && actual.records && typeof actual.records === 'object') ? actual.records : {},
+        amigos,
+        comprados: Array.isArray(actual && actual.comprados) ? actual.comprados : [],
+        ultima_actividad: new Date().toISOString()
+      };
+      const up = await c.from('perfiles').upsert(payload, { onConflict:'id' }).select('*').maybeSingle();
+      if (up && up.data) {
+        window.perfilNube = up.data;
+        try { perfilNube = up.data; } catch(e){}
+      }
+      try { localStorage.setItem('im_usercode', String(payload.codigo_publico).toUpperCase()); localStorage.removeItem('im_guestid'); } catch(e){}
+      try { if (typeof setGuestName === 'function') setGuestName(payload.nombre); } catch(e){}
+      try { if (typeof setGuestAvatar === 'function') setGuestAvatar(payload.avatar); } catch(e){}
+      try { if (typeof updatePlayerBadge === 'function') updatePlayerBadge(); } catch(e){}
+      return (up && up.data) || payload;
+    } catch(e) {
+      console.warn('asegurarPerfilUsuario HK', e);
+      return oldAsegurarPerfilUsuario ? oldAsegurarPerfilUsuario() : null;
+    }
+  };
+  try { asegurarPerfilUsuario = window.asegurarPerfilUsuario; } catch(e){}
+
+  // Contadores: no usar head:true solamente; algunos proyectos devuelven count 0 aunque existan filas por RLS.
+  window.hkActualizarContadores = async function(){
+    const c = hkSupabase(); if (!c) return;
+    try {
+      const r = await c.from('perfiles').select('id,tipo_cuenta').limit(10000);
+      if (!r.error && Array.isArray(r.data)) {
+        const total = r.data.filter(x => String(x.tipo_cuenta || 'usuario').toLowerCase() !== 'invitado').length;
+        const el = document.getElementById('registeredCount'); if (el) el.textContent = String(total);
+      } else {
+        const cr = await c.from('perfiles').select('id', { count:'exact' });
+        if (!cr.error && Array.isArray(cr.data)) { const el = document.getElementById('registeredCount'); if (el) el.textContent = String(cr.data.length); }
+      }
+    } catch(e) { console.warn('contador perfiles', e); }
+    try {
+      const v = await c.from('visitas').select('id').limit(100000);
+      if (!v.error && Array.isArray(v.data)) { const el = document.getElementById('visitorCount'); if (el) el.textContent = String(v.data.length); }
+    } catch(e) { console.warn('contador visitas', e); }
+  };
+  try { hkActualizarContadores = window.hkActualizarContadores; } catch(e){}
+
+  // Cargar usuarios registrados: más tolerante y actualiza contador.
+  window.hkCargarUsuariosRegistrados = async function(){
+    const c = hkSupabase(); if (!c) return window.hkUsuariosRegistrados || [];
+    try {
+      const r = await c.from('perfiles')
+        .select('id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta,ultima_actividad')
+        .order('nombre', { ascending:true })
+        .limit(200);
+      if (r.error || !Array.isArray(r.data)) {
+        console.warn('No se pudo leer perfiles. Revisa políticas RLS SELECT.', r.error && r.error.message);
+        return window.hkUsuariosRegistrados || [];
+      }
+      window.hkUsuariosRegistrados = r.data.map(p => {
+        const raw = String(p.codigo_publico || (p.numero_amigo ? ('U' + p.numero_amigo) : '')).toUpperCase().replace(/^UU/, 'U');
+        return {
+          id: raw,
+          codigo: raw,
+          name: hkNormalizarNombre(p.nombre || ('JUGADOR ' + raw.replace('U',''))),
+          emoji: p.avatar || '👤',
+          tipo: String(p.tipo_cuenta || 'usuario').toLowerCase(),
+          ultima_actividad: p.ultima_actividad || null,
+          fuente:'perfiles'
+        };
+      }).filter(u => u.codigo && u.codigo.startsWith('U') && u.tipo !== 'invitado');
+      try { await window.hkActualizarContadores(); } catch(e){}
+      return window.hkUsuariosRegistrados;
+    } catch(e) { console.warn('usuarios registrados', e); return window.hkUsuariosRegistrados || []; }
+  };
+  try { hkCargarUsuariosRegistrados = window.hkCargarUsuariosRegistrados; } catch(e){}
+
+  // Guardar perfil completo en Supabase: logros/medallas/amigos/avatar/nombre/correo.
+  window.guardarPerfilNube = async function(){
+    const c = hkSupabase();
+    const user = window.usuarioActual || (typeof usuarioActual !== 'undefined' ? usuarioActual : null);
+    if (!c || !user) return;
+    try {
+      const yo = (typeof miIdentidadOnline === 'function') ? miIdentidadOnline() : { name:'JUGADOR', emoji:'👤' };
+      const logros = (typeof getBadges === 'function') ? getBadges() : [];
+      const amigos = (typeof getAmigos === 'function') ? getAmigos() : [];
+      await c.from('perfiles').update({
+        nombre: hkNormalizarNombre(yo.name),
+        avatar: yo.emoji,
+        correo: hkNormalizarEmail(user.email),
+        logros,
+        medallas: logros,
+        amigos,
+        ultima_actividad: new Date().toISOString()
+      }).eq('id', user.id);
+    } catch(e) { console.warn('guardarPerfilNube HK', e); }
+  };
+  try { guardarPerfilNube = window.guardarPerfilNube; } catch(e){}
+
+  // Recompensas: monedas + puntos + oro se reflejan en Supabase.
+  window.darRecompensa = async function(monedas, puntos, motivo){
+    const user = window.usuarioActual || (typeof usuarioActual !== 'undefined' ? usuarioActual : null);
+    if (!user) return;
+    const c = hkSupabase(); if (!c) return;
+    let p = window.perfilNube || (typeof perfilNube !== 'undefined' ? perfilNube : null) || {};
+    const newMonedas = Number(p.monedas || 0) + Number(monedas || 0);
+    const newPuntos = Number(p.puntos || 0) + Number(puntos || 0);
+    const newOro = Number(p.oro || p.monedas || 0) + Number(monedas || 0);
+    p = { ...p, monedas:newMonedas, puntos:newPuntos, oro:newOro };
+    window.perfilNube = p; try { perfilNube = p; } catch(e){}
+    try { await c.from('perfiles').update({ monedas:newMonedas, puntos:newPuntos, oro:newOro, ultima_actividad:new Date().toISOString() }).eq('id', user.id); }
+    catch(e) { try { await c.from('perfiles').update({ monedas:newMonedas, puntos:newPuntos }).eq('id', user.id); } catch(err){} }
+    try { if (typeof mostrarGanancia === 'function') mostrarGanancia(Number(monedas||0), Number(puntos||0), motivo); } catch(e){}
+    try { if (typeof actualizarSaldoVisible === 'function') actualizarSaldoVisible(); } catch(e){}
+  };
+  try { darRecompensa = window.darRecompensa; } catch(e){}
+
+  // Records: además de localStorage, se guardan en records JSONB.
+  const oldSaveRecord = window.saveRecord || (typeof saveRecord === 'function' ? saveRecord : null);
+  window.saveRecord = function(gameId, value, cmp){
+    let saved = value;
+    try { saved = oldSaveRecord ? oldSaveRecord(gameId, value, cmp || 'max') : value; } catch(e){}
+    const c = hkSupabase();
+    const user = window.usuarioActual || (typeof usuarioActual !== 'undefined' ? usuarioActual : null);
+    if (c && user) {
+      setTimeout(async () => {
+        try {
+          const p = window.perfilNube || (typeof perfilNube !== 'undefined' ? perfilNube : null) || {};
+          const rec = (p.records && typeof p.records === 'object') ? { ...p.records } : {};
+          rec[gameId] = saved;
+          p.records = rec;
+          window.perfilNube = p; try { perfilNube = p; } catch(e){}
+          await c.from('perfiles').update({ records: rec, ultima_actividad:new Date().toISOString() }).eq('id', user.id);
+        } catch(e){}
+      }, 0);
+    }
+    return saved;
+  };
+  try { saveRecord = window.saveRecord; } catch(e){}
+
+  // Mejorar texto de recuperación en login cuando se renderice.
+  function hkActualizarTextoLogin(){
+    const a = document.getElementById('olvideLink');
+    if (a) a.textContent = '¿Olvidaste usuario o contraseña?';
+    const reg = document.getElementById('regNombre');
+    if (reg) {
+      reg.placeholder = 'Tu nombre único';
+      reg.addEventListener('input', () => { reg.value = hkNormalizarNombre(reg.value); });
+    }
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(async () => { hkActualizarTextoLogin(); try{ await window.hkCargarUsuariosRegistrados(); await window.hkActualizarContadores(); if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline(); }catch(e){} }, 900);
+    setTimeout(async () => { try{ await window.hkCargarUsuariosRegistrados(); await window.hkActualizarContadores(); if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline(); }catch(e){} }, 3500);
+  });
+  try { new MutationObserver(hkActualizarTextoLogin).observe(document.body, {childList:true, subtree:true}); } catch(e){}
+  setInterval(async () => { try{ await window.hkCargarUsuariosRegistrados(); await window.hkActualizarContadores(); }catch(e){} }, 15000);
 })();
 </script>
 
