@@ -1308,21 +1308,30 @@ let perfilNube = null;      // datos del perfil guardado en la nube
 async function revisarSesion() {
   const c = getSupabase(); if (!c) return;
   try {
-    const enRecuperacion = await prepararSesionRecoverySiExiste();
+    await prepararSesionRecoverySiExiste();
     const { data } = await c.auth.getSession();
     if (data && data.session) {
       usuarioActual = data.session.user;
-      await cargarPerfilNube();
+      await asegurarPerfilUsuario();
       actualizarBotonCuenta();
+      iniciarPresenciaGlobal();
+      iniciarPulsoActividad();
     }
     // escuchar cambios de sesión
-    c.auth.onAuthStateChange((evento, session) => {
+    c.auth.onAuthStateChange(async (evento, session) => {
       usuarioActual = session ? session.user : null;
       if (evento === 'PASSWORD_RECOVERY') {
         mostrarResetPassword();
       }
-      if (usuarioActual) cargarPerfilNube();
-      else perfilNube = null;
+      if (usuarioActual) {
+        await asegurarPerfilUsuario();
+        iniciarPresenciaGlobal();
+        iniciarPulsoActividad();
+      } else {
+        perfilNube = null;
+        try { localStorage.removeItem('im_usercode'); } catch(e) {}
+        iniciarPresenciaGlobal();
+      }
       actualizarBotonCuenta();
     });
   } catch (e) { console.error('sesion', e); }
@@ -1372,7 +1381,7 @@ async function iniciarSesion(email, password) {
     const { data, error } = await c.auth.signInWithPassword({ email, password });
     if (error) return { error: traducirError(error.message) };
     usuarioActual = data.user;
-    await cargarPerfilNube();
+    await asegurarPerfilUsuario();
     if (perfilNube && perfilNube.bloqueado) {
       await cerrarSesion();
       return { error: 'Tu cuenta está bloqueada. Contacta al administrador.' };
@@ -1424,6 +1433,79 @@ async function cargarPerfilNube() {
       try { await c.from('perfiles').update({ ultima_actividad: new Date().toISOString() }).eq('id', usuarioActual.id); } catch(e){}
     }
   } catch (e) { /* aún no tiene perfil */ }
+}
+
+
+// Asegura que una sesión real de Supabase tenga SIEMPRE código U permanente.
+// Corrige el caso donde el usuario ya inició sesión, pero el perfil aún no cargó
+// y la web lo trataba como invitado G.
+async function asegurarPerfilUsuario() {
+  const c = getSupabase();
+  if (!c) return null;
+  try {
+    if (!usuarioActual) {
+      const { data } = await c.auth.getSession();
+      if (data && data.session) usuarioActual = data.session.user;
+    }
+    if (!usuarioActual) return null;
+
+    const numUnico = numeroDesdeId(usuarioActual.id);
+    const codigoUsuario = 'U' + numUnico;
+    const yo = (typeof miIdentidadOnline === 'function')
+      ? miIdentidadOnline()
+      : { name: (usuarioActual.email || 'Jugador').split('@')[0], emoji: '👤' };
+
+    let { data, error } = await c.from('perfiles').select('*').eq('id', usuarioActual.id).maybeSingle();
+    if (error) console.warn('perfil select', error.message);
+
+    if (!data) {
+      const nuevo = {
+        id: usuarioActual.id,
+        nombre: yo.name,
+        avatar: yo.emoji,
+        numero_amigo: numUnico,
+        codigo_publico: codigoUsuario,
+        tipo_cuenta: 'usuario',
+        logros: getBadges(),
+        records: {},
+        amigos: getAmigos(),
+        ultima_actividad: new Date().toISOString()
+      };
+      const ins = await c.from('perfiles').upsert(nuevo, { onConflict: 'id' }).select('*').maybeSingle();
+      data = ins.data || nuevo;
+    } else {
+      const cambios = {
+        codigo_publico: data.codigo_publico || codigoUsuario,
+        numero_amigo: data.numero_amigo || numUnico,
+        tipo_cuenta: 'usuario',
+        ultima_actividad: new Date().toISOString()
+      };
+      if (!data.nombre) cambios.nombre = yo.name;
+      if (!data.avatar) cambios.avatar = yo.emoji;
+      await c.from('perfiles').update(cambios).eq('id', usuarioActual.id);
+      data = { ...data, ...cambios };
+    }
+
+    perfilNube = data;
+    try {
+      localStorage.setItem('im_usercode', String(data.codigo_publico || codigoUsuario).toUpperCase());
+      localStorage.removeItem('im_guestid');
+      sessionStorage.removeItem('im_guestid_session');
+    } catch(e) {}
+
+    if (data.nombre) setGuestName(data.nombre);
+    if (data.avatar) setGuestAvatar(data.avatar);
+    if (Array.isArray(data.logros)) { try { localStorage.setItem(badgeKey(), JSON.stringify(data.logros)); } catch(e){} }
+    if (Array.isArray(data.amigos)) { try { localStorage.setItem('im_amigos', JSON.stringify(data.amigos)); } catch(e){} }
+    if (typeof updatePlayerBadge === 'function') updatePlayerBadge();
+    if (typeof actualizarSaldoVisible === 'function') actualizarSaldoVisible();
+    if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline();
+    if (typeof refrescarListaAmigos === 'function') refrescarListaAmigos();
+    return data;
+  } catch (e) {
+    console.error('asegurarPerfilUsuario', e);
+    return perfilNube;
+  }
 }
 
 // Guardar logros/datos actuales en la nube (si hay sesión)
@@ -1523,22 +1605,28 @@ function normalizarCodigoAmigo(valor) {
 }
 function getUserCode() {
   if (perfilNube && (perfilNube.codigo_publico || perfilNube.numero_amigo)) return String(perfilNube.codigo_publico || ('U' + perfilNube.numero_amigo)).toUpperCase();
-  try { const c = localStorage.getItem('im_usercode'); if (c) return String(c).toUpperCase(); } catch (e) {}
+  try { const c = localStorage.getItem('im_usercode'); if (c && String(c).toUpperCase().startsWith('U')) return String(c).toUpperCase(); } catch (e) {}
+  // Si hay sesión de Supabase pero el perfil aún no terminó de cargar, generar el código U estable con el ID del usuario.
+  if (usuarioActual && usuarioActual.id) {
+    const codigo = 'U' + numeroDesdeId(usuarioActual.id);
+    try { localStorage.setItem('im_usercode', codigo); sessionStorage.removeItem('im_guestid_session'); } catch(e) {}
+    return codigo;
+  }
   return '';
 }
 function getGuestId() {
   const userCode = getUserCode();
-  if (typeof tieneSesion === 'function' && tieneSesion() && userCode) return userCode;
+  if (usuarioActual && userCode && userCode.startsWith('U')) return userCode;
   let id = null;
   try { id = sessionStorage.getItem('im_guestid_session'); } catch (e) {}
-  if (!id) {
+  if (!id || String(id).startsWith('U')) {
     id = 'G' + String(Math.floor(100000 + Math.random() * 900000));
     try { sessionStorage.setItem('im_guestid_session', id); } catch (e) {}
   }
   return id;
 }
 function soyInvitadoTemporal() { return String(getGuestId()).startsWith('G'); }
-function soyUsuarioRegistrado() { return !!(typeof tieneSesion === 'function' && tieneSesion() && String(getGuestId()).startsWith('U')); }
+function soyUsuarioRegistrado() { return !!(usuarioActual && getUserCode().startsWith('U')); }
 function getGuestName() {
   let n = null;
   try { n = localStorage.getItem('im_guestname'); } catch (e) {}
@@ -1559,6 +1647,7 @@ function iniciarPresenciaGlobal() {
   const client = getSupabase();
   if (!client) { return; }
   try {
+    if (canalPresencia) { try { client.removeChannel(canalPresencia); } catch(e) {} canalPresencia = null; }
     canalPresencia = client.channel('lobby-global', { config: { presence: { key: getGuestId() } } });
     canalPresencia.on('presence', { event: 'sync' }, () => {
       const estado = canalPresencia.presenceState();
@@ -1570,6 +1659,7 @@ function iniciarPresenciaGlobal() {
       const total = Object.keys(estado).length;
       const el = document.getElementById('onlineCount');
       if (el) el.textContent = '🟢 ' + Math.max(1, total);
+      if (typeof cargarJugadoresOnlineDesdePerfiles === 'function') cargarJugadoresOnlineDesdePerfiles();
       if (typeof refrescarListaAmigos === 'function') refrescarListaAmigos();
       if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline();
     });
@@ -1590,6 +1680,59 @@ function actualizarPresencia() {
   if (!canalPresencia) return;
   const yo = miIdentidadOnline();
   try { canalPresencia.track({ id: getGuestId(), name: yo.name, emoji: yo.emoji, tipo: soyUsuarioRegistrado() ? 'usuario' : 'invitado', at: Date.now() }); } catch (e) {}
+}
+
+let _pulsoActividad = null;
+async function marcarActividadUsuario() {
+  const c = getSupabase();
+  if (!c || !usuarioActual) return;
+  try {
+    const codigo = getUserCode();
+    const num = codigo.replace(/[^0-9]/g, '');
+    await c.from('perfiles').update({
+      ultima_actividad: new Date().toISOString(),
+      codigo_publico: codigo,
+      numero_amigo: num,
+      tipo_cuenta: 'usuario'
+    }).eq('id', usuarioActual.id);
+  } catch(e) {}
+}
+function iniciarPulsoActividad() {
+  if (_pulsoActividad) clearInterval(_pulsoActividad);
+  marcarActividadUsuario();
+  cargarJugadoresOnlineDesdePerfiles();
+  _pulsoActividad = setInterval(() => {
+    marcarActividadUsuario();
+    cargarJugadoresOnlineDesdePerfiles();
+  }, 15000);
+}
+async function cargarJugadoresOnlineDesdePerfiles() {
+  const c = getSupabase();
+  if (!c) return;
+  try {
+    const limite = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const { data, error } = await c.from('perfiles')
+      .select('id,nombre,avatar,numero_amigo,codigo_publico,tipo_cuenta,ultima_actividad')
+      .gte('ultima_actividad', limite)
+      .limit(50);
+    if (error || !Array.isArray(data)) return;
+    data.forEach(p => {
+      const code = normalizarCodigoAmigo(p.codigo_publico || p.numero_amigo);
+      if (!code) return;
+      conectadosAhora[code] = {
+        name: p.nombre || ('Jugador #' + code),
+        emoji: p.avatar || '👤',
+        tipo: p.tipo_cuenta || 'usuario',
+        at: p.ultima_actividad,
+        fuente: 'perfiles'
+      };
+    });
+    const total = Object.keys(conectadosAhora || {}).length;
+    const el = document.getElementById('onlineCount');
+    if (el) el.textContent = '🟢 ' + Math.max(1, total);
+    if (typeof refrescarTablaJugadoresOnline === 'function') refrescarTablaJugadoresOnline();
+    if (typeof refrescarListaAmigos === 'function') refrescarListaAmigos();
+  } catch(e) { console.warn('online perfiles', e); }
 }
 
 // ── SISTEMA DE AMIGOS POR CÓDIGO PERMANENTE ──
@@ -1613,7 +1756,8 @@ async function buscarUsuarioPorCodigo(codigo) {
   } catch (e) { return { error: 'Error buscando en Supabase' }; }
 }
 async function agregarAmigo(num) {
-  if (!soyUsuarioRegistrado()) { showToast('🔐 Solo usuarios con cuenta pueden agregar amigos permanentes'); openCuenta(); return false; }
+  await asegurarPerfilUsuario();
+  if (!soyUsuarioRegistrado()) { showToast('🔐 Inicia sesión con correo/Google para agregar amigos permanentes'); openCuenta(); return false; }
   const encontrado = await buscarUsuarioPorCodigo(num);
   if (encontrado.error) { showToast(encontrado.error); return false; }
   const amigo = encontrado.data;
@@ -1802,6 +1946,7 @@ function escaparHTML(str) {
   if (str == null) return '';
   return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function escapeHtml(str) { return escaparHTML(str); }
 
 function enviarChatOnline(texto, emoji) {
   if (!canalOnline) return;
@@ -2534,7 +2679,7 @@ function renderPanelUsuario() {
         <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:4px">👥 Mis Amigos</div>
         <div style="color:#aaa;font-size:0.72rem;text-align:center;margin-bottom:10px">Agrega amigos por su número para invitarlos a jugar</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
-          <input id="amigoInput" type="text" inputmode="numeric" maxlength="12" placeholder="Código amigo: U123456" style="flex:1;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;text-align:center;outline:none">
+          <input id="amigoInput" type="text" inputmode="text" maxlength="20" placeholder="Código amigo: U123456" style="flex:1;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;text-align:center;outline:none">
           <button id="addAmigoBtn" style="background:#16A34A;border:none;color:#fff;padding:9px 16px;border-radius:10px;font-weight:800;cursor:pointer">➕</button>
         </div>
         <div id="listaAmigos"></div>
@@ -2877,7 +3022,7 @@ function renderProfile() {
         <div style="color:#fff;font-weight:800;text-align:center;margin-bottom:4px">👥 Mis Amigos</div>
         <div style="color:#aaa;font-size:0.72rem;text-align:center;margin-bottom:10px">Tu código es <strong style="color:${soyUsuarioRegistrado() ? '#16A34A' : '#f59e0b'}">#${getGuestId()}</strong> · ${soyUsuarioRegistrado() ? 'Agrega usuarios registrados por su código permanente' : 'Invitado temporal: crea cuenta para agregar amigos'}</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
-          <input id="amigoInput" type="text" inputmode="numeric" maxlength="12" placeholder="Código amigo: U123456" style="flex:1;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;text-align:center;outline:none">
+          <input id="amigoInput" type="text" inputmode="text" maxlength="20" placeholder="Código amigo: U123456" style="flex:1;background:#1a1a2e;border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px;color:#fff;font-family:Nunito,sans-serif;font-weight:700;text-align:center;outline:none">
           <button id="addAmigoBtn" style="background:#16A34A;border:none;color:#fff;padding:9px 16px;border-radius:10px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent">➕</button>
         </div>
         <div id="listaAmigos"></div>
@@ -3052,10 +3197,11 @@ function cycleTheme() {
 try { const t = localStorage.getItem('imrec_theme'); if (t && THEMES.includes(t)) applyTheme(t); else applyTheme('fiesta'); } catch (e) { applyTheme('fiesta'); }
 // Mostrar el jugador actual en la navbar al cargar
 setTimeout(() => { if (typeof updatePlayerBadge === 'function') updatePlayerBadge(); }, 0);
-// Iniciar contador de jugadores en línea (espera a que cargue la librería de Supabase)
-setTimeout(() => { if (onlineDisponible()) iniciarPresenciaGlobal(); }, 1500);
-setTimeout(() => { if (onlineDisponible()) revisarSesion(); }, 1600);
-setTimeout(() => { if (onlineDisponible()) registrarVisita(); }, 1800);
+// Iniciar sesión primero y luego presencia, para no tratar como invitado G a quien ya inició sesión.
+setTimeout(() => { if (onlineDisponible()) revisarSesion(); }, 900);
+setTimeout(() => { if (onlineDisponible()) iniciarPresenciaGlobal(); }, 1600);
+setTimeout(() => { if (onlineDisponible()) cargarJugadoresOnlineDesdePerfiles(); }, 1900);
+setTimeout(() => { if (onlineDisponible()) registrarVisita(); }, 2200);
 
 
 // ═══════════════════════════════════════════
