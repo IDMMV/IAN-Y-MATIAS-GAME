@@ -7422,7 +7422,7 @@ if(_hgOriginalOpenGame){
       </div>`;
     body.querySelector('#hgListenRules').onclick=()=>hgSpeakRules(nombre, reglas);
     body.querySelector('#hgStartAfterRules').onclick=()=>{ try{window.speechSynthesis.cancel()}catch(e){} startFn(); };
-    setTimeout(()=>hgSpeakRules(nombre, reglas),300);
+    // Audio de reglas desactivado por defecto: el usuario decide si escuchar con el botón 🔊.
   }
 
   // Guarda las funciones actuales y las envuelve para que siempre muestren reglas antes de iniciar.
@@ -8018,7 +8018,21 @@ if(_hgOriginalOpenGame){
     ['ahorcadoonline','✏️','Ahorcado'],
     ['navalonline','🚢','Batalla Naval'],
     ['damasonline','⚫','Damas'],
-    ['ludoonline','🎲','Ludo']
+    ['ludoonline','🎲','Ludo'],
+    ['futbolonline','⚽','Fútbol Penal'],
+    ['cartasonline','🃏','Cartas Mayor'],
+    ['matematicasduelo','➕','Duelo Matemático'],
+    ['memoriaonline','🧠','Memoria Online'],
+    ['carreraonline','🏁','Carrera de Dados'],
+    ['piedrapapelonline','✊','Yanken Po'],
+    ['tanquesonline','💥','Tanques'],
+    ['arqueriaonline','🏹','Arquería'],
+    ['tesoroonline','💎','Tesoro'],
+    ['quizonline','🧠','Quiz Batalla'],
+    ['laberintoonline','🌀','Laberinto'],
+    ['cocinaonline','🍔','Cocina Rápida'],
+    ['saltosonline','🦘','Saltos'],
+    ['mascotasonline','🐶','Mascotas']
   ];
   function hgAbrirModalSocial(){
     const modal = document.getElementById('modalOverlay');
@@ -8042,19 +8056,19 @@ if(_hgOriginalOpenGame){
           <h2 style="font-family:'Fredoka One',cursive;margin:5px 0">Chat antes de jugar</h2>
           <div style="color:#d9d3ff;font-size:.9rem">Conversen y elijan juntos qué juego jugar.</div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;background:#15152a;border-radius:18px;padding:12px;margin-bottom:12px">
+        <div class="hg-versus-box" style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;background:#15152a;border-radius:18px;padding:12px;margin-bottom:12px">
           <div style="text-align:center"><div style="font-size:1.8rem">${hgHtml(yo.emoji)}</div><b>${hgHtml(yo.name)}</b><div style="font-size:.72rem;color:#16A34A">${hgHtml(hgMiCodigo())}</div></div>
           <div style="font-family:'Fredoka One',cursive;color:#FFD600">VS</div>
           <div style="text-align:center"><div style="font-size:1.8rem">${hgHtml(peer.emoji)}</div><b>${hgHtml(peer.name)}</b><div style="font-size:.72rem;color:#FF4D9D">${hgHtml(peer.id || '')}</div></div>
         </div>
         <div id="hgSocialChat" style="height:130px;overflow:auto;background:#10101c;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:10px;margin-bottom:8px;font-size:.9rem"></div>
-        <div style="display:flex;gap:6px;margin-bottom:14px">
-          <input id="hgSocialInput" maxlength="120" placeholder="Escribe aquí mientras eligen el juego..." style="flex:1;background:#1a1a2e;border:1px solid rgba(255,255,255,.15);border-radius:14px;color:white;padding:11px;font-family:Nunito,sans-serif;outline:none">
+        <div class="hg-social-input-row" style="display:flex;gap:6px;margin-bottom:14px">
+          <input id="hgSocialInput" type="text" name="hugokids_chat_message" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" inputmode="text" enterkeyhint="send" maxlength="120" placeholder="Escribe aquí mientras eligen el juego..." style="flex:1;background:#1a1a2e;border:1px solid rgba(255,255,255,.15);border-radius:14px;color:white;padding:11px;font-family:Nunito,sans-serif;outline:none;min-width:0">
           <button id="hgSocialSend" style="background:#16A34A;color:white;border:0;border-radius:14px;padding:0 15px;font-weight:900;cursor:pointer">➤</button>
         </div>
         <div style="background:#15152a;border-radius:18px;padding:12px">
           <div style="font-weight:900;text-align:center;margin-bottom:10px">${hgSocialState.esHost ? 'Elige el juego para ambos' : 'Esperando que el invitador elija el juego'}</div>
-          <div id="hgSocialGames" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px"></div>
+          <div id="hgSocialGames" class="hg-social-games-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px"></div>
         </div>
       </div>
       <div class="game-instructions"><strong>Ahora sí:</strong> ya no necesitas copiar un código. Cuando uno elija el juego, ambos entrarán a la misma sala.</div>`;
@@ -8114,7 +8128,10 @@ if(_hgOriginalOpenGame){
     try{ if (hgCanalSocial) { getSupabase().removeChannel(hgCanalSocial); hgCanalSocial = null; } }catch(e){}
     try{ _autoSala = {sala:salaJuego, esAnfitrion:esHost}; }catch(e){}
     hgToast('🎮 Entrando al juego...');
-    openGame(gameId);
+    const juegosNativos = ['tttonline','c4online','cajasonline','ahorcadoonline','navalonline','damasonline','ludoonline'];
+    if (juegosNativos.includes(gameId)) openGame(gameId);
+    else if (typeof openJuegoExtraOnline === 'function') openJuegoExtraOnline(gameId);
+    else openGame(gameId);
   }
 
   // Tabla online nueva: usa los conectados reales y botones correctos.
@@ -8392,6 +8409,45 @@ if(_hgOriginalOpenGame){
   setInterval(async () => { await hkCargarUsuariosRegistrados(); await hkActualizarContadores(); try{ window.refrescarTablaJugadoresOnline(); window.refrescarListaAmigos(); }catch(e){} }, 20000);
 })();
 
+</script>
+
+<script>
+/* MEJORA 2026-06: chat responsivo, todos los juegos online y audio bajo decisión del usuario */
+(function(){
+  const css = document.createElement('style');
+  css.textContent = `
+    #hgSocialGames.hg-social-games-grid{max-height:260px;overflow-y:auto;padding-right:4px}
+    #hgSocialGames.hg-social-games-grid button{min-height:78px;-webkit-tap-highlight-color:transparent}
+    @media (max-width: 640px){
+      .modal-overlay.fs .modal-body{padding:8px!important}
+      #modalBody .game-container{padding:10px!important;min-height:auto!important}
+      .hg-versus-box{grid-template-columns:1fr!important;gap:8px!important;text-align:center!important}
+      .hg-versus-box > div:nth-child(2){order:2}
+      .hg-social-input-row{display:grid!important;grid-template-columns:1fr 52px!important;gap:7px!important}
+      #hgSocialInput{font-size:16px!important;width:100%!important;min-width:0!important}
+      #hgSocialChat{height:150px!important;font-size:.86rem!important}
+      #hgSocialGames.hg-social-games-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;max-height:330px!important;overflow-y:auto!important}
+      #hgSocialGames.hg-social-games-grid button{padding:10px 6px!important;min-height:76px!important;font-size:.82rem!important}
+    }
+  `;
+  document.head.appendChild(css);
+
+  // Refuerzo: si el input del chat se vuelve a crear, apagar autocompletado/autofill del celular.
+  const fixChatInput = () => {
+    const i = document.getElementById('hgSocialInput');
+    if (!i) return;
+    i.setAttribute('type','text');
+    i.setAttribute('name','hugokids_chat_message');
+    i.setAttribute('autocomplete','off');
+    i.setAttribute('autocorrect','off');
+    i.setAttribute('autocapitalize','sentences');
+    i.setAttribute('spellcheck','false');
+    i.setAttribute('inputmode','text');
+    i.setAttribute('enterkeyhint','send');
+  };
+  new MutationObserver(fixChatInput).observe(document.body,{childList:true,subtree:true});
+  document.addEventListener('DOMContentLoaded', fixChatInput);
+})();
 </script>
 </body>
 </html>
