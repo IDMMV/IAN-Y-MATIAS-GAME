@@ -10458,53 +10458,118 @@ if(_hgOriginalOpenGame){
 
 <script>
 /* ══════════════════════════════════════════════════════════════
-   SISTEMA DE INVITADOS MEJORADO v1.0
-   • Invitados pueden ser invitados a jugar online
-   • Invitados NO ganan monedas ni trofeos (se les muestra el motivo)
-   • Admin decide qué juegos pueden jugar los invitados
-   • Si el invitado quiere ganar recompensas → banner para crear cuenta
-   • Tabla de jugadores online ahora muestra también invitados
+   SISTEMA DE INVITADOS v2.0 — Configuración guardada en Supabase
+   Tabla requerida (ejecutar una vez en Supabase SQL Editor):
+
+   CREATE TABLE IF NOT EXISTS config (
+     clave TEXT PRIMARY KEY,
+     valor JSONB,
+     actualizado_en TIMESTAMPTZ DEFAULT NOW()
+   );
+   ALTER TABLE config ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY "Lectura publica" ON config FOR SELECT USING (true);
+   CREATE POLICY "Solo admin escribe" ON config FOR ALL
+     USING (EXISTS (SELECT 1 FROM perfiles WHERE id=auth.uid() AND es_admin=true));
 ══════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
 
-  /* ── Clave en localStorage para juegos permitidos a invitados ── */
-  const KEY_JUEGOS_INVITADO = 'hk_juegos_invitado';
-  const KEY_INVITADOS_ONLINE = 'hk_invitados_pueden_online';
+  /* ── Config en memoria (cache) ── */
+  const CFG = {
+    juegos:  null,   // array de gameIds permitidos
+    online:  null,   // boolean
+    cargado: false,
+  };
 
-  /* ── Juegos permitidos por defecto para invitados ── */
-  const JUEGOS_DEFAULT_INVITADO = [
+  const JUEGOS_DEFAULT = [
     'snake','breakout','whack','memory','maze','racing','pong',
     'tictactoe','flappy','catch','jump','simon','2048','reaccion',
     'platform','defender','dungeon'
   ];
 
-  function getJuegosPermitidos() {
+  const TODOS_JUEGOS = [
+    {id:'snake',      nombre:'🐍 Snake Pro'},
+    {id:'breakout',   nombre:'🧱 Breakout'},
+    {id:'whack',      nombre:'🔨 Whack-a-Mole'},
+    {id:'memory',     nombre:'🃏 Memory Flip'},
+    {id:'maze',       nombre:'🌀 Maze Escape'},
+    {id:'racing',     nombre:'🏎️ Speed Racer'},
+    {id:'pong',       nombre:'🏓 Pong Battle'},
+    {id:'tictactoe',  nombre:'⭕ Tres en Raya'},
+    {id:'flappy',     nombre:'🐤 Flappy Bird'},
+    {id:'catch',      nombre:'🧺 Atrapa Frutas'},
+    {id:'jump',       nombre:'🦘 Salto Infinito'},
+    {id:'simon',      nombre:'🎵 Simón Dice'},
+    {id:'2048',       nombre:'🔢 2048'},
+    {id:'reaccion',   nombre:'⚡ Reacción'},
+    {id:'platform',   nombre:'🦸 Súper Salto'},
+    {id:'defender',   nombre:'🚀 Defensa Espacial'},
+    {id:'dungeon',    nombre:'🗝️ Mazmorra Mágica'},
+    {id:'treasure',   nombre:'💎 Caza Tesoros'},
+    {id:'idle',       nombre:'💰 Idle Millonario'},
+    {id:'multitud',   nombre:'👥 Multitud'},
+    {id:'runner',     nombre:'🏃 Corre sin Fin'},
+    {id:'merge',      nombre:'🎯 Fusión'},
+    {id:'torre',      nombre:'🏰 Defiende la Torre'},
+    {id:'sumas',      nombre:'➕ Sumas y Restas'},
+    {id:'tablas',     nombre:'✖️ Tablas Multiplicar'},
+    {id:'palabra',    nombre:'🔤 Forma la Palabra'},
+    {id:'regiones',   nombre:'🗺️ Regiones del Perú'},
+    {id:'patrios',    nombre:'🇵🇪 Símbolos Patrios'},
+    {id:'solar',      nombre:'🪐 Sistema Solar'},
+    {id:'cuerpo',     nombre:'🫀 Cuerpo Humano'},
+    {id:'figuras',    nombre:'🔷 Figuras y Colores'},
+  ];
+
+  function sb() { try { return getSupabase(); } catch(e) { return null; } }
+
+  /* ── Leer config desde Supabase (con cache) ── */
+  async function cargarConfig() {
+    if (CFG.cargado) return CFG;
+    const c = sb();
+    if (!c) {
+      CFG.juegos  = JUEGOS_DEFAULT;
+      CFG.online  = true;
+      CFG.cargado = true;
+      return CFG;
+    }
     try {
-      const v = localStorage.getItem(KEY_JUEGOS_INVITADO);
-      return v ? JSON.parse(v) : JUEGOS_DEFAULT_INVITADO;
-    } catch(e) { return JUEGOS_DEFAULT_INVITADO; }
-  }
-  function setJuegosPermitidos(lista) {
-    try { localStorage.setItem(KEY_JUEGOS_INVITADO, JSON.stringify(lista)); } catch(e) {}
-  }
-  function puedeInvitadoJugarOnline() {
-    try { return localStorage.getItem(KEY_INVITADOS_ONLINE) !== 'no'; } catch(e) { return true; }
+      const { data } = await c.from('config')
+        .select('clave,valor')
+        .in('clave', ['juegos_invitado','invitados_online']);
+      if (data) {
+        data.forEach(row => {
+          if (row.clave === 'juegos_invitado') CFG.juegos = Array.isArray(row.valor) ? row.valor : JUEGOS_DEFAULT;
+          if (row.clave === 'invitados_online') CFG.online = row.valor !== false;
+        });
+      }
+    } catch(e) {}
+    if (!CFG.juegos) CFG.juegos = JUEGOS_DEFAULT;
+    if (CFG.online === null) CFG.online = true;
+    CFG.cargado = true;
+    return CFG;
   }
 
-  function esInvitado() {
-    try { return !usuarioActual; } catch(e) { return true; }
+  /* ── Guardar config en Supabase ── */
+  async function guardarConfig(clave, valor) {
+    const c = sb(); if (!c) return false;
+    try {
+      const { error } = await c.from('config').upsert(
+        { clave, valor, actualizado_en: new Date().toISOString() },
+        { onConflict: 'clave' }
+      );
+      if (error) { console.warn('guardarConfig:', error.message); return false; }
+      return true;
+    } catch(e) { return false; }
   }
-  function esc(v) { return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-  /* ── Interceptar darRecompensa: invitados NO ganan monedas ── */
+  /* ── Helpers ── */
+  function esInvitado() { try { return !usuarioActual; } catch(e) { return true; } }
+
+  /* ── Interceptar darRecompensa: invitados NO ganan ── */
   const _darOrig = window.darRecompensa;
   window.darRecompensa = async function(monedas, puntos, motivo) {
-    if (esInvitado()) {
-      /* Mostrar banner de invitación a crear cuenta */
-      mostrarBannerInvitado(monedas, puntos);
-      return;
-    }
+    if (esInvitado()) { mostrarBannerInvitado(monedas, puntos); return; }
     if (typeof _darOrig === 'function') return _darOrig(monedas, puntos, motivo);
   };
 
@@ -10512,182 +10577,195 @@ if(_hgOriginalOpenGame){
     if (document.getElementById('hkBannerInvitado')) return;
     const box = document.createElement('div');
     box.id = 'hkBannerInvitado';
-    box.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#1a0533,#7C3AED);color:#fff;padding:12px 16px;border-radius:18px;z-index:7000;box-shadow:0 8px 28px rgba(0,0,0,0.5);text-align:center;max-width:92%;width:min(380px,92vw);font-family:Nunito,sans-serif;border:1px solid rgba(255,214,0,0.35)';
+    box.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#1a0533,#7C3AED);color:#fff;padding:14px 18px;border-radius:18px;z-index:7000;box-shadow:0 8px 28px rgba(0,0,0,0.5);text-align:center;max-width:92%;width:min(380px,92vw);font-family:Nunito,sans-serif;border:1px solid rgba(255,214,0,0.35)';
     box.innerHTML = `
-      <div style="font-size:1.5rem;margin-bottom:4px">🪙</div>
-      <div style="font-weight:800;font-size:0.92rem;margin-bottom:2px">Habrías ganado <span style="color:#FFD600">+${monedas}🪙 +${puntos}⭐</span></div>
-      <div style="color:rgba(255,255,255,0.7);font-size:0.78rem;margin-bottom:10px">Los invitados no acumulan recompensas. ¡Crea tu cuenta gratis y guarda todo!</div>
+      <div style="font-size:1.6rem;margin-bottom:4px">🪙</div>
+      <div style="font-weight:800;font-size:0.95rem;margin-bottom:4px">Habrías ganado <span style="color:#FFD600">+${monedas}🪙 +${puntos}⭐</span></div>
+      <div style="color:rgba(255,255,255,0.7);font-size:0.8rem;margin-bottom:12px">Los invitados no acumulan recompensas. ¡Crea tu cuenta gratis!</div>
       <div style="display:flex;gap:8px;justify-content:center">
-        <button onclick="document.getElementById('hkBannerInvitado').remove();openCuenta()" style="background:linear-gradient(135deg,#FFD600,#FF6B00);border:none;color:#1a0533;padding:8px 18px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">✨ Crear cuenta</button>
-        <button onclick="document.getElementById('hkBannerInvitado').remove()" style="background:rgba(255,255,255,0.12);border:none;color:#fff;padding:8px 14px;border-radius:12px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Cerrar</button>
+        <button onclick="document.getElementById('hkBannerInvitado').remove();openCuenta()"
+          style="background:linear-gradient(135deg,#FFD600,#FF6B00);border:none;color:#1a0533;padding:9px 20px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">✨ Crear cuenta</button>
+        <button onclick="document.getElementById('hkBannerInvitado').remove()"
+          style="background:rgba(255,255,255,0.12);border:none;color:#fff;padding:9px 14px;border-radius:12px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Cerrar</button>
       </div>`;
     document.body.appendChild(box);
-    setTimeout(() => { const b = document.getElementById('hkBannerInvitado'); if(b) b.remove(); }, 8000);
+    setTimeout(() => { const b=document.getElementById('hkBannerInvitado'); if(b) b.remove(); }, 8000);
   }
-  window.hkMostrarBannerInvitado = mostrarBannerInvitado;
 
-  /* ── Interceptar openGame: verificar si el juego está permitido ── */
+  /* ── Interceptar openGame: verificar permiso ── */
   const _openGameOrig = window.openGame;
-  window.openGame = function(gameId) {
+  window.openGame = async function(gameId) {
     if (!esInvitado()) {
-      /* Usuario registrado: puede jugar todo */
       if (typeof _openGameOrig === 'function') return _openGameOrig(gameId);
       return;
     }
-    /* Es invitado: verificar lista */
-    const permitidos = getJuegosPermitidos();
-    if (!permitidos.includes(gameId)) {
-      /* Juego bloqueado para invitados */
-      mostrarBloqueoPorInvitado(gameId);
-      return;
+    const cfg = await cargarConfig();
+    if (!cfg.juegos.includes(gameId)) {
+      mostrarBloqueoPorInvitado(); return;
     }
     if (typeof _openGameOrig === 'function') return _openGameOrig(gameId);
   };
 
-  function mostrarBloqueoPorInvitado(gameId) {
+  function mostrarBloqueoPorInvitado() {
     const box = document.createElement('div');
-    box.style.cssText = 'position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;padding:20px';
+    box.style.cssText = 'position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;padding:20px';
     box.innerHTML = `
-      <div style="background:linear-gradient(135deg,#0d1117,#1a0533);border:2px solid rgba(124,58,237,0.5);border-radius:22px;padding:26px 22px;max-width:340px;width:100%;text-align:center;font-family:Nunito,sans-serif">
-        <div style="font-size:2.5rem;margin-bottom:8px">🔐</div>
+      <div style="background:linear-gradient(135deg,#0d1117,#1a0533);border:2px solid rgba(124,58,237,0.5);border-radius:22px;padding:28px 22px;max-width:340px;width:100%;text-align:center;font-family:Nunito,sans-serif">
+        <div style="font-size:2.5rem;margin-bottom:10px">🔐</div>
         <div style="color:#FFD600;font-family:'Fredoka One',cursive;font-size:1.2rem;margin-bottom:8px">Juego para miembros</div>
-        <div style="color:rgba(255,255,255,0.75);font-size:0.84rem;line-height:1.6;margin-bottom:16px">
+        <div style="color:rgba(255,255,255,0.7);font-size:0.84rem;line-height:1.6;margin-bottom:18px">
           Este juego solo está disponible para usuarios registrados.<br>
           <span style="color:#86efac">¡Crea tu cuenta gratis</span> para desbloquearlo y ganar monedas, trofeos y más.
         </div>
         <div style="display:flex;gap:8px;flex-direction:column">
-          <button onclick="this.closest('[style*=\"z-index:8000\"]').remove();openCuenta()" style="background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:13px;border-radius:14px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;font-size:0.95rem">✨ Crear cuenta gratis</button>
-          <button onclick="this.closest('[style*=\"z-index:8000\"]').remove()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#aaa;padding:10px;border-radius:14px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Cancelar</button>
+          <button onclick="this.closest('[style*=\"z-index:8000\"]').remove();openCuenta()"
+            style="background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:13px;border-radius:14px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;font-size:0.95rem">✨ Crear cuenta gratis</button>
+          <button onclick="this.closest('[style*=\"z-index:8000\"]').remove()"
+            style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:#888;padding:10px;border-radius:14px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Cancelar</button>
         </div>
       </div>`;
     document.body.appendChild(box);
   }
 
-  /* ── Panel de admin: pestaña de configuración de invitados ── */
-  window.hkRenderAdminInvitados = function(cont) {
-    const todosLosJuegos = typeof window.GAMES_MAP === 'object'
-      ? Object.keys(window.GAMES_MAP)
-      : ['snake','breakout','whack','memory','maze','racing','pong','tictactoe','flappy',
-         'catch','jump','simon','2048','reaccion','platform','defender','dungeon',
-         'sumas','tablas','palabra','regiones','patrios','solar','cuerpo','figuras',
-         'idle','multitud','runner','merge','torre','dungeon'];
-
-    const permitidos = new Set(getJuegosPermitidos());
-    const puedeOnline = puedeInvitadoJugarOnline();
+  /* ══════════════════════════════════════════
+     PANEL ADMIN: pestaña de permisos de invitados
+  ══════════════════════════════════════════ */
+  window.hkRenderAdminInvitados = async function(cont) {
+    cont.innerHTML = `<div style="text-align:center;color:#555;padding:30px">Cargando configuración...</div>`;
+    CFG.cargado = false; // forzar recarga fresca desde Supabase
+    const cfg = await cargarConfig();
+    const permitidos = new Set(cfg.juegos);
 
     cont.innerHTML = `
-      <div style="background:#0d1117;color:#fff;font-family:Nunito,sans-serif;padding:4px">
-        <!-- Header -->
-        <div style="background:linear-gradient(135deg,#1a2233,#0d1117);border:1px solid #1e2535;border-radius:14px;padding:14px;margin-bottom:12px">
-          <div style="font-weight:800;font-size:0.95rem;margin-bottom:4px">👥 Permisos de invitados</div>
-          <div style="color:#666;font-size:0.78rem">Los invitados entran sin cuenta. Controla qué pueden hacer.</div>
-        </div>
+      <div style="color:#fff;font-family:Nunito,sans-serif">
 
         <!-- Toggle online -->
-        <div style="background:#13131f;border:1px solid #1e2535;border-radius:12px;padding:12px;margin-bottom:10px;display:flex;align-items:center;gap:12px">
-          <div style="flex:1">
-            <div style="font-weight:800;font-size:0.88rem">🌐 Invitados en juegos online</div>
-            <div style="color:#666;font-size:0.72rem;margin-top:2px">Si está activo, invitados pueden unirse a partidas online cuando son invitados por un usuario.</div>
+        <div style="background:#13131f;border:1px solid #1e2535;border-radius:14px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:800;font-size:0.9rem;margin-bottom:2px">🌐 Invitados pueden jugar online</div>
+            <div style="color:#555;font-size:0.72rem">Permite que un usuario registrado invite a un invitado a una partida online.</div>
           </div>
-          <label style="cursor:pointer;user-select:none">
-            <input type="checkbox" id="toggleInvOnline" ${puedeOnline?'checked':''} style="display:none">
-            <div id="toggleInvOnlineVis" style="width:46px;height:26px;background:${puedeOnline?'#16A34A':'#333'};border-radius:13px;position:relative;transition:background .2s">
-              <div style="position:absolute;top:3px;left:${puedeOnline?'23px':'3px'};width:20px;height:20px;background:#fff;border-radius:50%;transition:left .2s"></div>
-            </div>
-          </label>
+          <div id="togOnlineWrap" style="width:48px;height:28px;background:${cfg.online?'#16A34A':'#333'};border-radius:14px;position:relative;cursor:pointer;flex-shrink:0;transition:background .2s">
+            <div id="togOnlineBtn" style="position:absolute;top:4px;left:${cfg.online?'24px':'4px'};width:20px;height:20px;background:#fff;border-radius:50%;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.3)"></div>
+          </div>
         </div>
 
-        <!-- Info no ganan recompensas -->
-        <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:10px;margin-bottom:12px;font-size:0.76rem;color:#fbbf24;line-height:1.5">
-          🪙 Los invitados <strong>nunca ganan monedas ni trofeos</strong>, sin importar qué juegos puedan jugar. Se les muestra un banner para que creen su cuenta.
+        <!-- Aviso recompensas -->
+        <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:0.76rem;color:#fbbf24;line-height:1.5">
+          🪙 Los invitados <strong>nunca ganan monedas ni trofeos</strong>. Solo los usuarios registrados acumulan recompensas.
         </div>
 
-        <!-- Lista de juegos -->
-        <div style="font-weight:800;font-size:0.82rem;color:#aaa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Juegos disponibles para invitados</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;max-height:260px;overflow-y:auto;padding-right:2px" id="adminJuegosGrid">
-          ${todosLosJuegos.map(jid => `
-            <label style="display:flex;align-items:center;gap:8px;background:#13131f;border:1px solid ${permitidos.has(jid)?'#16A34A':'#1e2535'};border-radius:10px;padding:8px 10px;cursor:pointer;transition:border-color .15s">
-              <input type="checkbox" data-jid="${jid}" ${permitidos.has(jid)?'checked':''} style="accent-color:#16A34A;width:15px;height:15px">
-              <span style="color:${permitidos.has(jid)?'#fff':'#666'};font-size:0.78rem;font-weight:${permitidos.has(jid)?'700':'500'}">${jid}</span>
-            </label>`).join('')}
+        <!-- Lista juegos -->
+        <div style="font-size:0.78rem;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Juegos disponibles para invitados</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;max-height:280px;overflow-y:auto" id="invJuegosGrid">
+          ${TODOS_JUEGOS.map(j => {
+            const on = permitidos.has(j.id);
+            return `<label style="display:flex;align-items:center;gap:8px;background:#13131f;border:1px solid ${on?'rgba(22,163,74,0.5)':'#1e2535'};border-radius:10px;padding:8px 10px;cursor:pointer">
+              <input type="checkbox" data-jid="${j.id}" ${on?'checked':''} style="accent-color:#16A34A;width:14px;height:14px;cursor:pointer;flex-shrink:0">
+              <span style="font-size:0.78rem;color:${on?'#fff':'#555'};font-weight:${on?700:500};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${j.nombre}</span>
+            </label>`;
+          }).join('')}
         </div>
 
-        <!-- Botones masivos -->
+        <!-- Acciones rápidas + Guardar -->
         <div style="display:flex;gap:6px;margin-top:10px">
-          <button id="invPermitirTodos" style="flex:1;background:#15803d;border:none;color:#86efac;padding:8px;border-radius:10px;font-weight:800;font-size:0.76rem;cursor:pointer">✅ Todos</button>
-          <button id="invBloquerarTodos" style="flex:1;background:#7f1d1d;border:none;color:#f87171;padding:8px;border-radius:10px;font-weight:800;font-size:0.76rem;cursor:pointer">❌ Ninguno</button>
-          <button id="invGuardar" style="flex:2;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:8px;border-radius:10px;font-weight:800;font-size:0.82rem;cursor:pointer">💾 Guardar cambios</button>
+          <button id="invTodos"    style="flex:1;background:#0f3322;border:1px solid #16A34A;color:#86efac;padding:8px 4px;border-radius:10px;font-weight:800;font-size:0.72rem;cursor:pointer">✅ Todos</button>
+          <button id="invNinguno"  style="flex:1;background:#1c0a0a;border:1px solid #7f1d1d;color:#f87171;padding:8px 4px;border-radius:10px;font-weight:800;font-size:0.72rem;cursor:pointer">❌ Ninguno</button>
+          <button id="invGuardar"  style="flex:2;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:9px 8px;border-radius:10px;font-weight:800;font-size:0.82rem;cursor:pointer">💾 Guardar en Supabase</button>
         </div>
+        <div id="invEstado" style="text-align:center;font-size:0.76rem;color:#555;margin-top:6px"></div>
       </div>`;
 
     /* Toggle online */
-    const togEl = cont.querySelector('#toggleInvOnline');
-    const togVis = cont.querySelector('#toggleInvOnlineVis');
-    if (togEl) togEl.onchange = () => {
-      const on = togEl.checked;
-      try { localStorage.setItem(KEY_INVITADOS_ONLINE, on?'si':'no'); } catch(e) {}
-      togVis.style.background = on ? '#16A34A' : '#333';
-      togVis.querySelector('div').style.left = on ? '23px' : '3px';
+    let onlineLocal = cfg.online;
+    const togWrap = cont.querySelector('#togOnlineWrap');
+    const togBtn  = cont.querySelector('#togOnlineBtn');
+    togWrap.onclick = () => {
+      onlineLocal = !onlineLocal;
+      togWrap.style.background = onlineLocal ? '#16A34A' : '#333';
+      togBtn.style.left = onlineLocal ? '24px' : '4px';
     };
 
-    /* Permitir / bloquear todos */
-    cont.querySelector('#invPermitirTodos').onclick = () => {
-      cont.querySelectorAll('input[data-jid]').forEach(cb => { cb.checked = true; });
-    };
-    cont.querySelector('#invBloquerarTodos').onclick = () => {
-      cont.querySelectorAll('input[data-jid]').forEach(cb => { cb.checked = false; });
-    };
+    /* Todos / Ninguno */
+    cont.querySelector('#invTodos').onclick   = () => cont.querySelectorAll('input[data-jid]').forEach(cb => cb.checked=true);
+    cont.querySelector('#invNinguno').onclick = () => cont.querySelectorAll('input[data-jid]').forEach(cb => cb.checked=false);
 
-    /* Guardar */
-    cont.querySelector('#invGuardar').onclick = () => {
-      const nueva = [];
-      cont.querySelectorAll('input[data-jid]:checked').forEach(cb => nueva.push(cb.dataset.jid));
-      setJuegosPermitidos(nueva);
-      try { showToast('✅ Permisos de invitados guardados'); } catch(e) {}
-      window.hkRenderAdminInvitados(cont); // re-render
+    /* Guardar en Supabase */
+    cont.querySelector('#invGuardar').onclick = async () => {
+      const btn    = cont.querySelector('#invGuardar');
+      const estado = cont.querySelector('#invEstado');
+      btn.textContent = 'Guardando...'; btn.disabled = true;
+      const nuevosJuegos = [];
+      cont.querySelectorAll('input[data-jid]:checked').forEach(cb => nuevosJuegos.push(cb.dataset.jid));
+
+      const [ok1, ok2] = await Promise.all([
+        guardarConfig('juegos_invitado',  nuevosJuegos),
+        guardarConfig('invitados_online', onlineLocal),
+      ]);
+
+      if (ok1 && ok2) {
+        /* Actualizar cache local */
+        CFG.juegos  = nuevosJuegos;
+        CFG.online  = onlineLocal;
+        CFG.cargado = true;
+        btn.textContent = '✅ Guardado';
+        btn.style.background = '#16A34A';
+        estado.innerHTML = '<span style="color:#86efac">✅ Configuración guardada en Supabase. Aplica para todos los dispositivos.</span>';
+        try { showToast('✅ Permisos de invitados actualizados'); } catch(e) {}
+        setTimeout(() => {
+          btn.textContent = '💾 Guardar en Supabase';
+          btn.style.background = 'linear-gradient(135deg,#7C3AED,#FF4D9D)';
+          btn.disabled = false;
+        }, 2500);
+      } else {
+        btn.textContent = '💾 Guardar en Supabase'; btn.disabled = false;
+        estado.innerHTML = '<span style="color:#f87171">❌ Error al guardar. Verifica que la tabla <code>config</code> existe y las políticas RLS están activas.</span>';
+        try { showToast('❌ Error al guardar. Revisa la tabla config en Supabase'); } catch(e) {}
+      }
     };
   };
 
-  /* ── Añadir pestaña de invitados al panel admin ── */
-  const _renderPanelAdminOrig = window.renderPanelAdmin;
+  /* ── Añadir botón "👥 Invitados" al footer del panel admin ── */
+  const _renderAdminOrig = window.renderPanelAdmin;
   window.renderPanelAdmin = async function() {
-    await _renderPanelAdminOrig();
-    /* Añadir pestaña extra si no existe ya */
-    const volver = document.getElementById('volverPanel');
-    if (!volver) return;
-    const footer = volver.closest('div');
+    await _renderAdminOrig();
+    const footer = document.getElementById('volverPanel')?.closest('div');
     if (!footer || footer.querySelector('#btnTabInvitados')) return;
 
-    const btnTab = document.createElement('button');
-    btnTab.id = 'btnTabInvitados';
-    btnTab.style.cssText = 'margin-left:14px;background:rgba(124,58,237,0.3);border:1px solid #7C3AED;color:#c4b5fd;padding:5px 12px;border-radius:10px;font-weight:800;font-size:0.78rem;cursor:pointer;font-family:Nunito,sans-serif';
-    btnTab.textContent = '👥 Invitados';
-    footer.appendChild(btnTab);
+    const btn = document.createElement('button');
+    btn.id = 'btnTabInvitados';
+    btn.style.cssText = 'margin-left:12px;background:rgba(124,58,237,0.25);border:1px solid rgba(124,58,237,0.5);color:#c4b5fd;padding:5px 13px;border-radius:10px;font-weight:800;font-size:0.78rem;cursor:pointer;font-family:Nunito,sans-serif';
+    btn.textContent = '👥 Invitados';
+    footer.appendChild(btn);
 
-    btnTab.onclick = () => {
+    btn.onclick = () => {
       const lista = document.getElementById('adminLista');
       const stats = document.getElementById('adminStats');
       if (!lista) return;
-      if (lista.dataset.modo === 'invitados') {
-        /* Volver a lista de usuarios */
+      if (lista.dataset.modo === 'inv') {
         lista.dataset.modo = '';
-        btnTab.textContent = '👥 Invitados';
-        btnTab.style.background = 'rgba(124,58,237,0.3)';
+        btn.textContent = '👥 Invitados';
+        btn.style.background = 'rgba(124,58,237,0.25)';
         if (stats) stats.style.display = '';
         window.renderPanelAdmin();
       } else {
-        /* Mostrar panel de invitados */
-        lista.dataset.modo = 'invitados';
-        btnTab.textContent = '← Volver';
-        btnTab.style.background = '#7C3AED';
+        lista.dataset.modo = 'inv';
+        btn.textContent = '← Volver';
+        btn.style.background = '#7C3AED';
         if (stats) stats.style.display = 'none';
         window.hkRenderAdminInvitados(lista);
       }
     };
   };
 
-  /* ── Exponer configuración globalmente ── */
-  window.hkJuegosInvitado = { getJuegosPermitidos, setJuegosPermitidos, puedeInvitadoJugarOnline };
+  /* ── Cargar config al inicio (para que los invitados tengan reglas listas) ── */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(cargarConfig, 1500), {once:true});
+  } else {
+    setTimeout(cargarConfig, 1500);
+  }
+
+  window.hkInvitados = { cargarConfig, guardarConfig };
 
 })();
 </script>
