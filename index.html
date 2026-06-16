@@ -3790,12 +3790,17 @@ function refrescarListaAmigos() {
         <div style="color:#fff;font-weight:700;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombre}</div>
         <div style="color:${on?'#16A34A':'#666'};font-size:0.7rem">${on?'🟢 En línea':'⚫ Desconectado'} · #${a.num}</div>
       </div>
-      ${on ? `<button data-inv="${a.num}" style="background:#16A34A;border:none;color:#fff;padding:7px 12px;border-radius:10px;font-weight:800;font-size:0.78rem;cursor:pointer;-webkit-tap-highlight-color:transparent">⚔️ Invitar</button>` : ''}
+      ${on ? `<button data-inv="${a.num}" style="background:#16A34A;border:none;color:#fff;padding:7px 11px;border-radius:10px;font-weight:800;font-size:0.76rem;cursor:pointer;-webkit-tap-highlight-color:transparent">⚔️ Jugar</button>` : ''}
+      <button data-chat="${a.num}" data-nombre="${(nombre||'').replace(/"/g,'&quot;')}" data-avatar="${emoji}" style="background:#7C3AED;border:none;color:#fff;padding:7px 11px;border-radius:10px;font-weight:800;font-size:0.76rem;cursor:pointer;-webkit-tap-highlight-color:transparent">💬 Chat</button>
       <button data-del="${a.num}" style="background:rgba(220,38,38,0.2);border:none;color:#f87171;padding:7px 9px;border-radius:10px;cursor:pointer;-webkit-tap-highlight-color:transparent">🗑️</button>
     </div>`;
   }).join('');
   cont.querySelectorAll('button[data-inv]').forEach(b => {
     const f = e => { e.preventDefault(); e.stopPropagation(); invitarAmigo(b.dataset.inv); };
+    b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+  });
+  cont.querySelectorAll('button[data-chat]').forEach(b => {
+    const f = e => { e.preventDefault(); e.stopPropagation(); if (window.HKChat) window.HKChat.abrir(b.dataset.chat, b.dataset.nombre, b.dataset.avatar); };
     b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
   });
   cont.querySelectorAll('button[data-del]').forEach(b => {
@@ -3876,6 +3881,120 @@ setTimeout(async () => {
 }, 3000);
 
 
+// ═══════════════════════════════════════════════════════════════
+//  SISTEMA DE NIVELES UNIFICADO (1 → 10) para todos los juegos
+//  Cada juego define metas crecientes. Al cumplir la meta, sube de
+//  nivel y gana monedas. El progreso se guarda por jugador.
+// ═══════════════════════════════════════════════════════════════
+const HK_NIVELES = {
+  metas: {
+    snake:    [5, 8, 12, 16, 20, 25, 30, 36, 42, 50],
+    racing:   [200, 350, 500, 700, 900, 1200, 1500, 1900, 2400, 3000],
+    flappy:   [3, 5, 8, 12, 16, 20, 25, 30, 36, 45],
+    platform: [150, 250, 350, 500, 650, 800, 1000, 1250, 1500, 2000],
+  },
+
+  getNivel(juego) {
+    try {
+      const v = localStorage.getItem('hk_nivel_' + juego);
+      const n = v ? parseInt(v) : 1;
+      return Math.max(1, Math.min(10, n));
+    } catch(e) { return 1; }
+  },
+
+  setNivel(juego, nivel) {
+    nivel = Math.max(1, Math.min(10, nivel));
+    try { localStorage.setItem('hk_nivel_' + juego, String(nivel)); } catch(e) {}
+    try {
+      if (typeof getSupabase === 'function' && usuarioActual) {
+        const c = getSupabase();
+        if (c) {
+          const niveles = this._leerTodosLocal();
+          niveles[juego] = nivel;
+          c.from('perfiles').update({ niveles }).eq('id', usuarioActual.id).then(()=>{}, ()=>{});
+        }
+      }
+    } catch(e) {}
+  },
+
+  _leerTodosLocal() {
+    const r = {};
+    ['snake','racing','flappy','platform'].forEach(j => { r[j] = this.getNivel(j); });
+    return r;
+  },
+
+  metaNivel(juego, nivel) {
+    const arr = this.metas[juego];
+    if (!arr) return 999;
+    return arr[Math.max(0, Math.min(9, nivel - 1))];
+  },
+
+  barraHTML(juego) {
+    return `<div id="hkBarra_${juego}">${this._barraInterna(juego)}</div>`;
+  },
+
+  actualizarProgreso(juego, valor) {
+    const el = document.getElementById('hkMeta_' + juego);
+    if (el) el.textContent = valor;
+    const meta = this.metaNivel(juego, this.getNivel(juego));
+    return valor >= meta;
+  },
+
+  // Regenera la barra de nivel del HUD (llamar al reiniciar tras subir nivel)
+  refrescarBarra(juego) {
+    const cont = document.getElementById('hkBarra_' + juego);
+    if (cont) cont.innerHTML = this._barraInterna(juego);
+  },
+
+  _barraInterna(juego) {
+    const nivel = this.getNivel(juego);
+    const meta = this.metaNivel(juego, nivel);
+    return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center">
+      <span style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);color:#fff;font-weight:800;font-size:0.72rem;padding:2px 8px;border-radius:8px">Nivel ${nivel}/10</span>
+      <span style="color:#FFD600;font-weight:800;font-size:0.75rem">Meta: <span id="hkMeta_${juego}">0</span>/${meta}</span>
+    </div>`;
+  },
+
+  completarNivel(juego, nombreJuego) {
+    const nivelCompletado = this.getNivel(juego);   // el nivel que acaba de superar
+    const monedas = 20 + nivelCompletado * 10;
+    if (nivelCompletado >= 10) {
+      // Guardar info para la pantalla de victoria
+      this._ultimaVictoria = { juego, completado: 10, nuevo: 10, max: true };
+      if (typeof darRecompensa === 'function') darRecompensa(monedas, 100, '🏆 ' + nombreJuego + ' Nivel MAX');
+      try { showToast('🏆 ¡Completaste el Nivel MÁXIMO! +' + monedas + '🪙'); launchConfetti(); if(SFX&&SFX.win)SFX.win(); } catch(e){}
+      return 10;
+    }
+    const nuevoNivel = nivelCompletado + 1;
+    this.setNivel(juego, nuevoNivel);
+    this._ultimaVictoria = { juego, completado: nivelCompletado, nuevo: nuevoNivel, max: false };
+    if (typeof darRecompensa === 'function') darRecompensa(monedas, 50, '⭐ ' + nombreJuego + ' Nivel ' + nivelCompletado);
+    try {
+      showToast('🎉 ¡Nivel ' + nivelCompletado + ' completado! +' + monedas + '🪙');
+      launchConfetti();
+      if (typeof SFX !== 'undefined' && SFX.win) SFX.win();
+    } catch(e){}
+    return nuevoNivel;
+  },
+
+  dibujarVictoria(ctx, W, H, juego, nombreJuego) {
+    const v = this._ultimaVictoria || { completado: this.getNivel(juego), nuevo: this.getNivel(juego), max: false };
+    ctx.fillStyle = 'rgba(0,0,0,0.78)'; ctx.fillRect(0,0,W,H);
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#86efac'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
+    ctx.fillText('🎉 ¡NIVEL ' + v.completado, W/2, H/2-34);
+    ctx.fillText('COMPLETADO!', W/2, H/2+2);
+    ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/19)}px Nunito,sans-serif`;
+    if (v.max) {
+      ctx.fillText('¡Eres un MAESTRO! Toca para seguir', W/2, H/2+42);
+    } else {
+      ctx.fillText('Avanzas al Nivel ' + v.nuevo + ' · Toca para seguir', W/2, H/2+42);
+    }
+  }
+};
+window.HK_NIVELES = HK_NIVELES;
+
+
 // ═══════════════════════════════════════════
 //  GAME 1: SNAKE
 // ═══════════════════════════════════════════
@@ -3883,29 +4002,34 @@ function buildSnake(container) {
   const W = Math.min(400, window.innerWidth - 60, maxGameHeight());
   container.innerHTML = `
     <div class="game-container">
-      <div style="padding:12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-weight:800;font-size:1rem;color:#fff">🐍 Score: <span id="snakeScore">0</span></span>
-        <span style="font-weight:800;font-size:1rem;color:#fff">⭐ Best: <span id="snakeBest">0</span></span>
-        <button onclick="window.snakeReset()" style="background:#7C3AED;border:none;color:white;padding:6px 14px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">Reiniciar</button>
+      <div style="padding:10px 12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:800;font-size:0.92rem;color:#fff">🐍 <span id="snakeScore">0</span></span>
+        <span style="font-weight:800;font-size:0.92rem;color:#fff">⭐ <span id="snakeBest">0</span></span>
+        <button onclick="window.snakeReset()" style="background:#7C3AED;border:none;color:white;padding:6px 14px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">↺</button>
       </div>
+      <div style="padding:6px 12px;background:#0a0a14;text-align:center">${HK_NIVELES.barraHTML('snake')}</div>
       <div class="game-canvas-wrap" style="min-height:${W}px">
         <canvas id="snakeGame" width="${W}" height="${W}"></canvas>
       </div>
     </div>
     <div class="game-instructions">
-      <strong>Controles:</strong> Flechas o WASD · En móvil: desliza la pantalla · Come 🍎 para crecer.
+      <strong>Controles:</strong> Flechas o WASD · En móvil: desliza · Come 🍎 hasta la meta para subir de nivel.
     </div>`;
   const canvas = document.getElementById('snakeGame');
   const ctx = canvas.getContext('2d');
   const CELL = Math.floor(W / 20);
   const COLS = Math.floor(W / CELL), ROWS = Math.floor(W / CELL);
-  let snake, dir, food, score, best = getRecord('snake'), running, speed, loopId;
+  let snake, dir, food, score, best = getRecord('snake'), running, speed, loopId, won;
 
   function reset() {
     snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
-    dir = {x:1,y:0}; score = 0; speed = 150;
+    dir = {x:1,y:0}; score = 0; won = false;
+    // Velocidad inicial según nivel: más rápido en niveles altos
+    const nivel = HK_NIVELES.getNivel('snake');
+    speed = Math.max(80, 160 - nivel * 8);
     setText('snakeScore', 0);
     setText('snakeBest', best);
+    HK_NIVELES.refrescarBarra('snake'); HK_NIVELES.actualizarProgreso('snake', 0);
     placeFood();
     if (loopId) clearInterval(loopId);
     running = true;
@@ -3925,13 +4049,21 @@ function buildSnake(container) {
       best = saveRecord('snake', score); setText('snakeBest', best);
       if(score>=20) awardBadge('snake_pro');
       SFX.lose();
-      draw(); showToast('💀 Game Over! Score: ' + score); return;
+      draw(); showToast('💀 Game Over! Comiste: ' + score); return;
     }
     snake.unshift(head);
     if (head.x===food.x&&head.y===food.y) {
       score++; setText('snakeScore', score); SFX.pick();
       if (score > best) { best = score; setText('snakeBest', best); }
-      placeFood(); speed = Math.max(60, speed - 2);
+      // ¿Alcanzó la meta del nivel?
+      if (HK_NIVELES.actualizarProgreso('snake', score)) {
+        running = false; won = true; clearInterval(loopId);
+        saveRecord('snake', score);
+        HK_NIVELES.completarNivel('snake', 'Snake Pro');
+        draw();
+        return;
+      }
+      placeFood(); speed = Math.max(50, speed - 2);
       clearInterval(loopId); loopId = registerInterval(setInterval(tick, speed));
     } else snake.pop();
     draw();
@@ -3944,11 +4076,13 @@ function buildSnake(container) {
       ctx.fillStyle = i===0 ? '#7C3AED' : `hsl(${280-i*4},70%,${62-i*1.5}%)`;
       ctx.beginPath(); ctx.roundRect(s.x*CELL+1,s.y*CELL+1,CELL-2,CELL-2,4); ctx.fill();
     });
-    if (!running) {
+    if (won) {
+      HK_NIVELES.dibujarVictoria(ctx, W, W, 'snake', 'Snake Pro');
+    } else if (!running) {
       ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,W);
       ctx.fillStyle='white'; ctx.font='bold 26px Fredoka One,cursive'; ctx.textAlign='center';
       ctx.fillText('💀 GAME OVER', W/2, W/2-20);
-      ctx.font='15px Nunito,sans-serif'; ctx.fillText('Score: '+score, W/2, W/2+14);
+      ctx.font='15px Nunito,sans-serif'; ctx.fillText('Comiste: '+score, W/2, W/2+14);
     }
   }
   let touchStart = null;
@@ -4350,8 +4484,9 @@ function buildRacing(container) {
         </div>
       </div>
     </div>
+    <div style="padding:6px 12px;background:#0a0a14;text-align:center">${HK_NIVELES.barraHTML('racing')}</div>
     <div class="game-instructions">
-      <strong>◀ ▶</strong> girar &nbsp;·&nbsp; <strong>⚡ NITRO</strong> boost &nbsp;·&nbsp; Centro pantalla = nitro en móvil &nbsp;·&nbsp; ¡Esquiva los autos! 3 vidas.
+      <strong>◀ ▶</strong> girar &nbsp;·&nbsp; <strong>⚡ NITRO</strong> boost &nbsp;·&nbsp; Llega a la meta de metros para subir de nivel · 3 vidas.
     </div>`;
 
   const canvas = document.getElementById('racingGame');
@@ -4364,7 +4499,7 @@ function buildRacing(container) {
 
   /* ── Estado ── */
   let pos, speed, steering, lives, score, dist, nitro, nitroActive;
-  let running, animId, keys = {}, lastT = 0;
+  let running, animId, keys = {}, lastT = 0, won = false, GOAL_RACE = 200;
   let roadCurve = 0, targetCurve = 0, curveTimer = 0;
   let cameraX = 0, shakeT = 0;
   let dayTime = 0;
@@ -4391,8 +4526,10 @@ function buildRacing(container) {
     pos = 0; speed = 0; steering = 0; lives = 3; score = 0; dist = 0;
     nitro = 100; nitroActive = false; running = true; cameraX = 0;
     roadCurve = 0; targetCurve = 0; curveTimer = 0; dayTime = 0; shakeT = 0;
-    rivals = [];
+    rivals = []; won = false;
+    GOAL_RACE = HK_NIVELES.metaNivel('racing', HK_NIVELES.getNivel('racing'));
     setText('raceDist', 0); setText('raceScore', 0);
+    HK_NIVELES.refrescarBarra('racing'); HK_NIVELES.actualizarProgreso('racing', 0);
     const lh = document.getElementById('raceLivesHUD');
     if (lh) lh.textContent = '❤️❤️❤️';
     updateSpeedArc(0); updateNitroSegs(100); updateGear(0);
@@ -4482,6 +4619,14 @@ function buildRacing(container) {
     pos += speed * dtS * 0.01;
     dist += Math.round(speed * dtS * 0.05);
     setText('raceDist', dist);
+
+    /* ¿Alcanzó la meta de metros del nivel? → sube de nivel */
+    if (HK_NIVELES.actualizarProgreso('racing', dist)) {
+      running = false; won = true;
+      saveRecord('racing', dist);
+      HK_NIVELES.completarNivel('racing', 'Speed Racer');
+      return;
+    }
 
     /* Curva dinámica (suave, una sola dirección a la vez) */
     curveTimer -= dtS;
@@ -4807,16 +4952,20 @@ function buildRacing(container) {
       }
     }
 
-    /* ── Game Over overlay ── */
+    /* ── Game Over / Victoria overlay ── */
     if (!running) {
-      ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0,0,W,H);
-      ctx.fillStyle='#FF4D9D'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('💥 GAME OVER', W/2, H/2-24);
-      ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
-      ctx.fillText(dist+'m · '+score+' pts', W/2, H/2+10);
-      ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${Math.round(W/22)}px Nunito,sans-serif`;
-      ctx.fillText('Toca ↺ para volver a jugar', W/2, H/2+38);
+      if (won) {
+        HK_NIVELES.dibujarVictoria(ctx, W, H, 'racing', 'Speed Racer');
+      } else {
+        ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0,0,W,H);
+        ctx.fillStyle='#FF4D9D'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('💥 ¡CHOCASTE!', W/2, H/2-24);
+        ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
+        ctx.fillText(dist+'/'+GOAL_RACE+'m', W/2, H/2+10);
+        ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${Math.round(W/22)}px Nunito,sans-serif`;
+        ctx.fillText('Toca ↺ para volver a jugar', W/2, H/2+38);
+      }
     }
 
     ctx.restore();
@@ -5234,22 +5383,26 @@ function buildFlappy(container) {
   if (H > maxGameHeight()) { H = maxGameHeight(); W = Math.round(H/1.2); }
   container.innerHTML = `
     <div class="game-container">
-      <div style="padding:12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-weight:800;color:#fff">🐤 Score: <span id="flapScore">0</span></span>
-        <span style="font-weight:800;color:#fff">⭐ Best: <span id="flapBest">0</span></span>
-        <button onclick="window.flapReset()" style="background:#7C3AED;border:none;color:white;padding:6px 14px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">Reiniciar</button>
+      <div style="padding:10px 12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:800;color:#fff">🐤 <span id="flapScore">0</span></span>
+        <span style="font-weight:800;color:#fff">⭐ <span id="flapBest">0</span></span>
+        <button onclick="window.flapReset()" style="background:#7C3AED;border:none;color:white;padding:6px 14px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">↺</button>
       </div>
+      <div style="padding:6px 12px;background:#0a0a14;text-align:center">${HK_NIVELES.barraHTML('flappy')}</div>
       <div class="game-canvas-wrap" style="min-height:${H}px"><canvas id="flappyGame" width="${W}" height="${H}"></canvas></div>
     </div>
-    <div class="game-instructions"><strong>Controles:</strong> Toca la pantalla o ESPACIO/clic para volar · ¡Pasa entre los tubos!</div>`;
+    <div class="game-instructions"><strong>Controles:</strong> Toca o ESPACIO para volar · ¡Pasa los tubos hasta la meta para subir de nivel!</div>`;
   const canvas=document.getElementById('flappyGame');
   const ctx=canvas.getContext('2d');
-  let bird,pipes,score,best=getRecord('flappy'),running,animId;
+  let bird,pipes,score,best=getRecord('flappy'),running,animId,won;
   setTimeout(()=>setText('flapBest',best),0);
-  const GAP=130, PIPE_W=50, GRAV=0.4, FLAP=-7;
+  const nivelF = HK_NIVELES.getNivel('flappy');
+  const GAP=Math.max(105, 135 - nivelF*3), PIPE_W=50, GRAV=0.4, FLAP=-7;
+  const PIPE_SPEED = 2.3 + nivelF*0.12;
   function reset(){
-    bird={y:H/2,vy:0,x:W*0.25}; pipes=[]; score=0; running=true;
+    bird={y:H/2,vy:0,x:W*0.25}; pipes=[]; score=0; running=true; won=false;
     setText('flapScore',0);
+    HK_NIVELES.refrescarBarra('flappy'); HK_NIVELES.actualizarProgreso('flappy', 0);
     for(let i=0;i<3;i++) pipes.push({x:W+i*200,top:60+Math.random()*(H-GAP-120),passed:false});
     if(animId) cancelAnimationFrame(animId); loop();
   }
@@ -5264,13 +5417,21 @@ function buildFlappy(container) {
     bird.vy+=GRAV; bird.y+=bird.vy;
     if(bird.y>H-12||bird.y<12){ running=false; end(); return; }
     pipes.forEach(p=>{
-      p.x-=2.5;
-      if(!p.passed&&p.x+PIPE_W<bird.x){ p.passed=true; score++; setText('flapScore',score); SFX.point(); }
+      p.x-=PIPE_SPEED;
+      if(!p.passed&&p.x+PIPE_W<bird.x){
+        p.passed=true; score++; setText('flapScore',score); SFX.point();
+        // ¿Meta del nivel alcanzada?
+        if (HK_NIVELES.actualizarProgreso('flappy', score)) {
+          running = false; won = true;
+          saveRecord('flappy', score);
+          HK_NIVELES.completarNivel('flappy', 'Flappy Bird');
+        }
+      }
       if(bird.x+12>p.x&&bird.x-12<p.x+PIPE_W&&(bird.y-12<p.top||bird.y+12>p.top+GAP)){ running=false; end(); }
     });
     if(pipes[0].x<-PIPE_W){ pipes.shift(); pipes.push({x:pipes[pipes.length-1].x+200,top:60+Math.random()*(H-GAP-120),passed:false}); }
   }
-  function end(){ best=saveRecord('flappy',score); setText('flapBest',best); SFX.lose(); showToast('💀 Game Over! Score: '+score); }
+  function end(){ best=saveRecord('flappy',score); setText('flapBest',best); SFX.lose(); showToast('💀 Game Over! Tubos: '+score); }
   function draw(){
     const sky=ctx.createLinearGradient(0,0,0,H); sky.addColorStop(0,'#4EC0CA'); sky.addColorStop(1,'#8FE3E8');
     ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
@@ -5278,7 +5439,8 @@ function buildFlappy(container) {
     pipes.forEach(p=>{ ctx.fillRect(p.x,0,PIPE_W,p.top); ctx.fillRect(p.x,p.top+GAP,PIPE_W,H-p.top-GAP); ctx.fillStyle='#4A9E2E'; ctx.fillRect(p.x-3,p.top-20,PIPE_W+6,20); ctx.fillRect(p.x-3,p.top+GAP,PIPE_W+6,20); ctx.fillStyle='#5BBF3A'; });
     ctx.font='26px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.save(); ctx.translate(bird.x,bird.y); ctx.rotate(Math.min(Math.max(bird.vy*0.05,-0.4),0.6)); ctx.fillText('🐤',0,0); ctx.restore();
-    if(!running){ ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#fff'; ctx.font='bold 22px Fredoka One,cursive'; ctx.fillText('Toca para volar',W/2,H/2); }
+    if(won){ HK_NIVELES.dibujarVictoria(ctx, W, H, 'flappy', 'Flappy Bird'); }
+    else if(!running){ ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#fff'; ctx.font='bold 22px Fredoka One,cursive'; ctx.fillText('Toca para volar',W/2,H/2); }
   }
   canvas.addEventListener('touchstart',e=>{flap();e.preventDefault();},{passive:false});
   canvas.addEventListener('mousedown',flap);
@@ -5717,7 +5879,8 @@ function buildPlatform(container) {
         <button onclick="window.plReset()" style="background:#7C3AED;border:none;color:#fff;padding:4px 10px;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.75rem">↺</button>
       </div>
     </div>
-    <div class="game-instructions"><strong>SALTAR:</strong> Toca pantalla / Espacio / ↑ · Doble toque = doble salto · ¡Llega a la meta de 300m esquivando obstáculos!</div>`;
+    <div style="padding:6px 12px;background:#0a0a14;text-align:center">${HK_NIVELES.barraHTML('platform')}</div>
+    <div class="game-instructions"><strong>SALTAR:</strong> Toca pantalla / Espacio / ↑ · Doble toque = doble salto · ¡Llega a la meta para subir de nivel!</div>`;
 
   const canvas = document.getElementById('plGame');
   const ctx = canvas.getContext('2d');
@@ -5739,12 +5902,14 @@ function buildPlatform(container) {
   /* ── Estado ── */
   let hero, obstacles, coins, dist, distFloat, score, speed, animId, running, lives, won;
   let frameN = 0;  // para animación del personaje
-  const GOAL = 300;  // meta en metros
+  let GOAL = HK_NIVELES.metaNivel('platform', HK_NIVELES.getNivel('platform'));  // meta del nivel actual
 
   function reset() {
+    GOAL = HK_NIVELES.metaNivel('platform', HK_NIVELES.getNivel('platform'));  // recalcular por si subió de nivel
     hero = {x:60, y:GROUND-40, w:28, h:40, vy:0, vx:0, jumping:false, djump:false, run:0, dead:false};
     obstacles=[]; coins=[]; dist=0; distFloat=0; score=0; speed=4; running=true; lives=3; frameN=0; won=false;
     parallaxX=[0,0,0]; pars.length=0;
+    HK_NIVELES.refrescarBarra('platform');
     setText('plScore',0); setText('plDist',0); setText('plGoal', GOAL);
     document.getElementById('plLives').textContent='3';
     if (animId) cancelAnimationFrame(animId);
@@ -5810,12 +5975,11 @@ function buildPlatform(container) {
     speed = 4 + dist/120;   // acelera gradualmente
     setText('plDist', Math.min(dist, GOAL));
 
-    /* ¿Llegó a la meta? → ¡Ganó! */
+    /* ¿Llegó a la meta? → ¡Subió de nivel! */
     if (dist >= GOAL && running) {
       running = false; won = true;
       saveRecord('platform', dist);
-      if (typeof darRecompensa==='function') darRecompensa(score + 20, dist, '🦸 Plataforma');
-      try { showToast('🏁 ¡Meta alcanzada! +20🪙 bonus'); launchConfetti(); SFX.win(); } catch(e) {}
+      HK_NIVELES.completarNivel('platform', 'Súper Salto');
     }
 
     /* Colisiones obstáculos */
@@ -5983,21 +6147,18 @@ function buildPlatform(container) {
 
     /* ── Pantalla final (ganó o perdió) ── */
     if (!running) {
-      ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
-      ctx.textAlign='center'; ctx.textBaseline='middle';
       if (won) {
-        ctx.fillStyle='#86efac'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
-        ctx.fillText('🏁 ¡META!', W/2, H/2-20);
-        ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
-        ctx.fillText('¡Llegaste! '+score+' 🪙 +20 bonus', W/2, H/2+12);
+        HK_NIVELES.dibujarVictoria(ctx, W, H, 'platform', 'Súper Salto');
       } else {
+        ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
+        ctx.textAlign='center'; ctx.textBaseline='middle';
         ctx.fillStyle='#FF4D9D'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
         ctx.fillText('💥 ¡CHOQUE!', W/2, H/2-20);
         ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
         ctx.fillText(dist+'/'+GOAL+'m · '+score+' 🪙', W/2, H/2+12);
+        ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${Math.round(W/22)}px Nunito,sans-serif`;
+        ctx.fillText('Toca para volver a jugar', W/2, H/2+36);
       }
-      ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${Math.round(W/22)}px Nunito,sans-serif`;
-      ctx.fillText('Toca para volver a jugar', W/2, H/2+36);
     }
   }
 
@@ -10929,8 +11090,9 @@ if(_hgOriginalOpenGame){
     try {
       const { error } = await c.from('config').upsert(
         { clave, valor, actualizado_en: new Date().toISOString() }, { onConflict:'clave' });
-      return !error;
-    } catch(e) { return false; }
+      if (error) { console.error('cfgSet('+clave+'):', error.message); window._hkLastCfgError = error.message; return false; }
+      return true;
+    } catch(e) { console.error('cfgSet excepción:', e); window._hkLastCfgError = String(e); return false; }
   }
 
   /* ════════════════════════════════════════
@@ -11275,9 +11437,18 @@ if(_hgOriginalOpenGame){
       if (!reg.nombre) { toast('⚠️ Falta el nombre'); return; }
       const btn = cont.querySelector('#guardarT'); btn.textContent='Guardando...'; btn.disabled=true;
       try {
-        await c.from('torneos').upsert(reg, { onConflict:'id' });
+        const { error } = await c.from('torneos').upsert(reg, { onConflict:'id' });
+        if (error) throw error;
         toast('✅ Torneo guardado'); renderTorneos(cont);
-      } catch(e) { toast('❌ Error. ¿Existe la tabla torneos?'); btn.textContent='💾 Guardar torneo'; btn.disabled=false; }
+      } catch(e) {
+        btn.textContent='💾 Guardar torneo'; btn.disabled=false;
+        const msg = (e && e.message) ? e.message : 'error desconocido';
+        console.error('Guardar torneo:', e);
+        // Mostrar el error real para diagnosticar
+        alert('❌ No se pudo guardar el torneo.\n\nError de Supabase:\n' + msg +
+              '\n\nProbablemente falta la tabla "torneos" o sus columnas/políticas RLS. ' +
+              'Revisa el SQL que te pasó el asistente.');
+      }
     };
   }
 
@@ -11329,7 +11500,11 @@ if(_hgOriginalOpenGame){
         } catch(e){}
         toast('✅ Precios guardados'); btn.textContent='✅ Guardado';
         setTimeout(()=>{ btn.textContent='💾 Guardar precios'; btn.disabled=false; }, 2000);
-      } else { toast('❌ Error al guardar'); btn.textContent='💾 Guardar precios'; btn.disabled=false; }
+      } else {
+        const err = window._hkLastCfgError || 'desconocido';
+        alert('❌ No se pudieron guardar los precios.\n\nError: ' + err + '\n\nFalta la tabla "config" o sus políticas RLS en Supabase.');
+        btn.textContent='💾 Guardar precios'; btn.disabled=false;
+      }
     };
   }
 
@@ -11415,6 +11590,213 @@ if(_hgOriginalOpenGame){
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init, {once:true});
   } else { init(); }
+
+})();
+</script>
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   CHAT EN TIEMPO REAL ENTRE AMIGOS (Supabase Realtime)
+   • Botón "💬 Chat" en cada amigo de la lista
+   • Mensajes en vivo vía suscripción Realtime de Supabase
+   • Sirve para coordinar qué juego jugar (independiente del chat de juego)
+
+   Tabla requerida (ejecutar en Supabase SQL Editor):
+
+   CREATE TABLE IF NOT EXISTS mensajes_chat (
+     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+     sala        TEXT NOT NULL,
+     de_codigo   TEXT NOT NULL,
+     de_nombre   TEXT,
+     de_avatar   TEXT,
+     texto       TEXT NOT NULL,
+     creado_en   TIMESTAMPTZ DEFAULT NOW()
+   );
+   CREATE INDEX IF NOT EXISTS idx_mensajes_sala ON mensajes_chat(sala, creado_en);
+   ALTER TABLE mensajes_chat ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY "chat_todos" ON mensajes_chat FOR ALL USING (true) WITH CHECK (true);
+   -- Habilitar Realtime: Supabase → Database → Replication → activar mensajes_chat
+══════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  let salaActual = null;
+  let canalChat = null;
+  let amigoInfo = null;
+
+  function sb() { try { return getSupabase(); } catch(e) { return null; } }
+  function miCodigo() { try { return getUserCode() || getGuestId(); } catch(e) { return 'U?'; } }
+  function miNombre() { try { return (perfilNube && perfilNube.nombre) || getGuestName() || 'Yo'; } catch(e) { return 'Yo'; } }
+  function miAvatar() { try { return (perfilNube && perfilNube.avatar) || '👤'; } catch(e) { return '👤'; } }
+  function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  /* La sala es el par de códigos ordenado, para que ambos lleguen a la misma:
+     U100 + U200  →  "chat_U100_U200" (siempre en orden alfabético) */
+  function nombreSala(codA, codB) {
+    const a = String(codA).toUpperCase(), b = String(codB).toUpperCase();
+    return 'chat_' + [a, b].sort().join('_');
+  }
+
+  function normalizarCodigoAmigo(num) {
+    let c = String(num).toUpperCase().trim();
+    if (!c.startsWith('U') && !c.startsWith('G')) c = 'U' + c.replace(/[^0-9]/g,'');
+    return c;
+  }
+
+  window.HKChat = {
+    async abrir(amigoNum, amigoNombre, amigoAvatar) {
+      const c = sb();
+      if (!c) { try{ showToast('⚠️ El chat necesita conexión'); }catch(e){} return; }
+      if (typeof soyUsuarioRegistrado === 'function' && !soyUsuarioRegistrado()) {
+        try{ showToast('🔒 Crea tu cuenta para chatear con amigos'); }catch(e){}
+        return;
+      }
+
+      const miCod = miCodigo();
+      const amigoCod = normalizarCodigoAmigo(amigoNum);
+      salaActual = nombreSala(miCod, amigoCod);
+      amigoInfo = { cod: amigoCod, nombre: amigoNombre || ('Amigo #' + amigoNum), avatar: amigoAvatar || '👤' };
+
+      mostrarVentana();
+      await cargarHistorial();
+      suscribir();
+    },
+
+    cerrar() {
+      if (canalChat) { try { sb().removeChannel(canalChat); } catch(e){} canalChat = null; }
+      salaActual = null;
+      const v = document.getElementById('hkChatVentana');
+      if (v) v.remove();
+    }
+  };
+
+  function mostrarVentana() {
+    let v = document.getElementById('hkChatVentana');
+    if (v) v.remove();
+    v = document.createElement('div');
+    v.id = 'hkChatVentana';
+    v.style.cssText = 'position:fixed;inset:0;z-index:9300;background:#0d0f18;display:flex;flex-direction:column;font-family:Nunito,sans-serif';
+    v.innerHTML = `
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);padding:12px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0">
+        <button id="hkChatBack" style="background:rgba(255,255,255,0.18);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:1.2rem;cursor:pointer">←</button>
+        <span style="font-size:1.6rem">${esc(amigoInfo.avatar)}</span>
+        <div style="flex:1;min-width:0">
+          <div style="color:#fff;font-weight:800;font-size:1rem;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(amigoInfo.nombre)}</div>
+          <div style="color:rgba(255,255,255,0.7);font-size:0.68rem">💬 Chat con tu amigo</div>
+        </div>
+      </div>
+      <!-- Sugerencias rápidas para coordinar juego -->
+      <div style="display:flex;gap:6px;padding:8px 12px;background:#13131f;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch">
+        ${['¿Jugamos? 🎮','Snake 🐍','Carreras 🏎️','Yanken Po ✊','¡Te gané! 😎','Otra vez 🔁'].map(s=>
+          `<button class="hkChatQuick" style="white-space:nowrap;background:#1e2535;border:1px solid #2a3650;color:#c4b5fd;padding:6px 11px;border-radius:14px;font-weight:700;font-size:0.74rem;cursor:pointer;flex-shrink:0">${s}</button>`).join('')}
+      </div>
+      <!-- Mensajes -->
+      <div id="hkChatMsgs" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch">
+        <div style="text-align:center;color:#556;padding:20px;font-size:0.85rem">Cargando mensajes...</div>
+      </div>
+      <!-- Input -->
+      <div style="display:flex;gap:8px;padding:10px 12px;background:#13131f;flex-shrink:0;align-items:center">
+        <input id="hkChatInput" type="text" placeholder="Escribe un mensaje..." autocomplete="off" maxlength="300"
+          style="flex:1;background:#0d0f18;border:1px solid #2a3650;border-radius:20px;padding:11px 16px;color:#fff;font-weight:600;outline:none;font-family:Nunito,sans-serif;font-size:0.9rem">
+        <button id="hkChatSend" style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:1.2rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">➤</button>
+      </div>`;
+    document.body.appendChild(v);
+
+    v.querySelector('#hkChatBack').onclick = () => window.HKChat.cerrar();
+    const input = v.querySelector('#hkChatInput');
+    const enviar = () => {
+      const t = input.value.trim();
+      if (!t) return;
+      enviarMensaje(t);
+      input.value = '';
+      input.focus();
+    };
+    v.querySelector('#hkChatSend').onclick = enviar;
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') enviar(); });
+    v.querySelectorAll('.hkChatQuick').forEach(b => {
+      b.onclick = () => { input.value = b.textContent; enviar(); };
+    });
+    setTimeout(()=>input.focus(), 300);
+  }
+
+  async function cargarHistorial() {
+    const c = sb(); if (!c || !salaActual) return;
+    const cont = document.getElementById('hkChatMsgs');
+    try {
+      const { data, error } = await c.from('mensajes_chat')
+        .select('*').eq('sala', salaActual)
+        .order('creado_en', { ascending: true }).limit(100);
+      if (error) throw error;
+      if (cont) {
+        cont.innerHTML = '';
+        if (!data || !data.length) {
+          cont.innerHTML = '<div style="text-align:center;color:#556;padding:20px;font-size:0.82rem">👋 ¡Saluda a tu amigo! Aquí pueden coordinar a qué jugar.</div>';
+        } else {
+          data.forEach(pintarMensaje);
+          scrollAbajo();
+        }
+      }
+    } catch(e) {
+      if (cont) cont.innerHTML = '<div style="text-align:center;color:#f87171;padding:20px;font-size:0.8rem">No se pudo cargar el chat.<br>¿Existe la tabla <code>mensajes_chat</code> en Supabase?</div>';
+      console.error('chat historial:', e);
+    }
+  }
+
+  function suscribir() {
+    const c = sb(); if (!c || !salaActual) return;
+    if (canalChat) { try { c.removeChannel(canalChat); } catch(e){} }
+    canalChat = c.channel('rt-' + salaActual)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'mensajes_chat', filter: 'sala=eq.' + salaActual },
+        payload => {
+          // No re-pintar mi propio mensaje (ya lo pinté al enviar) salvo que venga de otro
+          if (payload.new && payload.new.de_codigo !== miCodigo()) {
+            pintarMensaje(payload.new);
+            scrollAbajo();
+            try { if (SFX && SFX.point) SFX.point(); } catch(e){}
+          }
+        })
+      .subscribe();
+  }
+
+  async function enviarMensaje(texto) {
+    const c = sb(); if (!c || !salaActual) return;
+    const msg = {
+      sala: salaActual,
+      de_codigo: miCodigo(),
+      de_nombre: miNombre(),
+      de_avatar: miAvatar(),
+      texto: texto,
+    };
+    // Pintar de inmediato (optimista)
+    pintarMensaje({ ...msg, creado_en: new Date().toISOString() });
+    scrollAbajo();
+    try {
+      const { error } = await c.from('mensajes_chat').insert(msg);
+      if (error) throw error;
+    } catch(e) {
+      console.error('enviar chat:', e);
+      try{ showToast('⚠️ No se envió. ¿Falta la tabla mensajes_chat?'); }catch(ex){}
+    }
+  }
+
+  function pintarMensaje(m) {
+    const cont = document.getElementById('hkChatMsgs');
+    if (!cont) return;
+    const mio = m.de_codigo === miCodigo();
+    const hora = m.creado_en ? new Date(m.creado_en).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+    const burbuja = document.createElement('div');
+    burbuja.style.cssText = `display:flex;flex-direction:column;align-items:${mio?'flex-end':'flex-start'};max-width:80%;${mio?'align-self:flex-end':'align-self:flex-start'}`;
+    burbuja.innerHTML = `
+      <div style="background:${mio?'linear-gradient(135deg,#7C3AED,#FF4D9D)':'#1e2535'};color:#fff;padding:9px 13px;border-radius:${mio?'16px 16px 4px 16px':'16px 16px 16px 4px'};font-size:0.88rem;font-weight:600;word-break:break-word">${esc(m.texto)}</div>
+      <div style="color:#556;font-size:0.62rem;margin-top:2px;padding:0 4px">${hora}</div>`;
+    cont.appendChild(burbuja);
+  }
+
+  function scrollAbajo() {
+    const cont = document.getElementById('hkChatMsgs');
+    if (cont) setTimeout(()=>{ cont.scrollTop = cont.scrollHeight; }, 50);
+  }
 
 })();
 </script>
