@@ -575,6 +575,7 @@
     <li><a href="#" onclick="navFilter('edu',this);return false">Educativo</a></li>
   </ul>
   <button onclick="openCuenta()" id="cuentaBtn" title="Mi cuenta" style="background:linear-gradient(135deg,#16A34A,#2563EB);border:none;border-radius:20px;padding:0 16px;height:42px;font-size:0.9rem;font-weight:800;color:#fff;cursor:pointer;flex-shrink:0;font-family:Nunito,sans-serif">Crear cuenta</button>
+  <button onclick="if(window.abrirPanelAdmin)window.abrirPanelAdmin()" id="adminNavBtn" title="Panel de administrador" style="display:none;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0;margin-left:8px;align-items:center;justify-content:center">⚙️</button>
   <div class="nav-right">
     <input class="search-box" type="text" placeholder="🔍 Buscar juego…" id="searchInput" oninput="filterGames(this.value)">
     <button onclick="cycleTheme()" id="themeBtn" title="Cambiar tema" style="background:#F0ECFB;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0;transition:transform 0.2s">🎨</button>
@@ -1578,6 +1579,7 @@ async function cargarPerfilNube() {
       if (Array.isArray(data.amigos)) { try { localStorage.setItem('im_amigos', JSON.stringify(data.amigos)); } catch(e){} }
       if (typeof updatePlayerBadge === 'function') updatePlayerBadge();
       if (typeof actualizarSaldoVisible === 'function') actualizarSaldoVisible();
+      if (typeof window.hkActualizarBotonAdmin === 'function') window.hkActualizarBotonAdmin();
       // registrar última actividad
       try { await c.from('perfiles').update({ ultima_actividad: new Date().toISOString() }).eq('id', usuarioActual.id); } catch(e){}
     }
@@ -3081,7 +3083,6 @@ function renderPanelUsuario() {
 
       <!-- ACCIONES -->
       <div style="max-width:400px;margin:0 auto;display:flex;flex-direction:column;gap:10px">
-        ${esAdmin() ? `<button id="btnAdmin" style="width:100%;background:linear-gradient(135deg,#f59e0b,#b91c1c);border:none;color:#fff;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">🛡️ Panel de Administrador</button>` : ''}
         <button id="btnSalir" style="width:100%;background:rgba(220,38,38,0.18);border:2px solid #dc2626;color:#f87171;padding:13px;border-radius:14px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer">Cerrar sesión</button>
       </div>
     </div>`;
@@ -3119,7 +3120,6 @@ function renderPanelUsuario() {
     addBtn.addEventListener('click', add);
   }
   refrescarListaAmigos();
-  if (esAdmin()) bindBtn('btnAdmin', renderPanelAdmin);
   bindBtn('btnSalir', async () => { await cerrarSesion(); SFX.click(); showToast('Sesión cerrada'); renderLogin(); });
 }
 
@@ -3462,6 +3462,32 @@ const TIENDA_TITULOS = [
   { id:'ti_leyenda', texto:'⭐ Leyenda', precio:1200 },
   { id:'ti_rey', texto:'👑 Rey del Juego', precio:2000 }
 ];
+/* Exponer para el panel admin */
+window.TIENDA_AVATARES = TIENDA_AVATARES;
+window.TIENDA_TITULOS = TIENDA_TITULOS;
+window.hkTodosJuegos = [
+  {id:'snake',nombre:'🐍 Snake Pro'},{id:'breakout',nombre:'🧱 Breakout'},
+  {id:'whack',nombre:'🔨 Whack-a-Mole'},{id:'memory',nombre:'🃏 Memory Flip'},
+  {id:'maze',nombre:'🌀 Maze Escape'},{id:'racing',nombre:'🏎️ Speed Racer'},
+  {id:'pong',nombre:'🏓 Pong'},{id:'tictactoe',nombre:'⭕ Tres en Raya'},
+  {id:'flappy',nombre:'🐤 Flappy Bird'},{id:'catch',nombre:'🧺 Atrapa Frutas'},
+  {id:'jump',nombre:'🦘 Salto'},{id:'simon',nombre:'🎵 Simón'},
+  {id:'2048',nombre:'🔢 2048'},{id:'reaccion',nombre:'⚡ Reacción'},
+  {id:'platform',nombre:'🦸 Súper Salto'},{id:'defender',nombre:'🚀 Defensa'},
+  {id:'dungeon',nombre:'🗝️ Mazmorra'}
+];
+/* Aplicar precios personalizados guardados en Supabase */
+(async function aplicarPreciosGuardados(){
+  try {
+    const c = getSupabase(); if (!c) return;
+    const { data } = await c.from('config').select('valor').eq('clave','tienda_precios').maybeSingle();
+    if (data && data.valor) {
+      const ov = data.valor;
+      TIENDA_AVATARES.forEach(a => { if (ov[a.id]!==undefined) a.precio = ov[a.id]; });
+      TIENDA_TITULOS.forEach(t => { if (ov[t.id]!==undefined) t.precio = ov[t.id]; });
+    }
+  } catch(e) {}
+})();
 
 function openTienda() {
   if (!tieneSesion()) {
@@ -4429,11 +4455,11 @@ function buildRacing(container) {
     const dtS = dt / 1000;
     dayTime = (dayTime + dtS / 90) % 1;
 
-    /* Steering */
+    /* Steering — control directo y responsivo */
     let steerDir = 0;
     if (keys['ArrowLeft'] || keys['a']) steerDir = -1;
     if (keys['ArrowRight'] || keys['d']) steerDir = 1;
-    steering += (steerDir * 3.5 - steering) * 0.25;
+    steering += (steerDir - steering) * 0.3;   // suaviza pero responde rápido
 
     /* Nitro */
     if ((keys[' '] || keys['nitro']) && nitro > 0) {
@@ -4457,15 +4483,18 @@ function buildRacing(container) {
     dist += Math.round(speed * dtS * 0.05);
     setText('raceDist', dist);
 
-    /* Curva dinámica */
+    /* Curva dinámica (suave, una sola dirección a la vez) */
     curveTimer -= dtS;
     if (curveTimer <= 0) {
-      targetCurve = (Math.random() - 0.5) * 0.04;
-      curveTimer = 3 + Math.random() * 4;
+      targetCurve = (Math.random() - 0.5) * 0.025;
+      curveTimer = 4 + Math.random() * 5;
     }
-    roadCurve += (targetCurve - roadCurve) * 0.03;
-    cameraX += steering * 0.015 + roadCurve * speed * dtS * 0.3;
-    cameraX *= 0.94;  // amortiguación
+    roadCurve += (targetCurve - roadCurve) * 0.02;
+    /* Movimiento lateral del auto: el volante manda directo, y la curva
+       empuja levemente hacia afuera (sensación realista). */
+    cameraX += steering * dtS * 1.8 + roadCurve * speed * dtS * 0.10;
+    /* Sin amortiguación fuerte: el auto se queda donde lo dejas */
+    cameraX *= 0.97;
 
     /* Colisión con bordes */
     if (Math.abs(cameraX) > 1.1) {
@@ -4571,70 +4600,82 @@ function buildRacing(container) {
     const mtnPts2 = [[0,HORIZON],[W*0.1,HORIZON-35],[W*0.25,HORIZON-55],[W*0.4,HORIZON-30],[W*0.55,HORIZON-65],[W*0.7,HORIZON-28],[W*0.85,HORIZON-50],[W,HORIZON-35],[W,HORIZON]];
     ctx.beginPath(); mtnPts2.forEach(([mx,my],i)=> i===0?ctx.moveTo(mx,my):ctx.lineTo(mx,my)); ctx.closePath(); ctx.fill();
 
-    /* ── CARRETERA pseudo-3D ── */
-    let camOffset = 0;
-    const roadW_near = W * 0.85;   // ancho carretera abajo
-    const roadW_far  = W * 0.08;   // ancho carretera en horizonte
+    /* ── CARRETERA pseudo-3D (curva suave de un solo camino) ── */
+    const roadW_near = W * 0.92;   // ancho carretera abajo (cerca)
+    const roadW_far  = W * 0.06;   // ancho carretera en horizonte (lejos)
     const roadColors = {
-      asphalt:  lerpColor('#3a3a3a','#1a1a1a',night),
-      asphalt2: lerpColor('#333333','#181818',night),
-      line:     lerpColor('#ffffcc','#555533',night),
-      border:   lerpColor('#eeeeee','#444444',night),
-      grass:    lerpColor('#3a7d44','#1a3a1e',night),
-      grass2:   lerpColor('#338840','#152e18',night),
-      rumble:   lerpColor('#cc2222','#661111',night),
+      asphalt:  lerpColor('#3c3c3c','#1a1a1a',night),
+      asphalt2: lerpColor('#343434','#161616',night),
+      line:     lerpColor('#fff8d0','#5a5533',night),
+      border:   lerpColor('#f0f0f0','#444444',night),
+      grass:    lerpColor('#3a8d48','#16321e',night),
+      grass2:   lerpColor('#329040','#13301a',night),
+      rumble:   lerpColor('#d02828','#661111',night),
     };
 
+    /* La curva se acumula de forma cuadrática a lo largo de la profundidad.
+       curveAmount controla cuánto se desvía la pista. Como dibujamos de
+       lejos (seg alto) a cerca (seg bajo), calculamos el desplazamiento X
+       del centro de la pista en función de la profundidad normalizada. */
+    const curveAmount = roadCurve * 600;   // intensidad horizontal de la curva
+    const playerShift = cameraX * (roadW_near * 0.42);  // cuánto se desplaza el jugador
+
     for (let seg = NUM_SEGMENTS; seg >= 0; seg--) {
-      const t = seg / NUM_SEGMENTS;           // 0=horizonte, 1=cerca
-      const y1 = HORIZON + (H - HORIZON) * (1 - t);
-      const y2 = HORIZON + (H - HORIZON) * (1 - (seg-1)/NUM_SEGMENTS);
+      /* p = profundidad: 0 = horizonte (lejos), 1 = parte baja (cerca de la cámara) */
+      const p  = seg / NUM_SEGMENTS;
+      const p2 = (seg - 1) / NUM_SEGMENTS;
+      /* Y en pantalla: p=0 -> HORIZON (arriba), p=1 -> H (abajo) */
+      const y1 = HORIZON + (H - HORIZON) * p;
+      const y2 = HORIZON + (H - HORIZON) * p2;
 
-      const rW = roadW_far + (roadW_near - roadW_far) * t;
-      const rx = W/2 - rW/2 + camOffset;
+      /* Ancho: angosto en el horizonte (p=0), ancho cerca (p=1) */
+      const rW = roadW_far + (roadW_near - roadW_far) * p;
 
-      /* Curva acumulada */
-      camOffset += roadCurve * (seg * 1.8) - cameraX * rW * 0.035 * (1-t);
+      /* Centro de la pista: la curva se nota más lejos (cuando p es chico).
+         depth = 1-p  → 1 lejos, 0 cerca. El jugador se desplaza más cerca. */
+      const depth = 1 - p;
+      const centerX = W/2 + curveAmount * (depth * depth) - playerShift * p;
+      const rx = centerX - rW/2;
 
-      /* Franjas alternas de la carretera */
-      const stripe = Math.floor((pos * 20 + seg) % 2) === 0;
-      const asfColor = stripe ? roadColors.asphalt : roadColors.asphalt2;
+      /* Franjas que avanzan con el movimiento */
+      const stripe = Math.floor(pos * 8 + seg * 0.5) % 2 === 0;
 
-      /* Hierba lateral */
-      const grassStripe = Math.floor((pos*10 + seg) % 2) === 0;
-      ctx.fillStyle = grassStripe ? roadColors.grass : roadColors.grass2;
-      ctx.fillRect(0, y1, W, y2-y1);
+      /* Hierba lateral (todo el ancho de pantalla) */
+      ctx.fillStyle = stripe ? roadColors.grass : roadColors.grass2;
+      ctx.fillRect(0, y1, W, y2 - y1 + 1);
 
-      /* Banda rumble (borde rojo/blanco) */
-      ctx.fillStyle = grassStripe ? roadColors.rumble : roadColors.border;
-      ctx.fillRect(rx - rW*0.08, y1, rW*0.08, y2-y1);
-      ctx.fillRect(rx + rW, y1, rW*0.08, y2-y1);
+      /* Bandas rumble (bordes) */
+      ctx.fillStyle = stripe ? roadColors.rumble : roadColors.border;
+      ctx.fillRect(rx - rW*0.06, y1, rW*0.06, y2 - y1 + 1);
+      ctx.fillRect(rx + rW,       y1, rW*0.06, y2 - y1 + 1);
 
       /* Asfalto */
-      ctx.fillStyle = asfColor;
-      ctx.fillRect(rx, y1, rW, y2-y1);
+      ctx.fillStyle = stripe ? roadColors.asphalt : roadColors.asphalt2;
+      ctx.fillRect(rx, y1, rW, y2 - y1 + 1);
 
-      /* Línea central (discontinua) */
-      const lineStripe = Math.floor((pos*15 + seg) % 4) < 2;
-      if (lineStripe) {
+      /* Línea central discontinua */
+      const dash = Math.floor(pos * 8 + seg * 0.5) % 3 === 0;
+      if (dash && rW > 14) {
         ctx.fillStyle = roadColors.line;
-        ctx.fillRect(rx + rW*0.5 - rW*0.014, y1, rW*0.028, y2-y1);
+        ctx.fillRect(centerX - rW*0.012, y1, rW*0.024, y2 - y1 + 1);
       }
-      /* Líneas de carril */
-      ctx.fillStyle = `rgba(255,255,200,${0.25 + night*0.1})`;
-      ctx.fillRect(rx + rW*0.33 - rW*0.008, y1, rW*0.016, y2-y1);
-      ctx.fillRect(rx + rW*0.66 - rW*0.008, y1, rW*0.016, y2-y1);
+    }
+
+    /* Helper: centro X de la pista a una profundidad dada (depth: 0=cerca,1=lejos) */
+    function roadCenterAt(t) {
+      const depth = 1 - t;
+      return W/2 + curveAmount * (depth * depth) - playerShift * t;
     }
 
     /* ── Árboles (sprites) ── */
-    camOffset = 0;
     trees.forEach(tree => {
       const dz = ((tree.roadPos - (pos % 1) + 1) % 1);
       if (dz < 0.04 || dz > 0.98) return;
       const t = 1 - dz;
       const y = HORIZON + (H - HORIZON) * t;
       const rW = roadW_far + (roadW_near - roadW_far) * t;
-      const rx = W/2 + tree.lane * (rW/2 + rW*0.12);
+      /* Posición sobre el borde de la pista curvada */
+      const rx = roadCenterAt(t) + tree.lane * (rW/2 + rW*0.16);
       const tH = tree.size * 60 * t;
       const tW = tH * 0.65;
 
@@ -4672,46 +4713,68 @@ function buildRacing(container) {
       ctx.restore();
     });
 
-    /* ── Rivales (autos) ── */
+    /* ── Rivales (autos vistos por detrás) ── */
     rivals.sort((a,b) => b.roadPos - a.roadPos).forEach(r => {
       const dz = r.roadPos - pos;
       if (dz < 0.02 || dz > 1.1) return;
       const t = Math.min(1, (1.1 - dz) / 1.08);
       const screenY = HORIZON + (H - HORIZON) * t;
       const rW = roadW_far + (roadW_near - roadW_far) * t;
-      const rx = W/2 + r.lane * rW * 0.27;
-      const cW = rW * 0.18, cH = cW * 1.7;
+      const rx = roadCenterAt(t) + r.lane * rW * 0.27;
+      const cW = rW * 0.30;          // más ancho (antes 0.18 = se veía plano)
+      const cH = cW * 0.95;          // alto proporcional al ancho
       const col = r.color;
+      if (cW < 6) return;            // muy lejos, no dibujar
 
-      /* Sombra del auto */
-      ctx.fillStyle = `rgba(0,0,0,${0.35*t})`;
-      ctx.beginPath(); ctx.ellipse(rx, screenY+cH*0.08, cW*0.6, cH*0.07, 0, 0, Math.PI*2); ctx.fill();
+      ctx.save();
+      ctx.translate(rx, screenY);
 
-      /* Carrocería */
+      /* Sombra */
+      ctx.fillStyle = `rgba(0,0,0,${0.4*t})`;
+      ctx.beginPath(); ctx.ellipse(0, 2, cW*0.58, cH*0.12, 0, 0, Math.PI*2); ctx.fill();
+
+      /* Ruedas traseras (sobresalen a los lados) */
+      ctx.fillStyle = '#111';
+      ctx.beginPath(); ctx.ellipse(-cW*0.48, -cH*0.15, cW*0.16, cH*0.22, 0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse( cW*0.48, -cH*0.15, cW*0.16, cH*0.22, 0,0,Math.PI*2); ctx.fill();
+
+      /* Cuerpo (trapecio: más ancho abajo) */
       ctx.fillStyle = col.body;
-      ctx.beginPath(); ctx.roundRect(rx-cW/2, screenY-cH, cW, cH, cW*0.15); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-cW*0.5, 0);
+      ctx.lineTo( cW*0.5, 0);
+      ctx.lineTo( cW*0.42, -cH*0.6);
+      ctx.lineTo(-cW*0.42, -cH*0.6);
+      ctx.closePath(); ctx.fill();
 
       /* Techo */
       ctx.fillStyle = col.roof;
-      const roofW = cW*0.72, roofH = cH*0.38;
-      ctx.beginPath(); ctx.roundRect(rx-roofW/2, screenY-cH+cH*0.1, roofW, roofH, cW*0.12); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-cW*0.38, -cH*0.55);
+      ctx.lineTo( cW*0.38, -cH*0.55);
+      ctx.lineTo( cW*0.28, -cH);
+      ctx.lineTo(-cW*0.28, -cH);
+      ctx.closePath(); ctx.fill();
 
-      /* Parabrisas */
-      ctx.fillStyle = col.window; ctx.globalAlpha = 0.85;
-      ctx.beginPath(); ctx.roundRect(rx-roofW*0.44, screenY-cH+cH*0.14, roofW*0.88, roofH*0.55, cW*0.08); ctx.fill();
-      ctx.globalAlpha = 1;
+      /* Luneta (vidrio trasero) */
+      ctx.fillStyle = col.window;
+      ctx.beginPath();
+      ctx.moveTo(-cW*0.30, -cH*0.62);
+      ctx.lineTo( cW*0.30, -cH*0.62);
+      ctx.lineTo( cW*0.22, -cH*0.92);
+      ctx.lineTo(-cW*0.22, -cH*0.92);
+      ctx.closePath(); ctx.fill();
 
-      /* Faros traseros (rojos) */
-      ctx.fillStyle = '#ff2222';
-      ctx.beginPath(); ctx.roundRect(rx-cW*0.46, screenY-cH*0.12, cW*0.18, cH*0.07, 2); ctx.fill();
-      ctx.beginPath(); ctx.roundRect(rx+cW*0.28, screenY-cH*0.12, cW*0.18, cH*0.07, 2); ctx.fill();
+      /* Faros traseros rojos */
+      ctx.fillStyle = '#ff2828';
+      ctx.beginPath(); ctx.roundRect(-cW*0.46, -cH*0.32, cW*0.26, cH*0.13, 2); ctx.fill();
+      ctx.beginPath(); ctx.roundRect( cW*0.20, -cH*0.32, cW*0.26, cH*0.13, 2); ctx.fill();
 
-      /* Ruedas */
-      ctx.fillStyle = '#222';
-      [[-cW*0.44,-cH*0.06],[cW*0.44,-cH*0.06],[-cW*0.44,-cH*0.7],[cW*0.44,-cH*0.7]].forEach(([wx,wy]) => {
-        ctx.beginPath(); ctx.ellipse(rx+wx, screenY+wy, cW*0.14, cW*0.1, 0, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle='#555'; ctx.lineWidth=1; ctx.stroke();
-      });
+      /* Parachoques */
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath(); ctx.roundRect(-cW*0.5, -cH*0.12, cW, cH*0.12, 2); ctx.fill();
+
+      ctx.restore();
     });
 
     /* ── Auto del jugador ── */
@@ -4760,183 +4823,198 @@ function buildRacing(container) {
   }
 
   function drawPlayerCar(ts) {
-    /* ── VISTA TRASERA: vemos la parte de ATRÁS del carro ──
-       - El parachoques trasero está ABAJO (cerca de la cámara)
-       - El techo / alerón está ARRIBA (lejos, hacia el horizonte)
-       - Las ruedas traseras son las que más vemos, a los lados abajo
-       Pivot = py (fondo del auto, nivel del suelo)
-       Todo se dibuja desde 0 (suelo) hacia Y negativos (arriba)
-    */
-    const px  = W/2 - cameraX * 50;
-    const py  = H - 8;           // pivot en el suelo
-    const cW  = 74;              // ancho total del auto
-    const cH  = 118;             // alto total del auto
-    const lean = cameraX * 0.04;
-
-    const flarePulse = 0.7 + Math.sin(ts / 200) * 0.3;
-    const spin = (ts / 65) % (Math.PI * 2);
+    /* ════════════════════════════════════════════════════════════
+       VISTA TRASERA REALISTA — usamos polígonos en perspectiva.
+       La cámara está DETRÁS y un poco ARRIBA del auto.
+       Por eso vemos: el TECHO (parte de arriba, más estrecho),
+       la LUNETA trasera, la CAJUELA inclinada, el PORTÓN trasero
+       con las luces, y abajo el PARACHOQUES + ruedas que sobresalen.
+       Coordenadas: pivot (0,0) = centro del auto a nivel del piso.
+       Y negativo = hacia arriba en pantalla.
+    ════════════════════════════════════════════════════════════ */
+    const px = W / 2 - cameraX * 50;
+    const py = H - 6;
+    const S  = 0.80;                 // escala general
+    const lean = cameraX * 0.05;
+    const flare = 0.7 + Math.sin(ts / 200) * 0.3;
+    const spin = (ts / 60) % (Math.PI * 2);
 
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(lean);
+    ctx.scale(S, S);
 
-    /* ── 1. Sombra debajo del auto ── */
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    // Medidas base (en unidades pre-escala)
+    const wBottom = 92;   // ancho abajo (parachoques, lo más cercano = más ancho)
+    const wTop    = 64;   // ancho arriba (techo, más lejos = más estrecho)
+    const hBody   = 96;   // alto del cuerpo
+    const yFloor  = 0;    // piso
+    const yRoof   = -hBody;
+
+    /* ── 1. Sombra en el piso ── */
+    ctx.fillStyle = 'rgba(0,0,0,0.40)';
     ctx.beginPath();
-    ctx.ellipse(0, 0, cW * 0.52, 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -4, wBottom * 0.58, 9, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    /* ── 2. Ruedas TRASERAS (grandes, sobresalen a los lados, en la parte baja) ── */
-    const WHEEL = { rx: cW * 0.48, ry: -22, rw: cW * 0.19, rh: cW * 0.145 };
-    [-1, 1].forEach(side => {
-      const wx = side * WHEEL.rx, wy = WHEEL.ry;
-      ctx.save(); ctx.translate(wx, wy);
-      /* Llanta negra */
-      ctx.fillStyle = '#111';
-      ctx.beginPath(); ctx.ellipse(0, 0, WHEEL.rw, WHEEL.rh, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.stroke();
-      /* Rin gris plateado */
-      ctx.fillStyle = '#8a8a8a';
-      ctx.beginPath(); ctx.ellipse(0, 0, WHEEL.rw * 0.63, WHEEL.rh * 0.63, 0, 0, Math.PI * 2); ctx.fill();
-      /* Radios girando */
+    /* ── 2. Ruedas traseras (sobresalen a los lados, abajo) ── */
+    const wheel = (sx) => {
+      ctx.save();
+      ctx.translate(sx, -16);
+      // Neumático
+      ctx.fillStyle = '#0d0d0d';
+      ctx.beginPath(); ctx.ellipse(0, 0, 17, 15, 0, 0, Math.PI * 2); ctx.fill();
+      // Rin
+      ctx.fillStyle = '#9a9a9a';
+      ctx.beginPath(); ctx.ellipse(0, 0, 10, 9, 0, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#ccc'; ctx.lineWidth = 2;
       for (let s = 0; s < 5; s++) {
         const a = spin + s * Math.PI * 2 / 5;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(a) * WHEEL.rw * 0.52, Math.sin(a) * WHEEL.rh * 0.52);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * 8, Math.sin(a) * 7); ctx.stroke();
       }
-      /* Centro del rin */
-      ctx.fillStyle = '#ddd';
-      ctx.beginPath(); ctx.arc(0, 0, WHEEL.rw * 0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e0e0e0';
+      ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
-    });
+    };
+    wheel(-(wBottom/2) + 6);
+    wheel( (wBottom/2) - 6);
 
-    /* ── 3. Guardabarros traseros (forma que envuelve las ruedas) ── */
-    ctx.fillStyle = '#aa1111';
-    [-1, 1].forEach(side => {
-      const wx = side * (cW * 0.32);
-      ctx.beginPath();
-      ctx.ellipse(wx, WHEEL.ry, WHEEL.rw * 1.18, WHEEL.rh * 1.35, 0, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    /* ── 4. Carrocería principal (cuerpo del auto) ── */
-    const bodyGrad = ctx.createLinearGradient(-cW / 2, 0, cW / 2, 0);
-    bodyGrad.addColorStop(0,    '#991111');
-    bodyGrad.addColorStop(0.18, '#cc2020');
-    bodyGrad.addColorStop(0.5,  '#ff4040');
-    bodyGrad.addColorStop(0.82, '#cc2020');
-    bodyGrad.addColorStop(1,    '#991111');
+    /* ── 3. Cuerpo principal: trapecio (ancho abajo, estrecho arriba) ── */
+    const yTrunkTop = yRoof + 40;   // donde acaba la cajuela y empieza el techo
+    const bodyGrad = ctx.createLinearGradient(-wBottom/2, 0, wBottom/2, 0);
+    bodyGrad.addColorStop(0,    '#8e0f0f');
+    bodyGrad.addColorStop(0.16, '#c81d1d');
+    bodyGrad.addColorStop(0.5,  '#ff3b3b');
+    bodyGrad.addColorStop(0.84, '#c81d1d');
+    bodyGrad.addColorStop(1,    '#8e0f0f');
     ctx.fillStyle = bodyGrad;
     ctx.beginPath();
-    ctx.roundRect(-cW / 2, -cH, cW, cH, [8, 8, 5, 5]);
+    ctx.moveTo(-wBottom/2,  yFloor - 4);     // abajo izq
+    ctx.lineTo( wBottom/2,  yFloor - 4);     // abajo der
+    ctx.lineTo( wBottom/2,  yTrunkTop + 14); // sube lado der
+    ctx.lineTo( wTop/2,     yTrunkTop);      // se estrecha hacia el techo der
+    ctx.lineTo(-wTop/2,     yTrunkTop);      // techo izq
+    ctx.lineTo(-wBottom/2,  yTrunkTop + 14); // baja lado izq
+    ctx.closePath();
     ctx.fill();
 
-    /* Highlight superior */
-    ctx.fillStyle = 'rgba(255,180,180,0.15)';
+    /* Brillo lateral del cuerpo */
+    ctx.fillStyle = 'rgba(255,170,170,0.18)';
     ctx.beginPath();
-    ctx.roundRect(-cW * 0.44, -cH * 0.98, cW * 0.88, cH * 0.22, [6, 6, 0, 0]);
-    ctx.fill();
+    ctx.moveTo(-wBottom/2 + 5, yFloor - 8);
+    ctx.lineTo(-wBottom/2 + 14, yFloor - 8);
+    ctx.lineTo(-wTop/2 + 12, yTrunkTop + 4);
+    ctx.lineTo(-wTop/2 + 4, yTrunkTop + 4);
+    ctx.closePath(); ctx.fill();
 
-    /* ── 5. Parachoques trasero (parte MÁS VISIBLE, abajo) ── */
-    ctx.fillStyle = '#111';
+    /* ── 4. Techo + luneta trasera (arriba, más estrecho = perspectiva) ── */
+    const roofGrad = ctx.createLinearGradient(0, yRoof, 0, yTrunkTop);
+    roofGrad.addColorStop(0, '#6e0a0a');
+    roofGrad.addColorStop(1, '#9a1414');
+    ctx.fillStyle = roofGrad;
     ctx.beginPath();
-    ctx.roundRect(-cW * 0.46, -cH * 0.12, cW * 0.92, cH * 0.12, [2, 2, 6, 6]);
+    ctx.moveTo(-wTop/2 + 4, yTrunkTop);
+    ctx.lineTo( wTop/2 - 4, yTrunkTop);
+    ctx.lineTo( wTop/2 - 10, yRoof + 6);
+    ctx.lineTo(-wTop/2 + 10, yRoof + 6);
+    ctx.closePath();
     ctx.fill();
 
-    /* Rejilla del parachoques */
-    ctx.fillStyle = '#222';
+    /* Luneta (vidrio trasero) — trapecio que sigue la inclinación */
+    ctx.fillStyle = 'rgba(120,185,255,0.80)';
     ctx.beginPath();
-    ctx.roundRect(-cW * 0.35, -cH * 0.10, cW * 0.70, cH * 0.065, 3);
+    ctx.moveTo(-wTop/2 + 9,  yTrunkTop - 3);
+    ctx.lineTo( wTop/2 - 9,  yTrunkTop - 3);
+    ctx.lineTo( wTop/2 - 13, yRoof + 10);
+    ctx.lineTo(-wTop/2 + 13, yRoof + 10);
+    ctx.closePath();
     ctx.fill();
+    /* Reflejo en la luneta */
+    ctx.fillStyle = 'rgba(255,255,255,0.20)';
+    ctx.beginPath();
+    ctx.moveTo(-wTop/2 + 12, yTrunkTop - 5);
+    ctx.lineTo(-wTop/2 + 28, yTrunkTop - 5);
+    ctx.lineTo(-wTop/2 + 26, yRoof + 12);
+    ctx.lineTo(-wTop/2 + 15, yRoof + 12);
+    ctx.closePath(); ctx.fill();
 
-    /* ── 6. Escapes (en la parte trasera baja) ── */
-    const exhaustGlow = nitroActive ? `rgba(0,200,255,${0.6 + Math.sin(ts / 55) * 0.4})` : 'rgba(60,60,60,0.8)';
-    [-cW * 0.28, cW * 0.14].forEach(ex => {
-      ctx.fillStyle = '#333';
-      ctx.beginPath(); ctx.roundRect(ex, -cH * 0.065, cW * 0.13, cH * 0.06, 2); ctx.fill();
-      ctx.fillStyle = exhaustGlow;
-      ctx.beginPath(); ctx.ellipse(ex + cW * 0.065, -cH * 0.035, cW * 0.07, cH * 0.025, 0, 0, Math.PI * 2); ctx.fill();
+    /* ── 5. Línea de la cajuela (separa portón del techo) ── */
+    ctx.strokeStyle = 'rgba(90,0,0,0.7)'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-wBottom/2 + 8, yTrunkTop + 14);
+    ctx.lineTo( wBottom/2 - 8, yTrunkTop + 14);
+    ctx.stroke();
+
+    /* ── 6. Faros traseros (franja roja horizontal típica de autos modernos) ── */
+    const lampY = -38;
+    // Izquierdo
+    ctx.fillStyle = `rgba(255,30,30,${flare})`;
+    ctx.beginPath(); ctx.roundRect(-wBottom/2 + 6, lampY, 28, 13, 3); ctx.fill();
+    // Derecho
+    ctx.beginPath(); ctx.roundRect( wBottom/2 - 34, lampY, 28, 13, 3); ctx.fill();
+    // Brillo interno
+    ctx.fillStyle = `rgba(255,140,140,${flare * 0.6})`;
+    ctx.beginPath(); ctx.roundRect(-wBottom/2 + 9, lampY + 3, 22, 6, 2); ctx.fill();
+    ctx.beginPath(); ctx.roundRect( wBottom/2 - 31, lampY + 3, 22, 6, 2); ctx.fill();
+    // Halo
+    ctx.fillStyle = `rgba(255,0,0,${flare * 0.18})`;
+    ctx.beginPath(); ctx.ellipse(-wBottom/2 + 20, lampY + 6, 26, 13, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse( wBottom/2 - 20, lampY + 6, 26, 13, 0, 0, Math.PI*2); ctx.fill();
+    // Tercera luz de freno (centro, arriba)
+    ctx.fillStyle = `rgba(255,40,40,${flare})`;
+    ctx.beginPath(); ctx.roundRect(-12, yTrunkTop + 2, 24, 4, 2); ctx.fill();
+
+    /* ── 7. Placa de matrícula ── */
+    ctx.fillStyle = '#eee';
+    ctx.beginPath(); ctx.roundRect(-16, -20, 32, 11, 2); ctx.fill();
+    ctx.fillStyle = '#333'; ctx.font = 'bold 7px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('HUGO', 0, -12);
+
+    /* ── 8. Parachoques inferior (lo más cercano, negro) ── */
+    ctx.fillStyle = '#141414';
+    ctx.beginPath();
+    ctx.moveTo(-wBottom/2, yFloor - 4);
+    ctx.lineTo( wBottom/2, yFloor - 4);
+    ctx.lineTo( wBottom/2 - 4, yFloor - 18);
+    ctx.lineTo(-wBottom/2 + 4, yFloor - 18);
+    ctx.closePath(); ctx.fill();
+    /* Difusor (rejillas) */
+    ctx.fillStyle = '#2a2a2a';
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath(); ctx.roundRect(i * 12 - 4, yFloor - 15, 8, 10, 1); ctx.fill();
+    }
+
+    /* ── 9. Escapes + nitro ── */
+    [-26, 18].forEach(ex => {
+      ctx.fillStyle = '#444';
+      ctx.beginPath(); ctx.roundRect(ex, yFloor - 8, 9, 6, 2); ctx.fill();
     });
-
-    /* ── 7. Faros traseros ROJOS (zona baja del auto, muy visible) ── */
-    ctx.fillStyle = `rgba(255, 20, 20, ${flarePulse})`;
-    /* Izquierdo */
-    ctx.beginPath();
-    ctx.roundRect(-cW * 0.47, -cH * 0.28, cW * 0.22, cH * 0.10, [3, 0, 0, 3]);
-    ctx.fill();
-    /* Derecho */
-    ctx.beginPath();
-    ctx.roundRect(cW * 0.25, -cH * 0.28, cW * 0.22, cH * 0.10, [0, 3, 3, 0]);
-    ctx.fill();
-    /* Brillo interior */
-    ctx.fillStyle = `rgba(255,100,100,${flarePulse * 0.5})`;
-    ctx.beginPath(); ctx.roundRect(-cW * 0.45, -cH * 0.27, cW * 0.17, cH * 0.07, 2); ctx.fill();
-    ctx.beginPath(); ctx.roundRect( cW * 0.28, -cH * 0.27, cW * 0.17, cH * 0.07, 2); ctx.fill();
-    /* Halo glow */
-    ctx.fillStyle = `rgba(255,0,0,${flarePulse * 0.20})`;
-    ctx.beginPath(); ctx.ellipse(-cW * 0.34, -cH * 0.23, 24, 14, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse( cW * 0.34, -cH * 0.23, 24, 14, 0, 0, Math.PI * 2); ctx.fill();
-
-    /* ── 8. Franja lateral (línea decorativa) ── */
-    ctx.fillStyle = 'rgba(80,0,0,0.6)';
-    ctx.fillRect(-cW * 0.46, -cH * 0.52, cW * 0.92, 3);
-
-    /* ── 9. Techo / Cabina (parte SUPERIOR, más lejos) ── */
-    const roofW = cW * 0.70;
-    const roofH = cH * 0.30;
-    const roofTop = -cH * 0.98;
-    ctx.fillStyle = '#880000';
-    ctx.beginPath();
-    ctx.roundRect(-roofW / 2, roofTop, roofW, roofH, [10, 10, 2, 2]);
-    ctx.fill();
-
-    /* Parabrisas trasero (en el techo, perspectiva pequeña porque está lejos) */
-    ctx.fillStyle = 'rgba(120, 190, 255, 0.78)';
-    ctx.beginPath();
-    ctx.roundRect(-roofW * 0.40, roofTop + roofH * 0.10, roofW * 0.80, roofH * 0.58, 5);
-    ctx.fill();
-    /* Reflejo en parabrisas */
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    ctx.beginPath();
-    ctx.roundRect(-roofW * 0.36, roofTop + roofH * 0.13, roofW * 0.30, roofH * 0.26, 3);
-    ctx.fill();
-
-    /* ── 10. Alerón trasero (arriba del todo, hacia el horizonte) ── */
-    const spoilerY = -cH - 14;
-    /* Soportes */
-    ctx.fillStyle = '#660000';
-    ctx.fillRect(-cW * 0.36, spoilerY + 6, 7, 14);
-    ctx.fillRect( cW * 0.29, spoilerY + 6, 7, 14);
-    /* Plano del alerón */
-    ctx.fillStyle = '#770000';
-    ctx.beginPath(); ctx.roundRect(-cW * 0.50, spoilerY, cW * 1.0, 9, 3); ctx.fill();
-    ctx.fillStyle = '#550000';
-    ctx.beginPath(); ctx.roundRect(-cW * 0.48, spoilerY - 5, cW * 0.96, 6, 2); ctx.fill();
-
-    /* ── 11. Nitro flames (debajo del auto, salen hacia la cámara) ── */
     if (nitroActive) {
-      for (let i = 0; i < 3; i++) {
-        const fl = Math.sin(ts / 55 + i * 2) * 0.5 + 0.5;
-        const fx = (i - 1) * 18;
-        /* Llama principal */
-        ctx.fillStyle = `rgba(0, ${150 + fl * 80}, 255, ${0.75 * fl})`;
+      for (let i = 0; i < 2; i++) {
+        const fl = Math.sin(ts/50 + i*2)*0.5 + 0.5;
+        const fx = i === 0 ? -21 : 22;
+        ctx.fillStyle = `rgba(0,${160+fl*80},255,${0.8*fl})`;
         ctx.beginPath();
-        ctx.moveTo(fx - 7, 2);
-        ctx.lineTo(fx,     22 + fl * 14);
-        ctx.lineTo(fx + 7, 2);
+        ctx.moveTo(fx-6, yFloor-4);
+        ctx.lineTo(fx,   yFloor + 18 + fl*14);
+        ctx.lineTo(fx+6, yFloor-4);
         ctx.closePath(); ctx.fill();
-        /* Core blanco */
-        ctx.fillStyle = `rgba(200, 240, 255, ${0.6 * fl})`;
+        ctx.fillStyle = `rgba(220,245,255,${0.7*fl})`;
         ctx.beginPath();
-        ctx.moveTo(fx - 3, 2);
-        ctx.lineTo(fx,     12 + fl * 8);
-        ctx.lineTo(fx + 3, 2);
+        ctx.moveTo(fx-2.5, yFloor-4);
+        ctx.lineTo(fx,     yFloor + 9 + fl*7);
+        ctx.lineTo(fx+2.5, yFloor-4);
         ctx.closePath(); ctx.fill();
       }
     }
+
+    /* ── 10. Alerón trasero (arriba del techo) ── */
+    ctx.fillStyle = '#5e0a0a';
+    ctx.fillRect(-wTop/2 + 14, yRoof - 2, 6, 10);
+    ctx.fillRect( wTop/2 - 20, yRoof - 2, 6, 10);
+    ctx.fillStyle = '#7a0d0d';
+    ctx.beginPath(); ctx.roundRect(-wTop/2 + 2, yRoof - 8, wTop - 4, 7, 2); ctx.fill();
 
     ctx.restore();
   }
@@ -5634,12 +5712,12 @@ function buildPlatform(container) {
       <canvas id="plGame" width="${W}" height="${H}" style="display:block"></canvas>
       <div style="position:absolute;top:0;left:0;width:100%;pointer-events:none;display:flex;justify-content:space-between;align-items:center;padding:7px 12px;background:rgba(0,0,0,0.3)">
         <span style="color:#fff;font-weight:800;font-size:0.85rem">🪙 <span id="plScore">0</span></span>
-        <span style="color:#fff;font-weight:800;font-size:0.85rem">📏 <span id="plDist">0</span>m</span>
+        <span style="color:#fff;font-weight:800;font-size:0.85rem">📏 <span id="plDist">0</span>/<span id="plGoal">300</span>m</span>
         <span style="color:#fff;font-weight:800;font-size:0.85rem">❤️ <span id="plLives">3</span></span>
         <button onclick="window.plReset()" style="background:#7C3AED;border:none;color:#fff;padding:4px 10px;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.75rem">↺</button>
       </div>
     </div>
-    <div class="game-instructions"><strong>SALTAR:</strong> Toca pantalla / Espacio / ↑ · Doble toque = doble salto · ¡Recoge monedas!</div>`;
+    <div class="game-instructions"><strong>SALTAR:</strong> Toca pantalla / Espacio / ↑ · Doble toque = doble salto · ¡Llega a la meta de 300m esquivando obstáculos!</div>`;
 
   const canvas = document.getElementById('plGame');
   const ctx = canvas.getContext('2d');
@@ -5659,14 +5737,15 @@ function buildPlatform(container) {
   }
 
   /* ── Estado ── */
-  let hero, obstacles, coins, dist, score, speed, animId, running, lives;
+  let hero, obstacles, coins, dist, distFloat, score, speed, animId, running, lives, won;
   let frameN = 0;  // para animación del personaje
+  const GOAL = 300;  // meta en metros
 
   function reset() {
     hero = {x:60, y:GROUND-40, w:28, h:40, vy:0, vx:0, jumping:false, djump:false, run:0, dead:false};
-    obstacles=[]; coins=[]; dist=0; score=0; speed=4; running=true; lives=3; frameN=0;
+    obstacles=[]; coins=[]; dist=0; distFloat=0; score=0; speed=4; running=true; lives=3; frameN=0; won=false;
     parallaxX=[0,0,0]; pars.length=0;
-    setText('plScore',0); setText('plDist',0);
+    setText('plScore',0); setText('plDist',0); setText('plGoal', GOAL);
     document.getElementById('plLives').textContent='3';
     if (animId) cancelAnimationFrame(animId);
     animId = registerAnimation(requestAnimationFrame(loop));
@@ -5725,9 +5804,19 @@ function buildPlatform(container) {
     obstacles = obstacles.filter(o => o.x > -40);
     coins = coins.filter(c => c.x > -20 && !c.got);
 
-    dist += Math.round(speed*0.045);
-    speed = 4 + dist/400;
-    setText('plDist', dist);
+    /* Distancia: acumular en flotante para no perder los decimales */
+    distFloat += speed * 0.08;
+    dist = Math.floor(distFloat);
+    speed = 4 + dist/120;   // acelera gradualmente
+    setText('plDist', Math.min(dist, GOAL));
+
+    /* ¿Llegó a la meta? → ¡Ganó! */
+    if (dist >= GOAL && running) {
+      running = false; won = true;
+      saveRecord('platform', dist);
+      if (typeof darRecompensa==='function') darRecompensa(score + 20, dist, '🦸 Plataforma');
+      try { showToast('🏁 ¡Meta alcanzada! +20🪙 bonus'); launchConfetti(); SFX.win(); } catch(e) {}
+    }
 
     /* Colisiones obstáculos */
     for (const o of obstacles) {
@@ -5892,70 +5981,110 @@ function buildPlatform(container) {
     /* ── Personaje animado ── */
     drawHero();
 
-    /* ── Game Over ── */
+    /* ── Pantalla final (ganó o perdió) ── */
     if (!running) {
       ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
-      ctx.fillStyle='#FF4D9D'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('💥 ¡CHOQUE!', W/2, H/2-20);
-      ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
-      ctx.fillText(dist+'m · '+score+' 🪙', W/2, H/2+12);
+      if (won) {
+        ctx.fillStyle='#86efac'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
+        ctx.fillText('🏁 ¡META!', W/2, H/2-20);
+        ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
+        ctx.fillText('¡Llegaste! '+score+' 🪙 +20 bonus', W/2, H/2+12);
+      } else {
+        ctx.fillStyle='#FF4D9D'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
+        ctx.fillText('💥 ¡CHOQUE!', W/2, H/2-20);
+        ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
+        ctx.fillText(dist+'/'+GOAL+'m · '+score+' 🪙', W/2, H/2+12);
+      }
       ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${Math.round(W/22)}px Nunito,sans-serif`;
       ctx.fillText('Toca para volver a jugar', W/2, H/2+36);
     }
   }
 
   function drawHero() {
-    const hx = hero.x+hero.w/2, hy = hero.y;
+    /* Anclaje: trasladamos al punto donde los PIES tocan el suelo.
+       hero.y es la parte superior del hitbox, hero.h su altura,
+       así que los pies están en hero.y + hero.h. Dibujamos el
+       personaje HACIA ARRIBA desde ahí (Y negativo = arriba). */
+    const hx = hero.x + hero.w / 2;
+    const feetY = hero.y + hero.h;
     const run = hero.run;
     const inAir = hero.jumping;
-    ctx.save(); ctx.translate(hx, hy+hero.h/2);
 
-    /* Sombra */
-    ctx.fillStyle='rgba(0,0,0,0.25)';
-    ctx.beginPath(); ctx.ellipse(0, hero.h/2+4, hero.w*0.5, 5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.save();
+    ctx.translate(hx, feetY);
 
-    /* Cuerpo */
-    ctx.fillStyle='#2563EB';
-    ctx.beginPath(); ctx.roundRect(-10,-5,20,18,5); ctx.fill();
-    /* Chaqueta */
-    ctx.fillStyle='#1d4ed8';
-    ctx.beginPath(); ctx.roundRect(-10,-5,8,18,4); ctx.fill();
+    /* Sombra en el piso (se achica al saltar) */
+    const shadowScale = inAir ? 0.6 : 1;
+    ctx.fillStyle = `rgba(0,0,0,${inAir ? 0.12 : 0.25})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 2, hero.w * 0.5 * shadowScale, 4 * shadowScale, 0, 0, Math.PI * 2);
+    ctx.fill();
 
-    /* Cabeza */
-    ctx.fillStyle='#FDBCB4';
-    ctx.beginPath(); ctx.arc(0,-12,10,0,Math.PI*2); ctx.fill();
-    /* Pelo */
-    ctx.fillStyle='#5c3317';
-    ctx.beginPath(); ctx.arc(0,-16,7,Math.PI,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(-6,-14,4,Math.PI*1.1,Math.PI*2.1); ctx.fill();
-    /* Ojo */
-    ctx.fillStyle='#333'; ctx.beginPath(); ctx.arc(4,-12,2,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(4.8,-12.5,0.8,0,Math.PI*2); ctx.fill();
+    /* Animación de piernas: ángulo de zancada */
+    const stride = inAir ? 14 : Math.sin(run) * 14;
 
-    /* Piernas animadas (correr/saltar) */
-    const legSwing = inAir ? 0 : Math.sin(run)*18;
-    ctx.strokeStyle='#1a40a0'; ctx.lineWidth=6; ctx.lineCap='round';
-    /* Pierna izq */
-    ctx.beginPath(); ctx.moveTo(-4,13); ctx.lineTo(-6+Math.sin(legSwing*Math.PI/180)*8, 22); ctx.stroke();
-    /* Pierna der */
-    ctx.beginPath(); ctx.moveTo(4,13); ctx.lineTo(6-Math.sin(legSwing*Math.PI/180)*8, 22); ctx.stroke();
+    /* ── Piernas (desde la cadera ~ -18 hasta los pies ~ 0) ── */
+    ctx.strokeStyle = '#1a40a0'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    /* Izquierda */
+    ctx.beginPath();
+    ctx.moveTo(-4, -18);
+    ctx.lineTo(-4 + stride * 0.4, -2);
+    ctx.stroke();
+    /* Derecha */
+    ctx.beginPath();
+    ctx.moveTo(4, -18);
+    ctx.lineTo(4 - stride * 0.4, -2);
+    ctx.stroke();
     /* Zapatos */
-    ctx.fillStyle='#111';
-    ctx.beginPath(); ctx.roundRect(-10+Math.sin(legSwing*Math.PI/180)*8,19,10,5,2); ctx.fill();
-    ctx.beginPath(); ctx.roundRect(2-Math.sin(legSwing*Math.PI/180)*8,19,10,5,2); ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.roundRect(-9 + stride * 0.4, -4, 11, 5, 2); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(-2 - stride * 0.4, -4, 11, 5, 2); ctx.fill();
 
-    /* Brazos */
-    const armSwing = inAir ? -30 : Math.sin(run+Math.PI)*22;
-    ctx.strokeStyle='#2563EB'; ctx.lineWidth=5;
-    ctx.beginPath(); ctx.moveTo(-10,0); ctx.lineTo(-16,8+Math.sin(armSwing*Math.PI/180)*5); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(10,0); ctx.lineTo(16,8-Math.sin(armSwing*Math.PI/180)*5); ctx.stroke();
+    /* ── Torso (de -38 a -16) ── */
+    ctx.fillStyle = '#2563EB';
+    ctx.beginPath(); ctx.roundRect(-11, -38, 22, 22, 6); ctx.fill();
+    /* Cierre / detalle de la chaqueta */
+    ctx.fillStyle = '#1d4ed8';
+    ctx.beginPath(); ctx.roundRect(-2, -38, 4, 22, 2); ctx.fill();
 
-    /* Capa (efecto héroe) */
-    ctx.fillStyle='#FF4D9D';
-    ctx.save(); ctx.rotate(inAir?0.2:Math.sin(run)*0.1);
-    ctx.beginPath(); ctx.moveTo(-8,-4); ctx.lineTo(-16,10+Math.sin(run)*5); ctx.lineTo(-6,8); ctx.closePath(); ctx.fill();
+    /* ── Brazos ── */
+    const armSwing = inAir ? -16 : Math.sin(run + Math.PI) * 12;
+    ctx.strokeStyle = '#2563EB'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-10, -34); ctx.lineTo(-15, -22 + armSwing); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(10, -34); ctx.lineTo(15, -22 - armSwing); ctx.stroke();
+    /* Manos */
+    ctx.fillStyle = '#FDBCB4';
+    ctx.beginPath(); ctx.arc(-15, -22 + armSwing, 3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(15, -22 - armSwing, 3, 0, Math.PI*2); ctx.fill();
+
+    /* ── Capa (detrás, ondeando) ── */
+    ctx.save();
+    ctx.fillStyle = '#FF4D9D';
+    const capeWave = inAir ? 14 : 6 + Math.sin(run) * 4;
+    ctx.beginPath();
+    ctx.moveTo(-9, -36);
+    ctx.quadraticCurveTo(-18, -24, -14 - capeWave * 0.3, -8);
+    ctx.lineTo(-6, -16);
+    ctx.closePath();
+    ctx.fill();
     ctx.restore();
+
+    /* ── Cabeza (de -56 a -38) ── */
+    ctx.fillStyle = '#FDBCB4';
+    ctx.beginPath(); ctx.arc(0, -47, 10, 0, Math.PI * 2); ctx.fill();
+    /* Pelo */
+    ctx.fillStyle = '#5c3317';
+    ctx.beginPath(); ctx.arc(0, -50, 9, Math.PI, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-6, -48, 4, Math.PI * 1.1, Math.PI * 2.1); ctx.fill();
+    /* Ojo (mira a la derecha, hacia donde corre) */
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(4, -47, 2.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(4.8, -47.6, 0.9, 0, Math.PI * 2); ctx.fill();
+    /* Sonrisa */
+    ctx.strokeStyle = '#c97'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(3, -43, 3, 0.1, Math.PI * 0.8); ctx.stroke();
 
     ctx.restore();
   }
@@ -10766,6 +10895,526 @@ if(_hgOriginalOpenGame){
   }
 
   window.hkInvitados = { cargarConfig, guardarConfig };
+
+})();
+</script>
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   PANEL ADMINISTRATIVO INDEPENDIENTE v1.0
+   • Pantalla completa separada con contraseña propia
+   • Acceso: triple-tap en el logo, o URL con #admin
+   • Control total: Usuarios · Invitados · Torneos · Tienda
+   • La contraseña se guarda en la tabla `config` (clave: admin_pin)
+     Por defecto es "hugo2024" hasta que el admin la cambie.
+══════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  function sb() { try { return getSupabase(); } catch(e) { return null; } }
+  function esc(v){ return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function toast(m){ try{ showToast(m); }catch(e){} }
+
+  let sesionAdmin = false;   // true tras introducir la contraseña
+
+  /* ── Leer/escribir config genérico ── */
+  async function cfgGet(clave, def) {
+    const c = sb(); if (!c) return def;
+    try {
+      const { data } = await c.from('config').select('valor').eq('clave', clave).maybeSingle();
+      return (data && data.valor !== undefined && data.valor !== null) ? data.valor : def;
+    } catch(e) { return def; }
+  }
+  async function cfgSet(clave, valor) {
+    const c = sb(); if (!c) return false;
+    try {
+      const { error } = await c.from('config').upsert(
+        { clave, valor, actualizado_en: new Date().toISOString() }, { onConflict:'clave' });
+      return !error;
+    } catch(e) { return false; }
+  }
+
+  /* ════════════════════════════════════════
+     CONTENEDOR DEL PANEL (pantalla completa)
+  ════════════════════════════════════════ */
+  function crearContenedor() {
+    if (document.getElementById('adminPanelFull')) return document.getElementById('adminPanelFull');
+    const div = document.createElement('div');
+    div.id = 'adminPanelFull';
+    div.style.cssText = 'position:fixed;inset:0;z-index:9500;background:#080a12;display:none;flex-direction:column;font-family:Nunito,sans-serif;overflow:hidden';
+    document.body.appendChild(div);
+    return div;
+  }
+
+  /* ════════════════════════════════════════
+     PANTALLA DE LOGIN (contraseña)
+  ════════════════════════════════════════ */
+  async function mostrarLogin() {
+    const cont = crearContenedor();
+    cont.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    cont.innerHTML = `
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(circle at 50% 30%,#1a0533,#080a12)">
+        <div style="max-width:340px;width:100%;text-align:center">
+          <div style="font-size:3.5rem;margin-bottom:8px">🛡️</div>
+          <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.6rem;margin-bottom:4px">Panel Admin</div>
+          <div style="color:#667;font-size:0.85rem;margin-bottom:28px">Acceso restringido · Solo administradores</div>
+          <input id="adminPin" type="password" inputmode="numeric" placeholder="Contraseña de administrador" autocomplete="off"
+            style="width:100%;box-sizing:border-box;background:#13131f;border:2px solid #2a3650;border-radius:14px;padding:14px 16px;color:#fff;font-size:1rem;font-weight:700;text-align:center;outline:none;margin-bottom:12px;letter-spacing:2px">
+          <div id="adminPinError" style="color:#f87171;font-size:0.8rem;min-height:18px;margin-bottom:8px"></div>
+          <button id="adminPinBtn" style="width:100%;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:14px;border-radius:14px;font-weight:800;font-size:1rem;cursor:pointer;font-family:Nunito,sans-serif">🔓 Entrar</button>
+          <button id="adminPinCancel" style="width:100%;background:transparent;border:none;color:#556;padding:14px;font-weight:700;cursor:pointer;margin-top:4px;font-family:Nunito,sans-serif">Cancelar</button>
+        </div>
+      </div>`;
+
+    const input = cont.querySelector('#adminPin');
+    const errEl = cont.querySelector('#adminPinError');
+    input.focus();
+
+    async function intentar() {
+      const pin = input.value.trim();
+      if (!pin) { errEl.textContent = 'Escribe la contraseña'; return; }
+      const btn = cont.querySelector('#adminPinBtn');
+      btn.textContent = 'Verificando...'; btn.disabled = true;
+
+      /* Verificación 1: ¿el usuario logueado es admin? acceso directo */
+      let ok = false;
+      try { if (perfilNube && perfilNube.es_admin) ok = true; } catch(e) {}
+
+      /* Verificación 2: comparar con PIN guardado en config (o el default) */
+      if (!ok) {
+        const pinGuardado = await cfgGet('admin_pin', 'hugo2024');
+        if (pin === String(pinGuardado)) ok = true;
+      }
+
+      if (ok) {
+        sesionAdmin = true;
+        mostrarPanel('usuarios');
+      } else {
+        errEl.textContent = '❌ Contraseña incorrecta';
+        btn.textContent = '🔓 Entrar'; btn.disabled = false;
+        input.value = ''; input.focus();
+      }
+    }
+
+    cont.querySelector('#adminPinBtn').onclick = intentar;
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') intentar(); });
+    cont.querySelector('#adminPinCancel').onclick = cerrarPanel;
+  }
+
+  function cerrarPanel() {
+    const cont = document.getElementById('adminPanelFull');
+    if (cont) cont.style.display = 'none';
+    document.body.style.overflow = '';
+    if (location.hash === '#admin') history.replaceState(null, '', location.pathname);
+  }
+
+  /* ════════════════════════════════════════
+     PANEL PRINCIPAL (con pestañas)
+  ════════════════════════════════════════ */
+  function mostrarPanel(tab) {
+    const cont = crearContenedor();
+    cont.style.display = 'flex';
+    const tabs = [
+      { id:'usuarios',  label:'👥 Usuarios' },
+      { id:'invitados', label:'🎫 Invitados' },
+      { id:'torneos',   label:'🥊 Torneos' },
+      { id:'tienda',    label:'🛒 Tienda' },
+      { id:'ajustes',   label:'⚙️ Ajustes' },
+    ];
+    cont.innerHTML = `
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#1a0533,#7C3AED);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.6rem">🛡️</span>
+          <div>
+            <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.15rem;line-height:1">Panel Admin</div>
+            <div style="color:rgba(255,255,255,0.55);font-size:0.68rem">HugoKids · Control total</div>
+          </div>
+        </div>
+        <button id="adminCerrar" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:1.1rem;cursor:pointer">✕</button>
+      </div>
+      <!-- Tabs -->
+      <div style="display:flex;gap:4px;padding:8px;background:#0d0f18;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch">
+        ${tabs.map(t=>`<button class="adminTab" data-tab="${t.id}" style="white-space:nowrap;background:${tab===t.id?'#7C3AED':'#161a26'};border:none;color:${tab===t.id?'#fff':'#889'};padding:9px 14px;border-radius:10px;font-weight:800;font-size:0.8rem;cursor:pointer;font-family:Nunito,sans-serif;flex-shrink:0">${t.label}</button>`).join('')}
+      </div>
+      <!-- Contenido scrollable -->
+      <div id="adminContenido" style="flex:1;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch"></div>`;
+
+    cont.querySelector('#adminCerrar').onclick = cerrarPanel;
+    cont.querySelectorAll('.adminTab').forEach(b => {
+      b.onclick = () => mostrarPanel(b.dataset.tab);
+    });
+
+    const c = cont.querySelector('#adminContenido');
+    if (tab === 'usuarios')  renderUsuarios(c);
+    if (tab === 'invitados') renderInvitados(c);
+    if (tab === 'torneos')   renderTorneos(c);
+    if (tab === 'tienda')    renderTienda(c);
+    if (tab === 'ajustes')   renderAjustes(c);
+  }
+
+  /* ════════════════════════════════════════
+     TAB 1: USUARIOS
+  ════════════════════════════════════════ */
+  async function renderUsuarios(cont) {
+    cont.innerHTML = `<div style="text-align:center;color:#556;padding:30px">Cargando usuarios...</div>`;
+    const c = sb();
+    if (!c) { cont.innerHTML = '<div style="text-align:center;color:#f87171;padding:30px">Sin conexión a Supabase</div>'; return; }
+
+    let usuarios = [];
+    try {
+      const { data, error } = await c.from('perfiles')
+        .select('id,nombre,avatar,numero_amigo,correo,bloqueado,es_admin,ultima_actividad,puntos,monedas')
+        .order('nombre',{ascending:true});
+      if (error) throw error;
+      usuarios = data || [];
+    } catch(e) {
+      cont.innerHTML = '<div style="text-align:center;color:#f87171;padding:30px">Error al cargar. ¿Tienes permisos de admin en Supabase?</div>';
+      return;
+    }
+
+    const online = usuarios.filter(u => u.ultima_actividad && (Date.now()-new Date(u.ultima_actividad).getTime() < 5*60000)).length;
+    const bloq = usuarios.filter(u=>u.bloqueado).length;
+
+    cont.innerHTML = `
+      <!-- Búsqueda -->
+      <input id="admBuscar" placeholder="🔍 Buscar usuario..." autocomplete="off"
+        style="width:100%;box-sizing:border-box;background:#13131f;border:1px solid #2a3650;border-radius:10px;padding:10px 14px;color:#fff;font-weight:600;outline:none;margin-bottom:10px;font-family:Nunito,sans-serif">
+      <!-- Stats -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px">
+        <div style="background:#13131f;border-radius:10px;padding:10px;text-align:center"><div style="color:#86efac;font-size:1.3rem;font-weight:800">${usuarios.length}</div><div style="color:#556;font-size:0.62rem">TOTAL</div></div>
+        <div style="background:#13131f;border-radius:10px;padding:10px;text-align:center"><div style="color:#00ffaa;font-size:1.3rem;font-weight:800">${online}</div><div style="color:#556;font-size:0.62rem">EN LÍNEA</div></div>
+        <div style="background:#13131f;border-radius:10px;padding:10px;text-align:center"><div style="color:#f87171;font-size:1.3rem;font-weight:800">${bloq}</div><div style="color:#556;font-size:0.62rem">BLOQUEADOS</div></div>
+      </div>
+      <div id="admListaUsers"></div>`;
+
+    function pintar(filtro) {
+      const lista = filtro ? usuarios.filter(u=>(u.nombre||'').toLowerCase().includes(filtro.toLowerCase())) : usuarios;
+      const box = cont.querySelector('#admListaUsers');
+      if (!lista.length) { box.innerHTML = '<div style="text-align:center;color:#556;padding:20px">Sin resultados</div>'; return; }
+      box.innerHTML = lista.map(u => {
+        const on = u.ultima_actividad && (Date.now()-new Date(u.ultima_actividad).getTime() < 5*60000);
+        const yo = perfilNube && perfilNube.id === u.id;
+        return `
+        <div style="background:#13131f;border:1px solid ${u.bloqueado?'#4a1111':'#1e2535'};border-radius:12px;padding:11px;margin-bottom:7px">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+            <div style="width:38px;height:38px;border-radius:50%;background:#1a2233;display:flex;align-items:center;justify-content:center;font-size:1.3rem;border:2px solid ${u.bloqueado?'#dc2626':u.es_admin?'#FFD600':'#2a3650'};flex-shrink:0">${u.avatar||'👤'}</div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                <span style="color:#fff;font-weight:800;font-size:0.88rem">${esc(u.nombre||'Sin nombre')}</span>
+                ${u.es_admin?'<span style="background:#FFD600;color:#3a2700;border-radius:5px;padding:1px 5px;font-size:0.58rem;font-weight:800">ADMIN</span>':''}
+                ${yo?'<span style="background:#7C3AED;color:#fff;border-radius:5px;padding:1px 5px;font-size:0.58rem;font-weight:800">TÚ</span>':''}
+                ${on?'<span style="width:7px;height:7px;border-radius:50%;background:#00ffaa;display:inline-block"></span>':''}
+              </div>
+              <div style="color:#556;font-size:0.66rem;margin-top:2px">#${u.numero_amigo||'?'} · 🪙${u.monedas||0} · ⭐${u.puntos||0}</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px">
+            <button data-act="bloq" data-id="${u.id}" data-v="${u.bloqueado?1:0}" ${yo?'disabled':''} style="background:${u.bloqueado?'#15803d':'#7f1d1d'};border:none;color:${u.bloqueado?'#86efac':'#f87171'};padding:7px 3px;border-radius:8px;font-weight:800;font-size:0.66rem;cursor:pointer;${yo?'opacity:.4':''}">${u.bloqueado?'🔓 Activar':'🔒 Bloquear'}</button>
+            <button data-act="pass" data-id="${u.id}" data-correo="${esc(u.correo||'')}" data-nombre="${esc(u.nombre||'')}" style="background:#1e1b4b;border:none;color:#c4b5fd;padding:7px 3px;border-radius:8px;font-weight:800;font-size:0.66rem;cursor:pointer">🔑 Pass</button>
+            <button data-act="del" data-id="${u.id}" data-nombre="${esc(u.nombre||'')}" ${yo?'disabled':''} style="background:#1c0a0a;border:none;color:#f87171;padding:7px 3px;border-radius:8px;font-weight:800;font-size:0.66rem;cursor:pointer;${yo?'opacity:.4':''}">🗑️</button>
+          </div>
+        </div>`;
+      }).join('');
+
+      box.querySelectorAll('button[data-act]').forEach(b => {
+        b.onclick = () => accionUsuario(b.dataset.act, b.dataset, () => renderUsuarios(cont));
+      });
+    }
+    pintar('');
+    cont.querySelector('#admBuscar').addEventListener('input', e => pintar(e.target.value));
+  }
+
+  async function accionUsuario(act, d, refrescar) {
+    const c = sb(); if (!c) return;
+    if (act === 'bloq') {
+      const nuevo = d.v === '1' ? false : true;
+      await c.from('perfiles').update({ bloqueado:nuevo }).eq('id', d.id);
+      toast(nuevo?'🔒 Bloqueado':'✅ Activado'); refrescar();
+    }
+    else if (act === 'pass') {
+      const tieneCorreo = d.correo && !d.correo.endsWith('@usuarios.hugokids.app');
+      if (tieneCorreo) {
+        await c.auth.resetPasswordForEmail(d.correo, { redirectTo: location.origin + location.pathname });
+        toast('✅ Correo de reset enviado a ' + d.nombre);
+      } else {
+        const nueva = prompt('Nueva contraseña para ' + d.nombre + ' (mín. 6):');
+        if (!nueva || nueva.length < 6) { toast('⚠️ Cancelado'); return; }
+        const email = d.nombre.toUpperCase().replace(/[^A-Z0-9_]/g,'').toLowerCase() + '@usuarios.hugokids.app';
+        try {
+          await navigator.clipboard.writeText(`UPDATE auth.users SET encrypted_password=crypt('${nueva}',gen_salt('bf')) WHERE email='${email}';`);
+          toast('✅ SQL copiado. Pégalo en Supabase SQL Editor.');
+        } catch(e) { alert(`SQL para Supabase:\nUPDATE auth.users SET encrypted_password=crypt('${nueva}',gen_salt('bf')) WHERE email='${email}';`); }
+      }
+    }
+    else if (act === 'del') {
+      mostrarConfirmEliminar(d.nombre, async () => {
+        try {
+          await c.from('perfiles').delete().eq('id', d.id);
+          try { await c.from('participaciones_torneo').delete().eq('usuario_id', d.id); } catch(e){}
+          toast('✅ ' + d.nombre + ' eliminado'); refrescar();
+        } catch(e) { toast('❌ Error al eliminar'); }
+      });
+    }
+  }
+
+  function mostrarConfirmEliminar(nombre, onConfirm) {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9700;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML = `
+      <div style="background:#0d1117;border:2px solid #dc2626;border-radius:20px;padding:24px;max-width:330px;width:100%;text-align:center">
+        <div style="font-size:2.5rem;margin-bottom:8px">🗑️</div>
+        <div style="color:#f87171;font-family:'Fredoka One',cursive;font-size:1.2rem;margin-bottom:6px">¿Eliminar cuenta?</div>
+        <div style="color:#fff;font-weight:800;margin-bottom:10px">${esc(nombre)}</div>
+        <div style="background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);border-radius:10px;padding:9px;margin-bottom:16px;color:#f87171;font-size:0.74rem;line-height:1.5">⚠️ Elimina el perfil de la base de datos. No borra la cuenta de Auth (eso se hace en el panel de Supabase).</div>
+        <div style="display:flex;gap:8px">
+          <button id="cE" style="flex:1;background:#1e2535;border:none;color:#aaa;padding:11px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">Cancelar</button>
+          <button id="oE" style="flex:1;background:#dc2626;border:none;color:#fff;padding:11px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">🗑️ Eliminar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('#cE').onclick = () => ov.remove();
+    ov.querySelector('#oE').onclick = async () => { ov.remove(); await onConfirm(); };
+  }
+
+  /* ════════════════════════════════════════
+     TAB 2: INVITADOS  (reusa el sistema existente)
+  ════════════════════════════════════════ */
+  function renderInvitados(cont) {
+    if (typeof window.hkRenderAdminInvitados === 'function') {
+      window.hkRenderAdminInvitados(cont);
+    } else {
+      cont.innerHTML = '<div style="text-align:center;color:#556;padding:30px">Sistema de invitados no disponible</div>';
+    }
+  }
+
+  /* ════════════════════════════════════════
+     TAB 3: TORNEOS
+  ════════════════════════════════════════ */
+  async function renderTorneos(cont) {
+    cont.innerHTML = `<div style="text-align:center;color:#556;padding:20px">Cargando torneos...</div>`;
+    const c = sb();
+    let torneos = [];
+    if (c) { try { const {data} = await c.from('torneos').select('*').order('inicio',{ascending:false}); torneos = data||[]; } catch(e){} }
+
+    cont.innerHTML = `
+      <button id="admNuevoTorneo" style="width:100%;background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:12px;border-radius:12px;font-weight:800;cursor:pointer;margin-bottom:12px;font-family:Nunito,sans-serif">➕ Crear nuevo torneo</button>
+      <div id="admTorneosLista"></div>`;
+
+    const lista = cont.querySelector('#admTorneosLista');
+    if (!torneos.length) {
+      lista.innerHTML = '<div style="text-align:center;color:#556;padding:20px;font-size:0.85rem">No hay torneos. Crea el primero o se usarán los torneos de ejemplo.</div>';
+    } else {
+      const ahora = Date.now();
+      lista.innerHTML = torneos.map(t => {
+        const activo = new Date(t.inicio)<=ahora && new Date(t.fin)>ahora;
+        const futuro = new Date(t.inicio)>ahora;
+        const estado = activo?'🟢 Activo':futuro?'🔵 Próximo':'⚫ Terminado';
+        return `<div style="background:#13131f;border:1px solid #1e2535;border-radius:12px;padding:12px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:1.5rem">${esc(t.emoji||'🏆')}</span>
+            <div style="flex:1;min-width:0">
+              <div style="color:#fff;font-weight:800;font-size:0.9rem">${esc(t.nombre)}</div>
+              <div style="color:#556;font-size:0.68rem">${estado} · 🪙${t.premio_monedas||0}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:5px">
+            <button data-edit="${t.id}" style="flex:1;background:#1e1b4b;border:none;color:#c4b5fd;padding:7px;border-radius:8px;font-weight:800;font-size:0.7rem;cursor:pointer">✏️ Editar</button>
+            <button data-deltorneo="${t.id}" data-nombre="${esc(t.nombre)}" style="flex:1;background:#1c0a0a;border:none;color:#f87171;padding:7px;border-radius:8px;font-weight:800;font-size:0.7rem;cursor:pointer">🗑️ Borrar</button>
+          </div>
+        </div>`;
+      }).join('');
+      lista.querySelectorAll('button[data-edit]').forEach(b=>b.onclick=()=>formTorneo(cont, torneos.find(x=>x.id===b.dataset.edit)));
+      lista.querySelectorAll('button[data-deltorneo]').forEach(b=>b.onclick=()=>{
+        mostrarConfirmEliminar('Torneo: '+b.dataset.nombre, async()=>{
+          await c.from('torneos').delete().eq('id', b.dataset.deltorneo);
+          toast('✅ Torneo borrado'); renderTorneos(cont);
+        });
+      });
+    }
+    cont.querySelector('#admNuevoTorneo').onclick = () => formTorneo(cont, null);
+  }
+
+  function formTorneo(cont, torneo) {
+    const c = sb();
+    const esNuevo = !torneo;
+    const t = torneo || { id:'t_'+Date.now(), nombre:'', emoji:'🏆', juego_id:'snake', descripcion:'', premio_monedas:500, premio_titulo:'', premio_trofeo:'🏆' };
+    const toLocal = (iso) => { if(!iso) return ''; const d=new Date(iso); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+    const ahora = new Date(); const en2dias = new Date(Date.now()+2*86400000);
+
+    cont.innerHTML = `
+      <div style="margin-bottom:10px"><button id="volverT" style="background:none;border:none;color:#c4b5fd;font-weight:800;cursor:pointer;font-size:0.85rem">← Volver</button></div>
+      <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.1rem;margin-bottom:14px">${esNuevo?'➕ Nuevo torneo':'✏️ Editar torneo'}</div>
+      ${campoT('Nombre','tNombre','text',t.nombre)}
+      ${campoT('Emoji','tEmoji','text',t.emoji)}
+      <label style="display:block;color:#889;font-size:0.75rem;font-weight:800;margin:8px 0 4px">Juego</label>
+      <select id="tJuego" style="width:100%;box-sizing:border-box;background:#13131f;border:1px solid #2a3650;border-radius:10px;padding:10px;color:#fff;font-family:Nunito,sans-serif">
+        ${(window.hkTodosJuegos||[{id:'snake',nombre:'🐍 Snake'},{id:'racing',nombre:'🏎️ Racing'},{id:'flappy',nombre:'🐤 Flappy'},{id:'breakout',nombre:'🧱 Breakout'}]).map(j=>`<option value="${j.id}" ${t.juego_id===j.id?'selected':''}>${j.nombre}</option>`).join('')}
+      </select>
+      ${campoT('Descripción','tDesc','text',t.descripcion)}
+      ${campoT('Inicio','tInicio','datetime-local',toLocal(t.inicio)||toLocal(ahora.toISOString()))}
+      ${campoT('Fin','tFin','datetime-local',toLocal(t.fin)||toLocal(en2dias.toISOString()))}
+      ${campoT('Premio monedas','tMonedas','number',t.premio_monedas)}
+      ${campoT('Título premio','tTitulo','text',t.premio_titulo)}
+      ${campoT('Trofeo (emoji)','tTrofeo','text',t.premio_trofeo)}
+      <button id="guardarT" style="width:100%;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:13px;border-radius:12px;font-weight:800;cursor:pointer;margin-top:14px;font-family:Nunito,sans-serif">💾 Guardar torneo</button>`;
+
+    cont.querySelector('#volverT').onclick = () => renderTorneos(cont);
+    cont.querySelector('#guardarT').onclick = async () => {
+      const g = id => cont.querySelector(id).value;
+      const reg = {
+        id: t.id,
+        nombre: g('#tNombre'), emoji: g('#tEmoji'), juego_id: g('#tJuego'),
+        descripcion: g('#tDesc'),
+        inicio: new Date(g('#tInicio')).toISOString(),
+        fin: new Date(g('#tFin')).toISOString(),
+        premio_monedas: parseInt(g('#tMonedas'))||0,
+        premio_titulo: g('#tTitulo'), premio_trofeo: g('#tTrofeo'),
+        estado: 'activo'
+      };
+      if (!reg.nombre) { toast('⚠️ Falta el nombre'); return; }
+      const btn = cont.querySelector('#guardarT'); btn.textContent='Guardando...'; btn.disabled=true;
+      try {
+        await c.from('torneos').upsert(reg, { onConflict:'id' });
+        toast('✅ Torneo guardado'); renderTorneos(cont);
+      } catch(e) { toast('❌ Error. ¿Existe la tabla torneos?'); btn.textContent='💾 Guardar torneo'; btn.disabled=false; }
+    };
+  }
+
+  function campoT(label, id, type, val) {
+    return `<label style="display:block;color:#889;font-size:0.75rem;font-weight:800;margin:8px 0 4px">${label}</label>
+      <input id="${id}" type="${type}" value="${esc(val??'')}" style="width:100%;box-sizing:border-box;background:#13131f;border:1px solid #2a3650;border-radius:10px;padding:10px;color:#fff;font-family:Nunito,sans-serif;outline:none">`;
+  }
+
+  /* ════════════════════════════════════════
+     TAB 4: TIENDA (precios)
+  ════════════════════════════════════════ */
+  async function renderTienda(cont) {
+    cont.innerHTML = `<div style="text-align:center;color:#556;padding:20px">Cargando tienda...</div>`;
+    /* Lee overrides de precios desde config, o usa los del código */
+    const overrides = await cfgGet('tienda_precios', {});
+    const avatares = (window.TIENDA_AVATARES || []).slice();
+    const titulos  = (window.TIENDA_TITULOS  || []).slice();
+
+    const fila = (it, tipo) => {
+      const precio = overrides[it.id] !== undefined ? overrides[it.id] : it.precio;
+      const nombre = tipo==='avatar' ? `${it.emoji} ${it.nombre}` : it.texto;
+      return `<div style="display:flex;align-items:center;gap:10px;background:#13131f;border:1px solid #1e2535;border-radius:10px;padding:9px 11px;margin-bottom:6px">
+        <span style="flex:1;color:#fff;font-size:0.85rem;font-weight:700">${esc(nombre)}</span>
+        <span style="color:#FFD600;font-weight:800">🪙</span>
+        <input data-pid="${it.id}" type="number" value="${precio}" style="width:72px;background:#0d0f18;border:1px solid #2a3650;border-radius:8px;padding:6px 8px;color:#fff;font-weight:800;text-align:center;outline:none;font-family:Nunito,sans-serif">
+      </div>`;
+    };
+
+    cont.innerHTML = `
+      <div style="background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);border-radius:10px;padding:10px;margin-bottom:12px;color:#c4b5fd;font-size:0.76rem;line-height:1.5">
+        💡 Edita los precios de avatares y títulos. Se guardan en Supabase y aplican para todos.
+      </div>
+      <div style="color:#889;font-weight:800;font-size:0.78rem;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Avatares</div>
+      ${avatares.map(a=>fila(a,'avatar')).join('')}
+      <div style="color:#889;font-weight:800;font-size:0.78rem;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px">Títulos</div>
+      ${titulos.map(t=>fila(t,'titulo')).join('')}
+      <button id="guardarPrecios" style="width:100%;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:13px;border-radius:12px;font-weight:800;cursor:pointer;margin-top:14px;font-family:Nunito,sans-serif">💾 Guardar precios</button>`;
+
+    cont.querySelector('#guardarPrecios').onclick = async () => {
+      const nuevos = {};
+      cont.querySelectorAll('input[data-pid]').forEach(inp => { nuevos[inp.dataset.pid] = parseInt(inp.value)||0; });
+      const btn = cont.querySelector('#guardarPrecios'); btn.textContent='Guardando...'; btn.disabled=true;
+      const ok = await cfgSet('tienda_precios', nuevos);
+      if (ok) {
+        /* Aplicar en caliente a las listas del código */
+        try {
+          (window.TIENDA_AVATARES||[]).forEach(a=>{ if(nuevos[a.id]!==undefined) a.precio=nuevos[a.id]; });
+          (window.TIENDA_TITULOS ||[]).forEach(t=>{ if(nuevos[t.id]!==undefined) t.precio=nuevos[t.id]; });
+        } catch(e){}
+        toast('✅ Precios guardados'); btn.textContent='✅ Guardado';
+        setTimeout(()=>{ btn.textContent='💾 Guardar precios'; btn.disabled=false; }, 2000);
+      } else { toast('❌ Error al guardar'); btn.textContent='💾 Guardar precios'; btn.disabled=false; }
+    };
+  }
+
+  /* ════════════════════════════════════════
+     TAB 5: AJUSTES (cambiar contraseña admin)
+  ════════════════════════════════════════ */
+  async function renderAjustes(cont) {
+    cont.innerHTML = `
+      <div style="background:#13131f;border:1px solid #1e2535;border-radius:12px;padding:14px;margin-bottom:12px">
+        <div style="color:#fff;font-weight:800;margin-bottom:4px">🔑 Cambiar contraseña de admin</div>
+        <div style="color:#556;font-size:0.74rem;margin-bottom:10px">La contraseña actual por defecto es <code style="color:#FFD600">hugo2024</code>. Cámbiala por seguridad.</div>
+        <input id="nuevaPin" type="text" placeholder="Nueva contraseña" autocomplete="off"
+          style="width:100%;box-sizing:border-box;background:#0d0f18;border:1px solid #2a3650;border-radius:10px;padding:10px;color:#fff;font-weight:700;outline:none;margin-bottom:8px;font-family:Nunito,sans-serif">
+        <button id="guardarPin" style="width:100%;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:11px;border-radius:10px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">💾 Guardar contraseña</button>
+      </div>
+      <div style="background:#13131f;border:1px solid #1e2535;border-radius:12px;padding:14px">
+        <div style="color:#fff;font-weight:800;margin-bottom:6px">ℹ️ Cómo entrar al panel</div>
+        <div style="color:#889;font-size:0.78rem;line-height:1.7">
+          • Agrega <code style="color:#FFD600">#admin</code> al final de tu URL<br>
+          • O toca 5 veces seguidas el logo de HugoKids<br>
+          • Si tu cuenta tiene <code style="color:#FFD600">es_admin = true</code>, entras sin contraseña
+        </div>
+      </div>
+      <button id="salirAdmin" style="width:100%;background:#1c0a0a;border:1px solid #7f1d1d;color:#f87171;padding:12px;border-radius:12px;font-weight:800;cursor:pointer;margin-top:12px;font-family:Nunito,sans-serif">🚪 Cerrar sesión admin</button>`;
+
+    cont.querySelector('#guardarPin').onclick = async () => {
+      const nueva = cont.querySelector('#nuevaPin').value.trim();
+      if (!nueva || nueva.length < 4) { toast('⚠️ Mínimo 4 caracteres'); return; }
+      const ok = await cfgSet('admin_pin', nueva);
+      toast(ok?'✅ Contraseña actualizada':'❌ Error al guardar');
+      cont.querySelector('#nuevaPin').value='';
+    };
+    cont.querySelector('#salirAdmin').onclick = () => { sesionAdmin = false; cerrarPanel(); };
+  }
+
+  /* ════════════════════════════════════════
+     BOTÓN DE ADMIN EN EL NAVBAR (⚙️)
+     Solo visible si el usuario logueado es admin.
+     Está en el HTML junto a "Crear cuenta" (id=adminNavBtn).
+  ════════════════════════════════════════ */
+  function esUsuarioAdmin() {
+    try { return !!(perfilNube && perfilNube.es_admin); } catch(e) { return false; }
+  }
+
+  window.hkActualizarBotonAdmin = function() {
+    const btn = document.getElementById('adminNavBtn');
+    if (btn) btn.style.display = esUsuarioAdmin() ? 'inline-flex' : 'none';
+  };
+
+  /* ════════════════════════════════════════
+     ACCESOS: botón navbar + #admin en URL + 5 taps en logo
+  ════════════════════════════════════════ */
+  function abrirAdmin() {
+    /* Si la cuenta es admin verificado, entrar directo sin contraseña */
+    if (esUsuarioAdmin()) { sesionAdmin = true; mostrarPanel('usuarios'); return; }
+    if (sesionAdmin) mostrarPanel('usuarios');
+    else mostrarLogin();
+  }
+  window.abrirPanelAdmin = abrirAdmin;
+
+  function init() {
+    /* Mostrar/ocultar botón del navbar según sea admin */
+    window.hkActualizarBotonAdmin();
+    setInterval(() => { window.hkActualizarBotonAdmin(); }, 4000);
+
+    /* Acceso por URL */
+    if (location.hash === '#admin') setTimeout(abrirAdmin, 600);
+    window.addEventListener('hashchange', () => { if (location.hash === '#admin') abrirAdmin(); });
+
+    /* Acceso por 5 taps en el logo (respaldo) */
+    let taps = 0, tapTimer = null;
+    const logo = document.querySelector('.logo') || document.querySelector('[class*="logo"]') || document.querySelector('h1');
+    if (logo) {
+      logo.addEventListener('click', () => {
+        taps++;
+        clearTimeout(tapTimer);
+        tapTimer = setTimeout(()=>{ taps = 0; }, 1500);
+        if (taps >= 5) { taps = 0; abrirAdmin(); }
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, {once:true});
+  } else { init(); }
 
 })();
 </script>
