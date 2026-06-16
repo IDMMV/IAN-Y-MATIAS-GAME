@@ -548,46 +548,6 @@
     box-shadow: 0 8px 24px rgba(108,58,255,0.4); max-width: 90%; text-align: center;
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
-
-  /* ──── TORNEOS ──── */
-  .torneo-banner {
-    position: relative; z-index: 1;
-    margin: 0 24px 32px;
-    border-radius: 24px;
-    background: linear-gradient(135deg, #1a0533 0%, #2d0a6b 50%, #7C3AED 100%);
-    border: 2px solid rgba(255,214,0,0.4);
-    overflow: hidden;
-    box-shadow: 0 8px 32px rgba(124,58,237,0.4);
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 20px 24px;
-    gap: 16px;
-  }
-  .torneo-banner:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(124,58,237,0.55); transition: all 0.2s; }
-  .torneo-banner-glow {
-    position: absolute; inset: 0; pointer-events: none;
-    background: radial-gradient(circle at 70% 50%, rgba(255,214,0,0.12) 0%, transparent 65%);
-  }
-  .torneo-banner-left { position: relative; z-index: 1; }
-  .torneo-banner-tag { font-size: 0.7rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #FFD600; margin-bottom: 4px; }
-  .torneo-banner-title { font-family: 'Fredoka One', cursive; font-size: 1.5rem; color: white; margin-bottom: 4px; line-height: 1.1; }
-  .torneo-banner-desc { font-size: 0.82rem; color: rgba(255,255,255,0.75); font-weight: 600; }
-  .torneo-banner-prize { font-size: 0.9rem; color: #FFD600; font-weight: 800; margin-top: 6px; }
-  .torneo-banner-right { position: relative; z-index: 1; text-align: center; flex-shrink: 0; }
-  .torneo-banner-emoji { font-size: 3.5rem; display: block; }
-  .torneo-banner-countdown { font-family: 'Fredoka One', cursive; font-size: 1rem; color: #FFD600; margin-top: 4px; }
-  .torneo-play-btn {
-    display: inline-block; margin-top: 10px;
-    background: linear-gradient(135deg, #FFD600, #FF6B00);
-    color: #1a0533; font-weight: 800; font-size: 0.85rem;
-    padding: 8px 18px; border-radius: 20px; border: none; cursor: pointer;
-    font-family: 'Nunito', sans-serif; letter-spacing: 0.3px;
-  }
-  @media (max-width: 600px) {
-    .torneo-banner { margin: 0 12px 20px; padding: 14px 16px; }
-    .torneo-banner-title { font-size: 1.2rem; }
-    .torneo-banner-emoji { font-size: 2.5rem; }
-  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -619,7 +579,6 @@
     <input class="search-box" type="text" placeholder="🔍 Buscar juego…" id="searchInput" oninput="filterGames(this.value)">
     <button onclick="cycleTheme()" id="themeBtn" title="Cambiar tema" style="background:#F0ECFB;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0;transition:transform 0.2s">🎨</button>
     <button onclick="openRanking()" id="rankBtn" title="Tabla de puntajes" style="background:#FFF4D6;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0">🏆</button>
-    <button onclick="openTorneos()" id="torneoBtn" title="Torneos" style="background:#FFF0FB;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0;position:relative">🥊<span id="torneoBadge" style="display:none;position:absolute;top:-3px;right:-3px;background:#FF4D9D;color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;font-weight:800;align-items:center;justify-content:center">!</span></button>
     <button onclick="openTienda()" id="tiendaBtn" title="Tienda" style="background:#FFF4D6;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0">🛒</button>
     <button onclick="openProfile()" id="profileBtn" title="Perfil y medallas" style="background:#F0ECFB;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0">👤</button>
   </div>
@@ -647,24 +606,6 @@
 </div>
 
 
-
-<!-- TORNEO ACTIVO BANNER -->
-<div id="torneoBanner" style="display:none">
-  <div class="torneo-banner" onclick="openTorneos()">
-    <div class="torneo-banner-glow"></div>
-    <div class="torneo-banner-left">
-      <div class="torneo-banner-tag">🔥 Torneo activo ahora</div>
-      <div class="torneo-banner-title" id="torneoNombreBanner">Cargando...</div>
-      <div class="torneo-banner-desc" id="torneoDescBanner"></div>
-      <div class="torneo-banner-prize" id="torneoPremiosBanner"></div>
-      <button class="torneo-play-btn" onclick="event.stopPropagation();openTorneos()">🥊 ¡Participar ahora!</button>
-    </div>
-    <div class="torneo-banner-right">
-      <span class="torneo-banner-emoji" id="torneoEmojiBanner">🏆</span>
-      <div class="torneo-banner-countdown" id="torneoCountdownBanner">—</div>
-    </div>
-  </div>
-</div>
 
 <!-- LOBBY ONLINE -->
 <div class="online-lobby" id="onlineLobby">
@@ -3184,115 +3125,240 @@ function renderPanelUsuario() {
 
 async function renderPanelAdmin() {
   const body = document.getElementById('modalBody');
-  body.innerHTML = `<div class="game-container" style="background:#0a0a14;padding:22px;min-height:300px">
-    <div style="text-align:center;color:#fff;font-family:'Fredoka One',cursive;font-size:1.3rem;margin-bottom:6px">🛡️ Panel de Administrador</div>
-    <div style="text-align:center;color:#aaa;font-size:0.82rem;margin-bottom:14px">Gestiona las cuentas de los usuarios</div>
-    <div id="adminStats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:420px;margin:0 auto 14px"></div>
-    <div id="adminLista" style="max-width:420px;margin:0 auto"><div style="text-align:center;color:#666">Cargando usuarios...</div></div>
-    <div style="text-align:center;margin-top:16px"><a href="#" id="volverPanel" style="color:#FFD600;font-weight:800;text-decoration:none">← Volver a mi cuenta</a></div>
+  body.innerHTML = `
+  <div style="background:#0d1117;min-height:100%;padding:0">
+    <!-- Header admin -->
+    <div style="background:linear-gradient(135deg,#1a0533,#7C3AED);padding:18px 16px 14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span style="font-size:1.8rem">🛡️</span>
+        <div>
+          <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.25rem;line-height:1.1">Panel de Administrador</div>
+          <div style="color:rgba(255,255,255,0.6);font-size:0.72rem">HugoKids · Control total de usuarios</div>
+        </div>
+      </div>
+    </div>
+    <!-- Stats bar -->
+    <div id="adminStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid #1e2535"></div>
+    <!-- Búsqueda -->
+    <div style="padding:10px 12px;background:#0d1117;border-bottom:1px solid #1e2535">
+      <input id="adminSearch" type="text" placeholder="🔍 Buscar usuario por nombre..." autocomplete="off" autocorrect="off" spellcheck="false"
+        style="width:100%;box-sizing:border-box;background:#1a2233;border:1px solid #2a3650;border-radius:10px;padding:9px 12px;color:#fff;font-family:Nunito,sans-serif;font-weight:600;font-size:0.85rem;outline:none">
+    </div>
+    <!-- Lista -->
+    <div id="adminLista" style="padding:8px 10px">
+      <div style="text-align:center;color:#555;padding:30px">Cargando usuarios...</div>
+    </div>
+    <!-- Footer -->
+    <div style="padding:12px 16px;border-top:1px solid #1e2535;text-align:center">
+      <a href="#" id="volverPanel" style="color:#FFD600;font-weight:800;text-decoration:none;font-size:0.85rem">← Volver a mi cuenta</a>
+    </div>
   </div>`;
+
   document.getElementById('volverPanel').onclick = e => { e.preventDefault(); renderPanelUsuario(); };
+
   const c = getSupabase();
+  let todosUsuarios = [];
   try {
-    const { data, error } = await c.from('perfiles').select('id,nombre,avatar,numero_amigo,correo,bloqueado,es_admin,ultima_actividad');
+    const { data, error } = await c.from('perfiles').select('id,nombre,avatar,numero_amigo,correo,bloqueado,es_admin,ultima_actividad,puntos,monedas')
+      .order('nombre', {ascending:true});
     const cont = document.getElementById('adminLista');
-    if (error || !data) { cont.innerHTML = '<div style="text-align:center;color:#f87171">No se pudo cargar (¿tienes permisos de admin?)</div>'; return; }
-    if (!data.length) { cont.innerHTML = '<div style="text-align:center;color:#666">No hay usuarios todavía</div>'; return; }
-    const ahora = Date.now();
+    if (error || !data) {
+      cont.innerHTML = '<div style="text-align:center;color:#f87171;padding:20px">No se pudo cargar. Verifica permisos de admin en Supabase.</div>';
+      return;
+    }
+    todosUsuarios = data;
+
+    /* Stats */
     const bloqueados = data.filter(u => u.bloqueado).length;
+    const activos = data.filter(u => { const ms = u.ultima_actividad ? Date.now()-new Date(u.ultima_actividad).getTime() : Infinity; return ms < 5*60000; }).length;
     const visitas = await contarVisitas();
     const st = document.getElementById('adminStats');
-    if (st) st.innerHTML = `
-      <div style="background:#13131f;border-radius:12px;padding:10px;text-align:center"><div style="color:#16A34A;font-size:1.4rem;font-weight:800">${data.length}</div><div style="color:#aaa;font-size:0.68rem">Cuentas</div></div>
-      <div style="background:#13131f;border-radius:12px;padding:10px;text-align:center"><div style="color:#FFD600;font-size:1.4rem;font-weight:800">${visitas}</div><div style="color:#aaa;font-size:0.68rem">Visitas</div></div>
-      <div style="background:#13131f;border-radius:12px;padding:10px;text-align:center"><div style="color:#f87171;font-size:1.4rem;font-weight:800">${bloqueados}</div><div style="color:#aaa;font-size:0.68rem">Bloqueados</div></div>`;
-    cont.innerHTML = data.map(u => {
-      const inact = tiempoInactivo(u.ultima_actividad);
-      const tieneCorreo = u.correo && !u.correo.endsWith('@usuarios.hugokids.app');
-      return `
-      <div style="background:#13131f;border-radius:12px;padding:12px;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span style="font-size:1.6rem">${u.avatar||'👤'}</span>
-          <div style="flex:1;min-width:0">
-            <div style="color:#fff;font-weight:700;font-size:0.9rem">${u.nombre||'Sin nombre'} ${u.es_admin?'🛡️':''}</div>
-            <div style="color:${u.bloqueado?'#f87171':'#16A34A'};font-size:0.72rem">${u.bloqueado?'🔒 Bloqueado':'✅ Activo'} · #${u.numero_amigo||'?'}</div>
-            <div style="color:#555;font-size:0.66rem">${inact}</div>
-            <div style="color:${tieneCorreo?'#93c5fd':'#555'};font-size:0.66rem">${tieneCorreo?'📧 '+u.correo:'📧 Sin correo de recuperación'}</div>
+    if (st) st.innerHTML = [
+      { val: data.length, label: 'Usuarios', col: '#86efac' },
+      { val: activos,     label: 'En línea',  col: '#00ffaa' },
+      { val: bloqueados,  label: 'Bloqueados',col: '#f87171' },
+      { val: visitas,     label: 'Visitas',   col: '#FFD600' },
+    ].map(s => `
+      <div style="padding:12px 6px;text-align:center;border-right:1px solid #1e2535">
+        <div style="color:${s.col};font-family:'Fredoka One',cursive;font-size:1.35rem;line-height:1">${s.val}</div>
+        <div style="color:#555;font-size:0.62rem;margin-top:2px;text-transform:uppercase;letter-spacing:.5px">${s.label}</div>
+      </div>`).join('');
+
+    /* Render lista filtrada */
+    function renderLista(filtro) {
+      const lista = filtro ? todosUsuarios.filter(u => (u.nombre||'').toLowerCase().includes(filtro.toLowerCase())) : todosUsuarios;
+      if (!lista.length) {
+        cont.innerHTML = '<div style="text-align:center;color:#555;padding:24px">Sin resultados</div>';
+        return;
+      }
+      cont.innerHTML = lista.map(u => {
+        const inact = tiempoInactivo(u.ultima_actividad);
+        const tieneCorreo = u.correo && !u.correo.endsWith('@usuarios.hugokids.app');
+        const esYo = perfilNube && perfilNube.id === u.id;
+        const onlineMs = u.ultima_actividad ? Date.now()-new Date(u.ultima_actividad).getTime() : Infinity;
+        const online = onlineMs < 5*60000;
+        return `
+        <div style="background:#13131f;border:1px solid ${u.bloqueado?'#4a1111':'#1e2535'};border-radius:14px;padding:12px;margin-bottom:8px;position:relative">
+          <!-- Indicador online -->
+          ${online ? '<div style="position:absolute;top:10px;right:10px;width:8px;height:8px;border-radius:50%;background:#00ffaa;box-shadow:0 0 6px #00ffaa"></div>' : ''}
+          <!-- Info usuario -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <div style="position:relative">
+              <div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1a2233,#2a3650);display:flex;align-items:center;justify-content:center;font-size:1.5rem;border:2px solid ${u.bloqueado?'#dc2626':u.es_admin?'#FFD600':'#2a3650'}">${u.avatar||'👤'}</div>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span style="color:#fff;font-weight:800;font-size:0.92rem">${escapeHtml(u.nombre||'Sin nombre')}</span>
+                ${u.es_admin ? '<span style="background:#FFD600;color:#3a2700;border-radius:6px;padding:1px 6px;font-size:0.62rem;font-weight:800">ADMIN</span>' : ''}
+                ${esYo ? '<span style="background:#7C3AED;color:#fff;border-radius:6px;padding:1px 6px;font-size:0.62rem;font-weight:800">TÚ</span>' : ''}
+                ${u.bloqueado ? '<span style="background:#dc2626;color:#fff;border-radius:6px;padding:1px 6px;font-size:0.62rem;font-weight:800">BLOQUEADO</span>' : ''}
+              </div>
+              <div style="color:#555;font-size:0.7rem;margin-top:2px">#${u.numero_amigo||'?'} · ${tieneCorreo?'📧 '+escapeHtml(u.correo):'📧 sin correo'}</div>
+              <div style="display:flex;gap:8px;margin-top:3px">
+                <span style="color:#FFD600;font-size:0.68rem">🪙 ${u.monedas||0}</span>
+                <span style="color:#86efac;font-size:0.68rem">⭐ ${u.puntos||0}</span>
+                <span style="color:${online?'#00ffaa':'#444'};font-size:0.68rem">${online?'🟢 En línea':inact}</span>
+              </div>
+            </div>
           </div>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button data-toggle="${u.id}" data-bloq="${u.bloqueado?1:0}"
-            style="flex:1;background:${u.bloqueado?'#16A34A':'#dc2626'};border:none;color:#fff;padding:7px 10px;border-radius:8px;font-weight:800;font-size:0.74rem;cursor:pointer">
-            ${u.bloqueado?'🔓 Desbloquear':'🔒 Bloquear'}
-          </button>
-          ${tieneCorreo ? `
-          <button data-reset="${u.id}" data-email="${u.correo}" data-nombre="${u.nombre||''}"
-            style="flex:1;background:#7C3AED;border:none;color:#fff;padding:7px 10px;border-radius:8px;font-weight:800;font-size:0.74rem;cursor:pointer">
-            🔑 Enviar reset
-          </button>` : `
-          <button data-newpass="${u.id}" data-nombre="${u.nombre||''}"
-            style="flex:1;background:#0ea5e9;border:none;color:#fff;padding:7px 10px;border-radius:8px;font-weight:800;font-size:0.74rem;cursor:pointer">
-            🔑 Nueva contraseña
-          </button>`}
-        </div>
-      </div>`;
-    }).join('');
+          <!-- Botones de acción -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px">
+            <button data-toggle="${u.id}" data-bloq="${u.bloqueado?1:0}" ${esYo?'disabled':''}
+              style="background:${u.bloqueado?'#15803d':'#7f1d1d'};border:1px solid ${u.bloqueado?'#16A34A':'#dc2626'};color:${u.bloqueado?'#86efac':'#f87171'};padding:7px 4px;border-radius:9px;font-weight:800;font-size:0.68rem;cursor:pointer;${esYo?'opacity:0.4;cursor:not-allowed':''}">
+              ${u.bloqueado?'🔓 Activar':'🔒 Bloquear'}
+            </button>
+            ${tieneCorreo ? `
+            <button data-reset="${u.id}" data-email="${escapeHtml(u.correo)}" data-nombre="${escapeHtml(u.nombre||'')}"
+              style="background:#1e1b4b;border:1px solid #7C3AED;color:#c4b5fd;padding:7px 4px;border-radius:9px;font-weight:800;font-size:0.68rem;cursor:pointer">
+              🔑 Reset pass
+            </button>` : `
+            <button data-newpass="${u.id}" data-nombre="${escapeHtml(u.nombre||'')}"
+              style="background:#0c2a38;border:1px solid #0ea5e9;color:#7dd3fc;padding:7px 4px;border-radius:9px;font-weight:800;font-size:0.68rem;cursor:pointer">
+              🔑 Nueva pass
+            </button>`}
+            <button data-eliminar="${u.id}" data-nombre="${escapeHtml(u.nombre||'Sin nombre')}" ${esYo?'disabled':''}
+              style="background:#1c0a0a;border:1px solid #7f1d1d;color:#f87171;padding:7px 4px;border-radius:9px;font-weight:800;font-size:0.68rem;cursor:pointer;${esYo?'opacity:0.4;cursor:not-allowed':''}">
+              🗑️ Eliminar
+            </button>
+          </div>
+        </div>`;
+      }).join('');
 
-    // Bloquear / desbloquear
-    cont.querySelectorAll('button[data-toggle]').forEach(b => {
-      const f = async e => {
-        e.preventDefault();
-        const id = b.dataset.toggle, nuevo = b.dataset.bloq === '1' ? false : true;
-        await c.from('perfiles').update({ bloqueado: nuevo }).eq('id', id);
-        SFX.click(); renderPanelAdmin();
-      };
-      b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
-    });
+      bindAdminButtons(cont, c);
+    }
 
-    // Enviar correo de reset (usuarios con correo)
-    cont.querySelectorAll('button[data-reset]').forEach(b => {
-      const f = async e => {
-        e.preventDefault();
-        const email = b.dataset.email, nombre = b.dataset.nombre;
-        b.textContent = 'Enviando...'; b.disabled = true;
-        try {
-          const r = await c.auth.resetPasswordForEmail(email, {
-            redirectTo: window.location.origin + window.location.pathname
-          });
-          if (r.error) { showToast('❌ Error: ' + r.error.message); }
-          else { showToast('✅ Correo de reset enviado a ' + nombre); }
-        } catch(ex) { showToast('❌ Error al enviar'); }
-        b.textContent = '🔑 Enviar reset'; b.disabled = false;
-      };
-      b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
-    });
+    renderLista('');
 
-    // Nueva contraseña para usuarios sin correo — mostrar formulario
-    cont.querySelectorAll('button[data-newpass]').forEach(b => {
-      const f = async e => {
-        e.preventDefault();
-        const id = b.dataset.newpass, nombre = b.dataset.nombre;
-        const nueva = prompt('Nueva contraseña para ' + nombre + ' (mínimo 6 caracteres):');
-        if (!nueva || nueva.length < 6) { showToast('⚠️ Contraseña muy corta o cancelada'); return; }
-        // Actualizar el campo correo con el email interno para poder hacer reset
-        // Solo el admin puede hacer esto via Supabase Admin API — mostrar instrucción SQL
-        const emailInterno = nombre.toUpperCase().replace(/[^A-Z0-9_]/g,'').toLowerCase() + '@usuarios.hugokids.app';
-        const sql = `-- Ejecuta esto en Supabase SQL Editor:\nUPDATE auth.users SET encrypted_password = crypt('${nueva}', gen_salt('bf')) WHERE email = '${emailInterno}';`;
-        const instruccion = `Para cambiar la contraseña de ${nombre} sin correo,\nexecuta este SQL en Supabase → SQL Editor:\n\nUPDATE auth.users SET encrypted_password = crypt('${nueva}', gen_salt('bf')) WHERE email = '${emailInterno}';`;
-        // Copiar al portapapeles
-        try {
-          await navigator.clipboard.writeText(`UPDATE auth.users SET encrypted_password = crypt('${nueva}', gen_salt('bf')) WHERE email = '${emailInterno}';`);
-          showToast('✅ SQL copiado al portapapeles. Pégalo en Supabase SQL Editor.');
-        } catch(ex) {
-          alert(instruccion);
-        }
-      };
-      b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
-    });
+    /* Búsqueda en tiempo real */
+    const searchEl = document.getElementById('adminSearch');
+    if (searchEl) searchEl.addEventListener('input', e => renderLista(e.target.value));
 
   } catch (e) {
-    document.getElementById('adminLista').innerHTML = '<div style="text-align:center;color:#f87171">Error al cargar</div>';
+    document.getElementById('adminLista').innerHTML = '<div style="text-align:center;color:#f87171;padding:20px">Error al cargar usuarios.</div>';
+    console.error('renderPanelAdmin:', e);
   }
+}
+
+function bindAdminButtons(cont, c) {
+  /* ── Bloquear / Desbloquear ── */
+  cont.querySelectorAll('button[data-toggle]').forEach(b => {
+    const f = async e => {
+      e.preventDefault();
+      if (b.disabled) return;
+      const id = b.dataset.toggle, nuevo = b.dataset.bloq === '1' ? false : true;
+      b.textContent = 'Guardando...'; b.disabled = true;
+      await c.from('perfiles').update({ bloqueado: nuevo }).eq('id', id);
+      SFX.click();
+      showToast(nuevo ? '🔒 Usuario bloqueado' : '✅ Usuario desbloqueado');
+      renderPanelAdmin();
+    };
+    b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+  });
+
+  /* ── Reset contraseña (con correo) ── */
+  cont.querySelectorAll('button[data-reset]').forEach(b => {
+    const f = async e => {
+      e.preventDefault();
+      const email = b.dataset.email, nombre = b.dataset.nombre;
+      b.textContent = 'Enviando...'; b.disabled = true;
+      try {
+        const r = await c.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
+        showToast(r.error ? '❌ ' + r.error.message : '✅ Correo de reset enviado a ' + nombre);
+      } catch(ex) { showToast('❌ Error al enviar'); }
+      b.textContent = '🔑 Reset pass'; b.disabled = false;
+    };
+    b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+  });
+
+  /* ── Nueva contraseña (sin correo) ── */
+  cont.querySelectorAll('button[data-newpass]').forEach(b => {
+    const f = async e => {
+      e.preventDefault();
+      const nombre = b.dataset.nombre;
+      const nueva = prompt('Nueva contraseña para ' + nombre + ' (mínimo 6 caracteres):');
+      if (!nueva || nueva.length < 6) { showToast('⚠️ Contraseña muy corta o cancelada'); return; }
+      const emailInterno = nombre.toUpperCase().replace(/[^A-Z0-9_]/g,'').toLowerCase() + '@usuarios.hugokids.app';
+      try {
+        await navigator.clipboard.writeText(`UPDATE auth.users SET encrypted_password = crypt('${nueva}', gen_salt('bf')) WHERE email = '${emailInterno}';`);
+        showToast('✅ SQL copiado. Pégalo en Supabase → SQL Editor.');
+      } catch(ex) {
+        alert(`Ejecuta en Supabase SQL Editor:\nUPDATE auth.users SET encrypted_password = crypt('${nueva}', gen_salt('bf')) WHERE email = '${emailInterno}';`);
+      }
+    };
+    b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+  });
+
+  /* ── 🗑️ ELIMINAR USUARIO ── */
+  cont.querySelectorAll('button[data-eliminar]').forEach(b => {
+    const f = async e => {
+      e.preventDefault();
+      if (b.disabled) return;
+      const id = b.dataset.eliminar, nombre = b.dataset.nombre;
+
+      /* Confirmación con modal propio (no prompt nativo) */
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:20px';
+      overlay.innerHTML = `
+        <div style="background:#0d1117;border:2px solid #dc2626;border-radius:20px;padding:24px;max-width:340px;width:100%;text-align:center;font-family:Nunito,sans-serif">
+          <div style="font-size:2.5rem;margin-bottom:8px">🗑️</div>
+          <div style="color:#f87171;font-family:'Fredoka One',cursive;font-size:1.2rem;margin-bottom:8px">¿Eliminar cuenta?</div>
+          <div style="color:#fff;font-weight:800;font-size:1rem;margin-bottom:6px">${escapeHtml(nombre)}</div>
+          <div style="background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);border-radius:10px;padding:10px;margin-bottom:16px">
+            <div style="color:#f87171;font-size:0.78rem;line-height:1.5">⚠️ Esta acción eliminará el perfil del usuario de la base de datos. <strong style="color:#fff">No elimina la cuenta de autenticación</strong> de Supabase Auth (eso requiere el panel de Supabase).</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button id="cancelElim" style="flex:1;background:#1e2535;border:1px solid #2a3650;color:#aaa;padding:11px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">Cancelar</button>
+            <button id="confirmElim" style="flex:1;background:#dc2626;border:none;color:#fff;padding:11px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">🗑️ Sí, eliminar</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+
+      document.getElementById('cancelElim').onclick = () => overlay.remove();
+      document.getElementById('confirmElim').onclick = async () => {
+        const btn = document.getElementById('confirmElim');
+        btn.textContent = 'Eliminando...'; btn.disabled = true;
+        try {
+          /* 1. Eliminar de tabla perfiles */
+          const { error: errPerfil } = await c.from('perfiles').delete().eq('id', id);
+          if (errPerfil) throw new Error('Error eliminando perfil: ' + errPerfil.message);
+
+          /* 2. Eliminar participaciones de torneos si existe la tabla */
+          try { await c.from('participaciones_torneo').delete().eq('usuario_id', id); } catch(ex) {}
+
+          overlay.remove();
+          SFX.click();
+          showToast('✅ Perfil de ' + nombre + ' eliminado');
+          /* Mostrar instrucción para Auth si quieren borrarlo completamente */
+          setTimeout(() => showToast('💡 Para eliminar del Auth de Supabase: Panel Supabase → Auth → Users → busca y elimina'), 2500);
+          renderPanelAdmin();
+        } catch(ex) {
+          btn.textContent = '🗑️ Sí, eliminar'; btn.disabled = false;
+          showToast('❌ Error: ' + ex.message);
+        }
+      };
+    };
+    b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
+  });
 }
 // Texto de tiempo inactivo de un usuario
 function tiempoInactivo(iso) {
@@ -4196,64 +4262,744 @@ function buildMaze(container) {
 }
 // ═══════════════════════════════════════════
 function buildRacing(container) {
-  let W=Math.min(300,window.innerWidth-60), H=Math.round(W*1.5);
-  if (H > maxGameHeight()) { H = maxGameHeight(); W = Math.round(H/1.5); }
+  /* ══ SPEED RACER 3D — Vista trasera pseudo-3D ══ */
+  const maxW = Math.min(window.innerWidth - 20, 520);
+  const W = maxW;
+  const H = Math.min(480, maxGameHeight(), Math.round(W * 1.3));
   container.innerHTML = `
-    <div class="game-container">
-      <div style="padding:12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-weight:800;color:#fff">📏 <span id="raceDist">0</span>m</span>
-        <span style="font-weight:800;color:#fff">🏎️ <span id="raceSpeed">0</span></span>
-        <button onclick="window.raceReset()" style="background:#7C3AED;border:none;color:white;padding:6px 14px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">Reiniciar</button>
+    <div class="game-container" style="background:#050a14;position:relative;overflow:hidden;width:100%">
+      <canvas id="racingGame" width="${W}" height="${H}" style="display:block;width:100%;height:auto"></canvas>
+
+      <!-- HUD superior: cinta de info compacta -->
+      <div style="position:absolute;top:0;left:0;right:0;pointer-events:none">
+        <div style="display:flex;align-items:stretch;background:linear-gradient(180deg,rgba(0,0,0,0.75) 0%,rgba(0,0,0,0) 100%);padding:8px 10px 18px">
+          <!-- Distancia -->
+          <div style="flex:1;display:flex;flex-direction:column;align-items:flex-start">
+            <div style="color:rgba(255,255,255,0.45);font-size:0.55rem;font-weight:700;letter-spacing:1px;text-transform:uppercase">DIST</div>
+            <div style="color:#fff;font-weight:800;font-size:0.95rem;line-height:1.1"><span id="raceDist">0</span><span style="color:rgba(255,255,255,0.5);font-size:0.65rem">m</span></div>
+          </div>
+          <!-- Vidas centrales -->
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <div id="raceLivesHUD" style="font-size:1rem;letter-spacing:1px">❤️❤️❤️</div>
+          </div>
+          <!-- Restart -->
+          <div style="flex:1;display:flex;align-items:center;justify-content:flex-end;pointer-events:all">
+            <button onclick="window.raceReset()" style="background:rgba(124,58,237,0.7);backdrop-filter:blur(4px);border:1px solid rgba(124,58,237,0.6);color:#fff;padding:5px 11px;border-radius:10px;cursor:pointer;font-weight:800;font-size:0.78rem;font-family:Nunito,sans-serif">↺</button>
+          </div>
+        </div>
       </div>
-      <div class="game-canvas-wrap" style="min-height:${H}px"><canvas id="racingGame" width="${W}" height="${H}"></canvas></div>
+
+      <!-- HUD inferior: velocímetro + nitro sobre el canvas -->
+      <div style="position:absolute;bottom:0;left:0;right:0;pointer-events:none;background:linear-gradient(0deg,rgba(0,0,0,0.65) 0%,rgba(0,0,0,0) 100%);padding:14px 12px 10px;display:flex;align-items:flex-end;justify-content:space-between">
+
+        <!-- Velocímetro circular SVG -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+          <svg width="72" height="72" viewBox="0 0 72 72">
+            <!-- Aro exterior -->
+            <circle cx="36" cy="36" r="32" fill="rgba(0,0,0,0.6)" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+            <!-- Arco de fondo -->
+            <path d="M 10 52 A 28 28 0 1 1 62 52" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="5" stroke-linecap="round"/>
+            <!-- Arco de velocidad -->
+            <path id="speedArc" d="M 10 52 A 28 28 0 0 1 10 52" fill="none" stroke="#00ffaa" stroke-width="5" stroke-linecap="round"/>
+            <!-- Número -->
+            <text id="raceKmh" x="36" y="38" text-anchor="middle" dominant-baseline="middle" fill="#00ffaa" font-family="Nunito,sans-serif" font-weight="800" font-size="16">0</text>
+            <text x="36" y="52" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-family="Nunito,sans-serif" font-weight="700" font-size="7">KM/H</text>
+          </svg>
+        </div>
+
+        <!-- Centro: indicador de marcha / modo -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding-bottom:4px">
+          <div id="raceGear" style="color:#FFD600;font-family:'Fredoka One',cursive;font-size:1.4rem;text-shadow:0 0 10px rgba(255,214,0,0.6)">1</div>
+          <div style="color:rgba(255,255,255,0.35);font-size:0.55rem;font-weight:700;letter-spacing:1px">GEAR</div>
+        </div>
+
+        <!-- Barra de nitro -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <div style="color:#00aaff;font-size:0.58rem;font-weight:800;letter-spacing:1px;text-shadow:0 0 6px rgba(0,170,255,0.6)">NITRO</div>
+          <!-- Barra vertical de 5 segmentos -->
+          <div id="nitroSegs" style="display:flex;flex-direction:column-reverse;gap:2px">
+            ${[0,1,2,3,4].map(i=>`<div class="nitroSeg" style="width:28px;height:8px;border-radius:3px;background:rgba(0,170,255,0.2);border:1px solid rgba(0,170,255,0.2);transition:all 0.1s"></div>`).join('')}
+          </div>
+          <div style="color:rgba(255,255,255,0.35);font-size:0.55rem;font-weight:700;letter-spacing:.5px">BOOST</div>
+        </div>
+      </div>
     </div>
-    <div class="game-instructions"><strong>Controles:</strong> ← → o A/D · Móvil: toca lados · ¡Esquiva los autos!</div>`;
-  const canvas=document.getElementById('racingGame');
-  const ctx=canvas.getContext('2d');
-  const LANES=[W*0.25,W*0.45,W*0.55,W*0.75];
-  let player,enemies,dist,speed,animId,keys={},running=true,roadOffset=0;
-  function reset(){
-    player={x:W/2,y:H-70}; enemies=[]; dist=0; speed=3; running=true;
-    if(animId) cancelAnimationFrame(animId); loop();
-  }
-  function loop(){
-    if(!document.getElementById('racingGame')) return;
-    if(running) update();
-    draw();
-    animId=registerAnimation(requestAnimationFrame(loop));
-  }
-  function update(){
-    if(keys['ArrowLeft']||keys['a']) player.x=Math.max(W*0.12,player.x-5);
-    if(keys['ArrowRight']||keys['d']) player.x=Math.min(W*0.88,player.x+5);
-    enemies.forEach(e=>e.y+=speed);
-    enemies=enemies.filter(e=>e.y<H+70);
-    if(Math.random()<0.025) { const lane=LANES[Math.floor(Math.random()*4)]; enemies.push({x:lane-15,y:-60,color:['#FF4D9D','#FFD600','#7C3AED','#00B4D8'][Math.floor(Math.random()*4)]}); }
-    dist+=Math.round(speed/2); speed=3+dist/2000;
-    setText('raceDist',dist); setText('raceSpeed',Math.round(speed*20)+'km/h');
-    for(const e of enemies) if(Math.abs(player.x-e.x-15)<25&&Math.abs(player.y-e.y-25)<40){ running=false; SFX.hit(); showToast('💥 Choque! Dist: '+dist+'m'); break; }
-  }
-  function draw(){
-    ctx.fillStyle='#222'; ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='#444'; ctx.fillRect(W*0.1,0,W*0.8,H);
-    roadOffset=(roadOffset+speed*2)%60; ctx.fillStyle='#FFD600';
-    for(let y=-60+roadOffset;y<H;y+=60) ctx.fillRect(W/2-3,y,6,35);
-    ctx.fillStyle='#fff'; ctx.fillRect(W*0.1,0,4,H); ctx.fillRect(W*0.9-4,0,4,H);
-    ctx.font='26px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    enemies.forEach(e=>{ ctx.fillStyle=e.color; ctx.beginPath(); ctx.roundRect(e.x,e.y,30,50,6); ctx.fill(); ctx.fillText('🚗',e.x+15,e.y+25); });
-    ctx.fillStyle='#7C3AED'; ctx.beginPath(); ctx.roundRect(player.x-15,player.y-25,30,50,6); ctx.fill();
-    ctx.fillText('🏎️',player.x,player.y);
-    if(!running){ ctx.fillStyle='rgba(0,0,0,0.65)'; ctx.fillRect(0,0,W,H); ctx.fillStyle='white'; ctx.font='bold 20px Fredoka One,cursive'; ctx.fillText('💥 CHOQUE!',W/2,H/2-10); ctx.font='13px Nunito,sans-serif'; ctx.fillText(dist+'m',W/2,H/2+14); }
-  }
-  function kd(e){keys[e.key]=true;} function ku(e){keys[e.key]=false;}
-  document.addEventListener('keydown',kd); document.addEventListener('keyup',ku);
-  window.activeKeyHandlers.push(kd,ku);
-  canvas.addEventListener('touchstart',e=>{ const tx=e.touches[0].clientX-canvas.getBoundingClientRect().left; if(tx<W/2) keys['ArrowLeft']=true; else keys['ArrowRight']=true; e.preventDefault(); },{passive:false});
-  canvas.addEventListener('touchend',e=>{ keys['ArrowLeft']=false; keys['ArrowRight']=false; e.preventDefault(); },{passive:false});
-  window.raceReset = reset;
-  container.querySelector('.game-container').appendChild(makeLeftRight((dir, pressed) => {
-    if (dir === 'left') keys['ArrowLeft'] = pressed;
-    else keys['ArrowRight'] = pressed;
+    <div class="game-instructions">
+      <strong>◀ ▶</strong> girar &nbsp;·&nbsp; <strong>⚡ NITRO</strong> boost &nbsp;·&nbsp; Centro pantalla = nitro en móvil &nbsp;·&nbsp; ¡Esquiva los autos! 3 vidas.
+    </div>`;
+
+  const canvas = document.getElementById('racingGame');
+  const ctx = canvas.getContext('2d');
+
+  /* ── Perspectiva pseudo-3D (técnica raycasting road) ── */
+  const HORIZON = Math.floor(H * 0.42);   // línea del horizonte
+  const NUM_SEGMENTS = 150;                // segmentos de carretera visibles
+  const SEG_H = 2;                         // altura base de cada segmento en pantalla
+
+  /* ── Estado ── */
+  let pos, speed, steering, lives, score, dist, nitro, nitroActive;
+  let running, animId, keys = {}, lastT = 0;
+  let roadCurve = 0, targetCurve = 0, curveTimer = 0;
+  let cameraX = 0, shakeT = 0;
+  let dayTime = 0;
+
+  /* ── Rivales ── */
+  const RIVAL_COLORS = [
+    { body:'#FFD600', roof:'#c8a800', window:'#aaddff' },
+    { body:'#FF4D9D', roof:'#cc2266', window:'#aaddff' },
+    { body:'#00B4D8', roof:'#006688', window:'#ccffff' },
+    { body:'#FF6B00', roof:'#cc4400', window:'#ffddaa' },
+    { body:'#16A34A', roof:'#0a5c22', window:'#aaffcc' },
+  ];
+  let rivals = [];
+
+  /* ── Árboles y decoración ── */
+  const trees = Array.from({length:30}, (_,i) => ({
+    lane: i % 2 === 0 ? -1 : 1,   // izquierda o derecha
+    roadPos: i * 0.033,             // posición normalizada en la carretera [0-1]
+    type: i % 3,                    // 0=pino, 1=árbol redondeado, 2=arbusto
+    size: 0.7 + Math.random()*0.6,
   }));
+
+  function reset() {
+    pos = 0; speed = 0; steering = 0; lives = 3; score = 0; dist = 0;
+    nitro = 100; nitroActive = false; running = true; cameraX = 0;
+    roadCurve = 0; targetCurve = 0; curveTimer = 0; dayTime = 0; shakeT = 0;
+    rivals = [];
+    setText('raceDist', 0); setText('raceScore', 0);
+    const lh = document.getElementById('raceLivesHUD');
+    if (lh) lh.textContent = '❤️❤️❤️';
+    updateSpeedArc(0); updateNitroSegs(100); updateGear(0);
+    if (animId) cancelAnimationFrame(animId);
+    lastT = performance.now();
+    animId = registerAnimation(requestAnimationFrame(loop));
+  }
+
+  function updateSpeedArc(kmh) {
+    const arc = document.getElementById('speedArc');
+    const txt = document.getElementById('raceKmh');
+    if (!arc || !txt) return;
+    txt.textContent = kmh;
+    // Dibujar arco: el arco va de 10,52 a 62,52 pasando por la parte superior
+    // MAX = 200km/h → 0..1 ratio
+    const ratio = Math.min(1, kmh / 200);
+    const r = 28, cx = 36, cy = 36;
+    const startAngle = Math.PI * 0.72;   // ~130°
+    const endAngle   = Math.PI * 2.28;   // ~410° (casi vuelta completa)
+    const angle = startAngle + (endAngle - startAngle) * ratio;
+    const x1 = cx + r*Math.cos(startAngle), y1 = cy + r*Math.sin(startAngle);
+    const x2 = cx + r*Math.cos(angle),      y2 = cy + r*Math.sin(angle);
+    const large = ratio > 0.5 ? 1 : 0;
+    if (ratio < 0.01) { arc.setAttribute('d', `M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x1} ${y1}`); return; }
+    arc.setAttribute('d', `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`);
+    // Color: verde → amarillo → rojo según velocidad
+    const col = ratio < 0.5 ? '#00ffaa' : ratio < 0.8 ? '#FFD600' : '#ff4444';
+    arc.setAttribute('stroke', col);
+    txt.setAttribute('fill', col);
+  }
+
+  function updateNitroSegs(pct) {
+    const segs = document.querySelectorAll('.nitroSeg');
+    const filled = Math.round(pct / 20);   // 0-5 segmentos
+    segs.forEach((s, i) => {
+      const on = i < filled;
+      s.style.background = on ? `rgba(0,${170+i*10},255,${0.7+i*0.06})` : 'rgba(0,170,255,0.12)';
+      s.style.borderColor = on ? `rgba(0,200,255,0.6)` : 'rgba(0,170,255,0.15)';
+      s.style.boxShadow  = on ? `0 0 6px rgba(0,200,255,0.5)` : 'none';
+    });
+  }
+
+  function updateGear(kmh) {
+    const el = document.getElementById('raceGear');
+    if (!el) return;
+    const g = kmh < 40 ? 1 : kmh < 80 ? 2 : kmh < 120 ? 3 : kmh < 160 ? 4 : kmh < 185 ? 5 : 'N';
+    el.textContent = g;
+    el.style.color = kmh > 160 ? '#ff4444' : kmh > 120 ? '#FFD600' : '#00ffaa';
+  }
+
+  function loop(ts) {
+    if (!document.getElementById('racingGame')) return;
+    const dt = Math.min(ts - lastT, 50); lastT = ts;
+    if (running) update(dt);
+    draw(ts);
+    animId = registerAnimation(requestAnimationFrame(loop));
+  }
+
+  function update(dt) {
+    const dtS = dt / 1000;
+    dayTime = (dayTime + dtS / 90) % 1;
+
+    /* Steering */
+    let steerDir = 0;
+    if (keys['ArrowLeft'] || keys['a']) steerDir = -1;
+    if (keys['ArrowRight'] || keys['d']) steerDir = 1;
+    steering += (steerDir * 3.5 - steering) * 0.25;
+
+    /* Nitro */
+    if ((keys[' '] || keys['nitro']) && nitro > 0) {
+      nitroActive = true;
+      nitro = Math.max(0, nitro - dtS * 30);
+    } else {
+      nitroActive = false;
+      if (!keys[' '] && !keys['nitro']) nitro = Math.min(100, nitro + dtS * 8);
+    }
+    updateNitroSegs(nitro);
+
+    /* Velocidad */
+    const targetSpeed = nitroActive ? 180 : 120 + dist / 200;
+    speed += (targetSpeed - speed) * 0.08;
+    const kmh = Math.round(speed);
+    updateSpeedArc(kmh);
+    updateGear(kmh);
+
+    /* Posición en la carretera */
+    pos += speed * dtS * 0.01;
+    dist += Math.round(speed * dtS * 0.05);
+    setText('raceDist', dist);
+
+    /* Curva dinámica */
+    curveTimer -= dtS;
+    if (curveTimer <= 0) {
+      targetCurve = (Math.random() - 0.5) * 0.04;
+      curveTimer = 3 + Math.random() * 4;
+    }
+    roadCurve += (targetCurve - roadCurve) * 0.03;
+    cameraX += steering * 0.015 + roadCurve * speed * dtS * 0.3;
+    cameraX *= 0.94;  // amortiguación
+
+    /* Colisión con bordes */
+    if (Math.abs(cameraX) > 1.1) {
+      crash();
+      return;
+    }
+
+    /* Spawning de rivales */
+    if (Math.random() < dtS * 0.8) {
+      const lane = (Math.random() - 0.5) * 1.4;
+      rivals.push({
+        roadPos: pos + 0.8 + Math.random() * 0.4,
+        lane,
+        color: RIVAL_COLORS[Math.floor(Math.random() * RIVAL_COLORS.length)],
+        speed: speed * (0.55 + Math.random() * 0.3),
+      });
+    }
+
+    /* Mover rivales */
+    rivals.forEach(r => { r.roadPos -= (speed - r.speed) * dtS * 0.01; });
+    rivals = rivals.filter(r => r.roadPos > pos - 0.05 && r.roadPos < pos + 1.2);
+
+    /* Colisión con rivales */
+    rivals.forEach(r => {
+      const dz = r.roadPos - pos;
+      if (dz > 0 && dz < 0.08) {
+        const dx = Math.abs(r.lane - cameraX * 0.6);
+        if (dx < 0.25) {
+          rivals = rivals.filter(x => x !== r);
+          crash();
+        }
+      }
+    });
+
+    /* Shake */
+    if (shakeT > 0) shakeT -= dtS;
+  }
+
+  function crash() {
+    lives--;
+    const livesEl = document.getElementById('raceLivesHUD');
+    if (livesEl) livesEl.textContent = '❤️'.repeat(Math.max(0,lives)) + '🖤'.repeat(Math.max(0,3-lives));
+    shakeT = 0.5;
+    SFX.hit();
+    if (lives <= 0) {
+      running = false;
+      saveRecord('racing', dist);
+      if (typeof darRecompensa === 'function') darRecompensa(Math.floor(dist/50), score, '🏎️ Racing');
+      try { showToast('💥 ¡Choque! Distancia: ' + dist + 'm'); } catch(e) {}
+    } else {
+      try { showToast('💥 Vida perdida! Quedan ' + lives); } catch(e) {}
+      speed *= 0.4;
+      cameraX *= 0.2;
+    }
+  }
+
+  /* ── DIBUJO ── */
+  function draw(ts) {
+    const shake = shakeT > 0 ? (Math.random()-0.5)*8*shakeT : 0;
+    ctx.save();
+    if (shake) ctx.translate(shake, shake*0.5);
+
+    /* Cielo dinámico */
+    const night = (Math.sin(dayTime * Math.PI * 2 - Math.PI/2) * 0.5 + 0.5) * 0.8;
+    const skyTop = lerpColor('#1a6fc4','#050a20', night);
+    const skyBot = lerpColor('#87CEEB','#1a2a50', night);
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, HORIZON);
+    skyGrad.addColorStop(0, skyTop);
+    skyGrad.addColorStop(1, skyBot);
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, W, HORIZON);
+
+    /* Sol o Luna */
+    if (night < 0.5) {
+      const sunX = W * (0.3 + night * 0.4), sunY = HORIZON * (0.2 + night*0.3);
+      const sunR = 22 - night*8;
+      const sunColor = lerpColor('#FFD600','#FF6B00', night*2);
+      ctx.fillStyle = sunColor; ctx.beginPath(); ctx.arc(sunX, sunY, sunR, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = `rgba(255,200,0,${0.15*(1-night*2)})`;
+      ctx.beginPath(); ctx.arc(sunX, sunY, sunR+12, 0, Math.PI*2); ctx.fill();
+    } else {
+      const moonX = W * 0.75, moonY = HORIZON * 0.2;
+      ctx.fillStyle = `rgba(240,240,200,${(night-0.5)*1.5})`;
+      ctx.beginPath(); ctx.arc(moonX, moonY, 16, 0, Math.PI*2); ctx.fill();
+    }
+
+    /* Nubes */
+    if (night < 0.6) {
+      ctx.fillStyle = `rgba(255,255,255,${0.7*(1-night/0.6)})`;
+      [[W*0.15, HORIZON*0.25, 50,18],[W*0.6, HORIZON*0.15, 70,22],[W*0.85, HORIZON*0.35, 40,14]].forEach(([cx,cy,cw,ch]) => {
+        ctx.beginPath(); ctx.ellipse(cx + Math.sin(ts/8000)*8, cy, cw, ch, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx+cw*0.3 + Math.sin(ts/8000)*8, cy-ch*0.3, cw*0.6, ch*0.7, 0, 0, Math.PI*2); ctx.fill();
+      });
+    }
+
+    /* Montañas */
+    const mtnColor = lerpColor('#2d5a27','#0a1a08', night);
+    const mtnColor2 = lerpColor('#3d7a34','#121a10', night);
+    ctx.fillStyle = mtnColor;
+    const mtnPts = [[0,HORIZON],[W*0.12,HORIZON-55],[W*0.22,HORIZON-30],[W*0.38,HORIZON-70],[W*0.5,HORIZON-20],[W*0.65,HORIZON-80],[W*0.78,HORIZON-40],[W*0.9,HORIZON-60],[W,HORIZON-25],[W,HORIZON]];
+    ctx.beginPath(); mtnPts.forEach(([mx,my],i)=> i===0?ctx.moveTo(mx,my):ctx.lineTo(mx,my)); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = mtnColor2;
+    const mtnPts2 = [[0,HORIZON],[W*0.1,HORIZON-35],[W*0.25,HORIZON-55],[W*0.4,HORIZON-30],[W*0.55,HORIZON-65],[W*0.7,HORIZON-28],[W*0.85,HORIZON-50],[W,HORIZON-35],[W,HORIZON]];
+    ctx.beginPath(); mtnPts2.forEach(([mx,my],i)=> i===0?ctx.moveTo(mx,my):ctx.lineTo(mx,my)); ctx.closePath(); ctx.fill();
+
+    /* ── CARRETERA pseudo-3D ── */
+    let camOffset = 0;
+    const roadW_near = W * 0.85;   // ancho carretera abajo
+    const roadW_far  = W * 0.08;   // ancho carretera en horizonte
+    const roadColors = {
+      asphalt:  lerpColor('#3a3a3a','#1a1a1a',night),
+      asphalt2: lerpColor('#333333','#181818',night),
+      line:     lerpColor('#ffffcc','#555533',night),
+      border:   lerpColor('#eeeeee','#444444',night),
+      grass:    lerpColor('#3a7d44','#1a3a1e',night),
+      grass2:   lerpColor('#338840','#152e18',night),
+      rumble:   lerpColor('#cc2222','#661111',night),
+    };
+
+    for (let seg = NUM_SEGMENTS; seg >= 0; seg--) {
+      const t = seg / NUM_SEGMENTS;           // 0=horizonte, 1=cerca
+      const y1 = HORIZON + (H - HORIZON) * (1 - t);
+      const y2 = HORIZON + (H - HORIZON) * (1 - (seg-1)/NUM_SEGMENTS);
+
+      const rW = roadW_far + (roadW_near - roadW_far) * t;
+      const rx = W/2 - rW/2 + camOffset;
+
+      /* Curva acumulada */
+      camOffset += roadCurve * (seg * 1.8) - cameraX * rW * 0.035 * (1-t);
+
+      /* Franjas alternas de la carretera */
+      const stripe = Math.floor((pos * 20 + seg) % 2) === 0;
+      const asfColor = stripe ? roadColors.asphalt : roadColors.asphalt2;
+
+      /* Hierba lateral */
+      const grassStripe = Math.floor((pos*10 + seg) % 2) === 0;
+      ctx.fillStyle = grassStripe ? roadColors.grass : roadColors.grass2;
+      ctx.fillRect(0, y1, W, y2-y1);
+
+      /* Banda rumble (borde rojo/blanco) */
+      ctx.fillStyle = grassStripe ? roadColors.rumble : roadColors.border;
+      ctx.fillRect(rx - rW*0.08, y1, rW*0.08, y2-y1);
+      ctx.fillRect(rx + rW, y1, rW*0.08, y2-y1);
+
+      /* Asfalto */
+      ctx.fillStyle = asfColor;
+      ctx.fillRect(rx, y1, rW, y2-y1);
+
+      /* Línea central (discontinua) */
+      const lineStripe = Math.floor((pos*15 + seg) % 4) < 2;
+      if (lineStripe) {
+        ctx.fillStyle = roadColors.line;
+        ctx.fillRect(rx + rW*0.5 - rW*0.014, y1, rW*0.028, y2-y1);
+      }
+      /* Líneas de carril */
+      ctx.fillStyle = `rgba(255,255,200,${0.25 + night*0.1})`;
+      ctx.fillRect(rx + rW*0.33 - rW*0.008, y1, rW*0.016, y2-y1);
+      ctx.fillRect(rx + rW*0.66 - rW*0.008, y1, rW*0.016, y2-y1);
+    }
+
+    /* ── Árboles (sprites) ── */
+    camOffset = 0;
+    trees.forEach(tree => {
+      const dz = ((tree.roadPos - (pos % 1) + 1) % 1);
+      if (dz < 0.04 || dz > 0.98) return;
+      const t = 1 - dz;
+      const y = HORIZON + (H - HORIZON) * t;
+      const rW = roadW_far + (roadW_near - roadW_far) * t;
+      const rx = W/2 + tree.lane * (rW/2 + rW*0.12);
+      const tH = tree.size * 60 * t;
+      const tW = tH * 0.65;
+
+      ctx.save();
+      /* Sombra */
+      ctx.fillStyle = `rgba(0,0,0,${0.3*t})`;
+      ctx.beginPath(); ctx.ellipse(rx, y+tH*0.05, tW*0.4, tH*0.06, 0, 0, Math.PI*2); ctx.fill();
+
+      if (tree.type === 0) {
+        /* Pino */
+        ctx.fillStyle = lerpColor('#1a5c22','#0a2e10',night);
+        ctx.beginPath(); ctx.moveTo(rx, y-tH); ctx.lineTo(rx-tW/2, y); ctx.lineTo(rx+tW/2, y); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = lerpColor('#22782d','#112214',night);
+        ctx.beginPath(); ctx.moveTo(rx, y-tH*0.75); ctx.lineTo(rx-tW*0.55, y-tH*0.1); ctx.lineTo(rx+tW*0.55, y-tH*0.1); ctx.closePath(); ctx.fill();
+        /* Tronco */
+        ctx.fillStyle = lerpColor('#6b3a1f','#2a1508',night);
+        ctx.fillRect(rx-tW*0.07, y-tH*0.12, tW*0.14, tH*0.15);
+      } else if (tree.type === 1) {
+        /* Árbol redondeado */
+        ctx.fillStyle = lerpColor('#6b3a1f','#2a1508',night);
+        ctx.fillRect(rx-tW*0.08, y-tH*0.35, tW*0.16, tH*0.38);
+        ctx.fillStyle = lerpColor('#2d7d32','#0f2e12',night);
+        ctx.beginPath(); ctx.arc(rx, y-tH*0.55, tW*0.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = lerpColor('#388e3c','#142e15',night);
+        ctx.beginPath(); ctx.arc(rx-tW*0.18, y-tH*0.62, tW*0.32, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(rx+tW*0.18, y-tH*0.58, tW*0.28, 0, Math.PI*2); ctx.fill();
+      } else {
+        /* Arbusto */
+        ctx.fillStyle = lerpColor('#4a7c2d','#1e3210',night);
+        ctx.beginPath(); ctx.arc(rx, y-tH*0.3, tW*0.4, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = lerpColor('#5a9c3a','#223814',night);
+        ctx.beginPath(); ctx.arc(rx-tW*0.25, y-tH*0.2, tW*0.3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(rx+tW*0.22, y-tH*0.25, tW*0.28, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    });
+
+    /* ── Rivales (autos) ── */
+    rivals.sort((a,b) => b.roadPos - a.roadPos).forEach(r => {
+      const dz = r.roadPos - pos;
+      if (dz < 0.02 || dz > 1.1) return;
+      const t = Math.min(1, (1.1 - dz) / 1.08);
+      const screenY = HORIZON + (H - HORIZON) * t;
+      const rW = roadW_far + (roadW_near - roadW_far) * t;
+      const rx = W/2 + r.lane * rW * 0.27;
+      const cW = rW * 0.18, cH = cW * 1.7;
+      const col = r.color;
+
+      /* Sombra del auto */
+      ctx.fillStyle = `rgba(0,0,0,${0.35*t})`;
+      ctx.beginPath(); ctx.ellipse(rx, screenY+cH*0.08, cW*0.6, cH*0.07, 0, 0, Math.PI*2); ctx.fill();
+
+      /* Carrocería */
+      ctx.fillStyle = col.body;
+      ctx.beginPath(); ctx.roundRect(rx-cW/2, screenY-cH, cW, cH, cW*0.15); ctx.fill();
+
+      /* Techo */
+      ctx.fillStyle = col.roof;
+      const roofW = cW*0.72, roofH = cH*0.38;
+      ctx.beginPath(); ctx.roundRect(rx-roofW/2, screenY-cH+cH*0.1, roofW, roofH, cW*0.12); ctx.fill();
+
+      /* Parabrisas */
+      ctx.fillStyle = col.window; ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.roundRect(rx-roofW*0.44, screenY-cH+cH*0.14, roofW*0.88, roofH*0.55, cW*0.08); ctx.fill();
+      ctx.globalAlpha = 1;
+
+      /* Faros traseros (rojos) */
+      ctx.fillStyle = '#ff2222';
+      ctx.beginPath(); ctx.roundRect(rx-cW*0.46, screenY-cH*0.12, cW*0.18, cH*0.07, 2); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(rx+cW*0.28, screenY-cH*0.12, cW*0.18, cH*0.07, 2); ctx.fill();
+
+      /* Ruedas */
+      ctx.fillStyle = '#222';
+      [[-cW*0.44,-cH*0.06],[cW*0.44,-cH*0.06],[-cW*0.44,-cH*0.7],[cW*0.44,-cH*0.7]].forEach(([wx,wy]) => {
+        ctx.beginPath(); ctx.ellipse(rx+wx, screenY+wy, cW*0.14, cW*0.1, 0, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle='#555'; ctx.lineWidth=1; ctx.stroke();
+      });
+    });
+
+    /* ── Auto del jugador ── */
+    drawPlayerCar(ts);
+
+    /* ── Nitro llamas ── */
+    if (nitroActive) {
+      const px = W/2, py = H-22;
+      for (let i = 0; i < 3; i++) {
+        const fl = Math.sin(ts/60 + i*2) * 0.5 + 0.5;
+        ctx.fillStyle = i%2===0 ? `rgba(0,180,255,${0.8*fl})` : `rgba(0,255,200,${0.6*fl})`;
+        ctx.beginPath();
+        ctx.moveTo(px + (i-1)*14, py+8);
+        ctx.lineTo(px + (i-1)*14 - 6, py + 28 + fl*18);
+        ctx.lineTo(px + (i-1)*14 + 6, py + 28 + fl*18);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+
+    /* Overlay noche */
+    if (night > 0.15) {
+      ctx.fillStyle = `rgba(0,0,20,${night*0.5})`;
+      ctx.fillRect(0, 0, W, H);
+      /* Estrellas */
+      for (let i = 0; i < 30; i++) {
+        const sx = (i*73+W*0.1) % W, sy = (i*47) % HORIZON;
+        const flicker = Math.sin(ts/500 + i) * 0.3 + 0.7;
+        ctx.fillStyle = `rgba(255,255,220,${night*flicker*0.9})`;
+        ctx.beginPath(); ctx.arc(sx, sy, 0.8+Math.random()*0.5, 0, Math.PI*2); ctx.fill();
+      }
+    }
+
+    /* ── Game Over overlay ── */
+    if (!running) {
+      ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle='#FF4D9D'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('💥 GAME OVER', W/2, H/2-24);
+      ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
+      ctx.fillText(dist+'m · '+score+' pts', W/2, H/2+10);
+      ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${Math.round(W/22)}px Nunito,sans-serif`;
+      ctx.fillText('Toca ↺ para volver a jugar', W/2, H/2+38);
+    }
+
+    ctx.restore();
+  }
+
+  function drawPlayerCar(ts) {
+    /* ── VISTA TRASERA: vemos la parte de ATRÁS del carro ──
+       - El parachoques trasero está ABAJO (cerca de la cámara)
+       - El techo / alerón está ARRIBA (lejos, hacia el horizonte)
+       - Las ruedas traseras son las que más vemos, a los lados abajo
+       Pivot = py (fondo del auto, nivel del suelo)
+       Todo se dibuja desde 0 (suelo) hacia Y negativos (arriba)
+    */
+    const px  = W/2 - cameraX * 50;
+    const py  = H - 8;           // pivot en el suelo
+    const cW  = 74;              // ancho total del auto
+    const cH  = 118;             // alto total del auto
+    const lean = cameraX * 0.04;
+
+    const flarePulse = 0.7 + Math.sin(ts / 200) * 0.3;
+    const spin = (ts / 65) % (Math.PI * 2);
+
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(lean);
+
+    /* ── 1. Sombra debajo del auto ── */
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, cW * 0.52, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    /* ── 2. Ruedas TRASERAS (grandes, sobresalen a los lados, en la parte baja) ── */
+    const WHEEL = { rx: cW * 0.48, ry: -22, rw: cW * 0.19, rh: cW * 0.145 };
+    [-1, 1].forEach(side => {
+      const wx = side * WHEEL.rx, wy = WHEEL.ry;
+      ctx.save(); ctx.translate(wx, wy);
+      /* Llanta negra */
+      ctx.fillStyle = '#111';
+      ctx.beginPath(); ctx.ellipse(0, 0, WHEEL.rw, WHEEL.rh, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.stroke();
+      /* Rin gris plateado */
+      ctx.fillStyle = '#8a8a8a';
+      ctx.beginPath(); ctx.ellipse(0, 0, WHEEL.rw * 0.63, WHEEL.rh * 0.63, 0, 0, Math.PI * 2); ctx.fill();
+      /* Radios girando */
+      ctx.strokeStyle = '#ccc'; ctx.lineWidth = 2;
+      for (let s = 0; s < 5; s++) {
+        const a = spin + s * Math.PI * 2 / 5;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * WHEEL.rw * 0.52, Math.sin(a) * WHEEL.rh * 0.52);
+        ctx.stroke();
+      }
+      /* Centro del rin */
+      ctx.fillStyle = '#ddd';
+      ctx.beginPath(); ctx.arc(0, 0, WHEEL.rw * 0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    });
+
+    /* ── 3. Guardabarros traseros (forma que envuelve las ruedas) ── */
+    ctx.fillStyle = '#aa1111';
+    [-1, 1].forEach(side => {
+      const wx = side * (cW * 0.32);
+      ctx.beginPath();
+      ctx.ellipse(wx, WHEEL.ry, WHEEL.rw * 1.18, WHEEL.rh * 1.35, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    /* ── 4. Carrocería principal (cuerpo del auto) ── */
+    const bodyGrad = ctx.createLinearGradient(-cW / 2, 0, cW / 2, 0);
+    bodyGrad.addColorStop(0,    '#991111');
+    bodyGrad.addColorStop(0.18, '#cc2020');
+    bodyGrad.addColorStop(0.5,  '#ff4040');
+    bodyGrad.addColorStop(0.82, '#cc2020');
+    bodyGrad.addColorStop(1,    '#991111');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.roundRect(-cW / 2, -cH, cW, cH, [8, 8, 5, 5]);
+    ctx.fill();
+
+    /* Highlight superior */
+    ctx.fillStyle = 'rgba(255,180,180,0.15)';
+    ctx.beginPath();
+    ctx.roundRect(-cW * 0.44, -cH * 0.98, cW * 0.88, cH * 0.22, [6, 6, 0, 0]);
+    ctx.fill();
+
+    /* ── 5. Parachoques trasero (parte MÁS VISIBLE, abajo) ── */
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.roundRect(-cW * 0.46, -cH * 0.12, cW * 0.92, cH * 0.12, [2, 2, 6, 6]);
+    ctx.fill();
+
+    /* Rejilla del parachoques */
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.roundRect(-cW * 0.35, -cH * 0.10, cW * 0.70, cH * 0.065, 3);
+    ctx.fill();
+
+    /* ── 6. Escapes (en la parte trasera baja) ── */
+    const exhaustGlow = nitroActive ? `rgba(0,200,255,${0.6 + Math.sin(ts / 55) * 0.4})` : 'rgba(60,60,60,0.8)';
+    [-cW * 0.28, cW * 0.14].forEach(ex => {
+      ctx.fillStyle = '#333';
+      ctx.beginPath(); ctx.roundRect(ex, -cH * 0.065, cW * 0.13, cH * 0.06, 2); ctx.fill();
+      ctx.fillStyle = exhaustGlow;
+      ctx.beginPath(); ctx.ellipse(ex + cW * 0.065, -cH * 0.035, cW * 0.07, cH * 0.025, 0, 0, Math.PI * 2); ctx.fill();
+    });
+
+    /* ── 7. Faros traseros ROJOS (zona baja del auto, muy visible) ── */
+    ctx.fillStyle = `rgba(255, 20, 20, ${flarePulse})`;
+    /* Izquierdo */
+    ctx.beginPath();
+    ctx.roundRect(-cW * 0.47, -cH * 0.28, cW * 0.22, cH * 0.10, [3, 0, 0, 3]);
+    ctx.fill();
+    /* Derecho */
+    ctx.beginPath();
+    ctx.roundRect(cW * 0.25, -cH * 0.28, cW * 0.22, cH * 0.10, [0, 3, 3, 0]);
+    ctx.fill();
+    /* Brillo interior */
+    ctx.fillStyle = `rgba(255,100,100,${flarePulse * 0.5})`;
+    ctx.beginPath(); ctx.roundRect(-cW * 0.45, -cH * 0.27, cW * 0.17, cH * 0.07, 2); ctx.fill();
+    ctx.beginPath(); ctx.roundRect( cW * 0.28, -cH * 0.27, cW * 0.17, cH * 0.07, 2); ctx.fill();
+    /* Halo glow */
+    ctx.fillStyle = `rgba(255,0,0,${flarePulse * 0.20})`;
+    ctx.beginPath(); ctx.ellipse(-cW * 0.34, -cH * 0.23, 24, 14, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse( cW * 0.34, -cH * 0.23, 24, 14, 0, 0, Math.PI * 2); ctx.fill();
+
+    /* ── 8. Franja lateral (línea decorativa) ── */
+    ctx.fillStyle = 'rgba(80,0,0,0.6)';
+    ctx.fillRect(-cW * 0.46, -cH * 0.52, cW * 0.92, 3);
+
+    /* ── 9. Techo / Cabina (parte SUPERIOR, más lejos) ── */
+    const roofW = cW * 0.70;
+    const roofH = cH * 0.30;
+    const roofTop = -cH * 0.98;
+    ctx.fillStyle = '#880000';
+    ctx.beginPath();
+    ctx.roundRect(-roofW / 2, roofTop, roofW, roofH, [10, 10, 2, 2]);
+    ctx.fill();
+
+    /* Parabrisas trasero (en el techo, perspectiva pequeña porque está lejos) */
+    ctx.fillStyle = 'rgba(120, 190, 255, 0.78)';
+    ctx.beginPath();
+    ctx.roundRect(-roofW * 0.40, roofTop + roofH * 0.10, roofW * 0.80, roofH * 0.58, 5);
+    ctx.fill();
+    /* Reflejo en parabrisas */
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.roundRect(-roofW * 0.36, roofTop + roofH * 0.13, roofW * 0.30, roofH * 0.26, 3);
+    ctx.fill();
+
+    /* ── 10. Alerón trasero (arriba del todo, hacia el horizonte) ── */
+    const spoilerY = -cH - 14;
+    /* Soportes */
+    ctx.fillStyle = '#660000';
+    ctx.fillRect(-cW * 0.36, spoilerY + 6, 7, 14);
+    ctx.fillRect( cW * 0.29, spoilerY + 6, 7, 14);
+    /* Plano del alerón */
+    ctx.fillStyle = '#770000';
+    ctx.beginPath(); ctx.roundRect(-cW * 0.50, spoilerY, cW * 1.0, 9, 3); ctx.fill();
+    ctx.fillStyle = '#550000';
+    ctx.beginPath(); ctx.roundRect(-cW * 0.48, spoilerY - 5, cW * 0.96, 6, 2); ctx.fill();
+
+    /* ── 11. Nitro flames (debajo del auto, salen hacia la cámara) ── */
+    if (nitroActive) {
+      for (let i = 0; i < 3; i++) {
+        const fl = Math.sin(ts / 55 + i * 2) * 0.5 + 0.5;
+        const fx = (i - 1) * 18;
+        /* Llama principal */
+        ctx.fillStyle = `rgba(0, ${150 + fl * 80}, 255, ${0.75 * fl})`;
+        ctx.beginPath();
+        ctx.moveTo(fx - 7, 2);
+        ctx.lineTo(fx,     22 + fl * 14);
+        ctx.lineTo(fx + 7, 2);
+        ctx.closePath(); ctx.fill();
+        /* Core blanco */
+        ctx.fillStyle = `rgba(200, 240, 255, ${0.6 * fl})`;
+        ctx.beginPath();
+        ctx.moveTo(fx - 3, 2);
+        ctx.lineTo(fx,     12 + fl * 8);
+        ctx.lineTo(fx + 3, 2);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+
+    ctx.restore();
+  }
+
+  /* ── Helper: interpolar colores ── */
+  function lerpColor(a, b, t) {
+    const pa=(c)=>[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)];
+    const [ar,ag,ab]=pa(a),[br,bg,bb]=pa(b);
+    return `rgb(${Math.round(ar+(br-ar)*t)},${Math.round(ag+(bg-ag)*t)},${Math.round(ab+(bb-ab)*t)})`;
+  }
+
+  /* ── Controles teclado ── */
+  function kd(e) {
+    keys[e.key] = true;
+    if (e.key === ' ') e.preventDefault();
+  }
+  function ku(e) { keys[e.key] = false; }
+  document.addEventListener('keydown', kd);
+  document.addEventListener('keyup', ku);
+  window.activeKeyHandlers.push(kd, ku);
+
+  /* ── Controles táctiles ── */
+  canvas.addEventListener('touchstart', e => {
+    const tx = e.touches[0].clientX - canvas.getBoundingClientRect().left;
+    if (tx < W * 0.35) keys['ArrowLeft'] = true;
+    else if (tx > W * 0.65) keys['ArrowRight'] = true;
+    else keys['nitro'] = true;
+    e.preventDefault();
+  }, {passive:false});
+  canvas.addEventListener('touchend', e => {
+    keys['ArrowLeft'] = false; keys['ArrowRight'] = false; keys['nitro'] = false;
+    e.preventDefault();
+  }, {passive:false});
+
+  /* ── Botones en pantalla ── */
+  window.raceReset = reset;
+  const pad = document.createElement('div');
+  pad.className = 'touch-controls';
+  pad.style.cssText = 'flex-direction:row;justify-content:center;gap:10px;padding:8px 0';
+  pad.innerHTML = `
+    <button class="tbtn" id="raceLeft" style="font-size:1.5rem">◀</button>
+    <button class="tbtn" id="raceNitro" style="background:linear-gradient(135deg,#00aaff,#00ffff);box-shadow:0 4px 0 #004488;font-size:1rem;width:120px">⚡ NITRO</button>
+    <button class="tbtn" id="raceRight" style="font-size:1.5rem">▶</button>`;
+  pad.querySelectorAll('button').forEach(btn => {
+    const press = (k,v) => e => { e.preventDefault(); keys[k]=v; };
+    if (btn.id==='raceLeft') {
+      btn.addEventListener('touchstart', press('ArrowLeft',true), {passive:false});
+      btn.addEventListener('touchend', press('ArrowLeft',false), {passive:false});
+      btn.addEventListener('mousedown', press('ArrowLeft',true));
+      btn.addEventListener('mouseup', press('ArrowLeft',false));
+    } else if (btn.id==='raceRight') {
+      btn.addEventListener('touchstart', press('ArrowRight',true), {passive:false});
+      btn.addEventListener('touchend', press('ArrowRight',false), {passive:false});
+      btn.addEventListener('mousedown', press('ArrowRight',true));
+      btn.addEventListener('mouseup', press('ArrowRight',false));
+    } else {
+      btn.addEventListener('touchstart', press('nitro',true), {passive:false});
+      btn.addEventListener('touchend', press('nitro',false), {passive:false});
+      btn.addEventListener('mousedown', press('nitro',true));
+      btn.addEventListener('mouseup', press('nitro',false));
+    }
+  });
+  container.querySelector('.game-container').appendChild(pad);
   reset();
 }
 
@@ -4877,62 +5623,350 @@ function buildTreasure(container) {
 //  GAME 17: SÚPER SALTO (plataformas/esquivar)
 // ═══════════════════════════════════════════
 function buildPlatform(container) {
-  let W=Math.min(360,window.innerWidth-60), H=Math.round(W*0.85);
-  if(H>maxGameHeight()){ H=maxGameHeight(); W=Math.round(H/0.85); }
+  /* ══ SÚPER SALTO — Plataformas realistas ══
+     Parallax de nubes/montañas, personaje animado,
+     suelo con textura, obstáculos variados, monedas
+  ══════════════════════════════════════════════ */
+  let W = Math.min(380, window.innerWidth - 40);
+  let H = Math.min(300, maxGameHeight(), Math.round(W * 0.78));
   container.innerHTML = `
-    <div class="game-container">
-      <div style="padding:12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;color:#fff">
-        <span style="font-weight:800">🪙 <span id="plScore">0</span></span>
-        <span style="font-weight:800">📏 <span id="plDist">0</span>m</span>
-        <button onclick="window.plReset()" style="background:#7C3AED;border:none;color:white;padding:6px 14px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">Reiniciar</button>
+    <div class="game-container" style="position:relative;background:#87CEEB">
+      <canvas id="plGame" width="${W}" height="${H}" style="display:block"></canvas>
+      <div style="position:absolute;top:0;left:0;width:100%;pointer-events:none;display:flex;justify-content:space-between;align-items:center;padding:7px 12px;background:rgba(0,0,0,0.3)">
+        <span style="color:#fff;font-weight:800;font-size:0.85rem">🪙 <span id="plScore">0</span></span>
+        <span style="color:#fff;font-weight:800;font-size:0.85rem">📏 <span id="plDist">0</span>m</span>
+        <span style="color:#fff;font-weight:800;font-size:0.85rem">❤️ <span id="plLives">3</span></span>
+        <button onclick="window.plReset()" style="background:#7C3AED;border:none;color:#fff;padding:4px 10px;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.75rem">↺</button>
       </div>
-      <div class="game-canvas-wrap" style="min-height:${H}px"><canvas id="plGame" width="${W}" height="${H}"></canvas></div>
     </div>
-    <div class="game-instructions"><strong>Cómo jugar:</strong> Corre automáticamente. Pulsa <strong>SALTAR</strong> para brincar obstáculos 🌵 y juntar monedas 🪙. ¡Llega lejos!</div>`;
-  const canvas=document.getElementById('plGame'), ctx=canvas.getContext('2d');
-  const GROUND=H-30, GRAV=0.7;
-  let hero, obstacles, coins, dist, score, speed, animId, running;
-  function reset(){
-    hero={x:50,y:GROUND-30,w:26,h:30,vy:0,jumping:false};
-    obstacles=[]; coins=[]; dist=0; score=0; speed=4; running=true;
-    setText('plScore',0); setText('plDist',0);
-    if(animId) cancelAnimationFrame(animId); loop();
-  }
-  function jump(){ if(!hero.jumping){ hero.vy=-12; hero.jumping=true; SFX.jump(); } }
-  function loop(){
-    if(!document.getElementById('plGame')) return;
-    if(running){
-      hero.vy+=GRAV; hero.y+=hero.vy;
-      if(hero.y>=GROUND-hero.h){ hero.y=GROUND-hero.h; hero.vy=0; hero.jumping=false; }
-      obstacles.forEach(o=>o.x-=speed); coins.forEach(c=>c.x-=speed);
-      obstacles=obstacles.filter(o=>o.x>-40); coins=coins.filter(c=>c.x>-40&&!c.got);
-      if(Math.random()<0.018) obstacles.push({x:W,y:GROUND-28,w:20,h:28});
-      if(Math.random()<0.03) coins.push({x:W,y:GROUND-30-Math.random()*70,r:10,got:false});
-      dist+=Math.round(speed/3); speed=4+dist/400;
-      setText('plDist',dist);
-      obstacles.forEach(o=>{ if(hero.x+hero.w>o.x&&hero.x<o.x+o.w&&hero.y+hero.h>o.y){ running=false; SFX.hit(); showToast('💥 ¡Choque! Distancia: '+dist+'m'); } });
-      coins.forEach(c=>{ if(!c.got&&hero.x+hero.w>c.x-c.r&&hero.x<c.x+c.r&&hero.y+hero.h>c.y-c.r&&hero.y<c.y+c.r){ c.got=true; score++; setText('plScore',score); SFX.coin(); } });
+    <div class="game-instructions"><strong>SALTAR:</strong> Toca pantalla / Espacio / ↑ · Doble toque = doble salto · ¡Recoge monedas!</div>`;
+
+  const canvas = document.getElementById('plGame');
+  const ctx = canvas.getContext('2d');
+  const GROUND = H - 32;
+  const GRAV = 0.55, JUMP_V = -13, DJUMP_V = -11;
+
+  /* ── Parallax layers ── */
+  let parallaxX = [0, 0, 0];  // 3 capas: nubes lejanas, montañas, árboles
+
+  /* ── Partículas ── */
+  const pars = [];
+  function addPar(x, y, col, n=6) {
+    for (let i=0;i<n;i++) {
+      const a=Math.random()*Math.PI*2;
+      pars.push({x,y,vx:Math.cos(a)*(1+Math.random()*3),vy:Math.sin(a)*(1+Math.random()*3)-2,life:1,r:2+Math.random()*3,col});
     }
-    draw(); animId=registerAnimation(requestAnimationFrame(loop));
   }
-  function draw(){
-    const sky=ctx.createLinearGradient(0,0,0,H); sky.addColorStop(0,'#7CC5E8'); sky.addColorStop(1,'#C8E8F0');
-    ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='#5BBF3A'; ctx.fillRect(0,GROUND,W,H-GROUND);
-    ctx.fillStyle='#4A9E2E'; ctx.fillRect(0,GROUND,W,5);
-    ctx.font='24px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    obstacles.forEach(o=>ctx.fillText('🌵',o.x+o.w/2,o.y+o.h/2));
-    coins.forEach(c=>{ if(!c.got) ctx.fillText('🪙',c.x,c.y); });
-    ctx.save(); ctx.translate(hero.x+hero.w/2,hero.y+hero.h/2);
-    if(hero.jumping) ctx.rotate(-0.2);
-    ctx.fillText('🦸',0,0); ctx.restore();
-    if(!running){ ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#fff'; ctx.font='bold 22px Fredoka One,cursive'; ctx.fillText('💥 ¡CHOQUE!',W/2,H/2-10); ctx.font='14px Nunito,sans-serif'; ctx.fillText(dist+'m · '+score+' monedas',W/2,H/2+16); }
+
+  /* ── Estado ── */
+  let hero, obstacles, coins, dist, score, speed, animId, running, lives;
+  let frameN = 0;  // para animación del personaje
+
+  function reset() {
+    hero = {x:60, y:GROUND-40, w:28, h:40, vy:0, vx:0, jumping:false, djump:false, run:0, dead:false};
+    obstacles=[]; coins=[]; dist=0; score=0; speed=4; running=true; lives=3; frameN=0;
+    parallaxX=[0,0,0]; pars.length=0;
+    setText('plScore',0); setText('plDist',0);
+    document.getElementById('plLives').textContent='3';
+    if (animId) cancelAnimationFrame(animId);
+    animId = registerAnimation(requestAnimationFrame(loop));
   }
-  canvas.addEventListener('touchstart',e=>{jump();e.preventDefault();},{passive:false});
-  function keyHandler(e){ if(e.key===' '||e.key==='ArrowUp'||e.key==='w'){ jump(); e.preventDefault(); } }
-  document.addEventListener('keydown',keyHandler); window.activeKeyHandlers.push(keyHandler);
-  window.plReset=reset;
-  container.querySelector('.game-container').appendChild(makeActionButton('🦸 SALTAR', jump));
+
+  let canDJump = false;
+  function jump() {
+    if (!running) { reset(); return; }
+    if (!hero.jumping) {
+      hero.vy = JUMP_V; hero.jumping = true; canDJump = true; SFX.jump();
+    } else if (canDJump) {
+      hero.vy = DJUMP_V; canDJump = false; SFX.jump();
+      addPar(hero.x+hero.w/2, hero.y+hero.h, '#aaddff', 8);
+    }
+  }
+
+  function loop() {
+    if (!document.getElementById('plGame')) return;
+    frameN++;
+    if (running) update();
+    pars.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life-=0.05;p.r*=0.93;});
+    pars.filter(p=>p.life>0);
+    draw();
+    animId = registerAnimation(requestAnimationFrame(loop));
+  }
+
+  function update() {
+    /* Parallax */
+    parallaxX[0] = (parallaxX[0] - speed*0.15) % W;
+    parallaxX[1] = (parallaxX[1] - speed*0.3) % W;
+    parallaxX[2] = (parallaxX[2] - speed*0.6) % (W*2);
+
+    /* Física del héroe */
+    hero.vy += GRAV;
+    hero.y += hero.vy;
+    if (hero.y >= GROUND - hero.h) {
+      hero.y = GROUND - hero.h; hero.vy = 0; hero.jumping = false; canDJump = false;
+    }
+    hero.run = (hero.run + 0.18) % (Math.PI*2);
+
+    /* Spawn obstáculos */
+    if (frameN % Math.max(40, 90 - Math.floor(dist/200)) === 0) {
+      const h = 28 + Math.random()*24;
+      const types = ['cactus','stone','log'];
+      obstacles.push({x:W+20, y:GROUND-h, w:22, h, type:types[Math.floor(Math.random()*types.length)]});
+    }
+    /* Spawn monedas */
+    if (frameN % 55 === 0) {
+      const yOff = Math.random() < 0.5 ? 0 : -(40 + Math.random()*50);
+      coins.push({x:W+20, y:GROUND-22+yOff, r:9, got:false});
+    }
+
+    /* Mover objetos */
+    obstacles.forEach(o => o.x -= speed);
+    coins.forEach(c => c.x -= speed);
+    obstacles = obstacles.filter(o => o.x > -40);
+    coins = coins.filter(c => c.x > -20 && !c.got);
+
+    dist += Math.round(speed*0.045);
+    speed = 4 + dist/400;
+    setText('plDist', dist);
+
+    /* Colisiones obstáculos */
+    for (const o of obstacles) {
+      if (hero.x+hero.w-4 > o.x && hero.x+4 < o.x+o.w && hero.y+hero.h-2 > o.y && hero.y < o.y+o.h) {
+        addPar(hero.x+hero.w/2, hero.y+hero.h/2, '#ff4444', 12);
+        SFX.hit();
+        lives--;
+        const el = document.getElementById('plLives');
+        if (el) el.textContent = lives;
+        obstacles = obstacles.filter(x=>x!==o);
+        if (lives <= 0) {
+          running = false;
+          saveRecord('platform', dist);
+          if (typeof darRecompensa==='function') darRecompensa(score, dist, '🦸 Plataforma');
+          try { showToast('💥 ¡Choque! '+dist+'m · '+score+' monedas'); } catch(e) {}
+        } else {
+          try { showToast('💔 Vida perdida · Quedan '+lives); } catch(e) {}
+          hero.vy = -8; // rebotar
+        }
+        break;
+      }
+    }
+    /* Colisiones monedas */
+    coins.forEach(c => {
+      if (!c.got && hero.x+hero.w>c.x-c.r && hero.x<c.x+c.r && hero.y+hero.h>c.y-c.r && hero.y<c.y+c.r) {
+        c.got=true; score++; setText('plScore',score); SFX.coin();
+        addPar(c.x, c.y, '#FFD600', 8);
+      }
+    });
+  }
+
+  function draw() {
+    /* ── Cielo con degradado ── */
+    const skyG = ctx.createLinearGradient(0,0,0,GROUND);
+    skyG.addColorStop(0,'#4fa3e0'); skyG.addColorStop(1,'#b8e0f7');
+    ctx.fillStyle=skyG; ctx.fillRect(0,0,W,GROUND);
+
+    /* ── Nubes (capa 0, más lenta) ── */
+    [[0.1,0.18,70,24],[0.35,0.1,90,28],[0.65,0.22,60,20],[0.85,0.12,80,25]].forEach(([fx,fy,cw,ch])=>{
+      const cx = ((fx*W + parallaxX[0]) % W + W) % W;
+      const cy = fy*GROUND;
+      ctx.fillStyle='rgba(255,255,255,0.88)';
+      ctx.beginPath(); ctx.ellipse(cx,cy,cw,ch,0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx+cw*0.35,cy-ch*0.3,cw*0.55,ch*0.7,0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx-cw*0.3,cy-ch*0.15,cw*0.4,ch*0.6,0,0,Math.PI*2); ctx.fill();
+    });
+
+    /* ── Montañas lejanas (capa 1) ── */
+    const mOffset = parallaxX[1];
+    const drawMtn = (pts, col) => {
+      ctx.fillStyle=col;
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0]+mOffset, pts[0][1]);
+      pts.forEach(([mx,my])=>ctx.lineTo(mx+mOffset,my));
+      ctx.lineTo(pts[pts.length-1][0]+mOffset,GROUND);
+      ctx.lineTo(pts[0][0]+mOffset,GROUND);
+      ctx.closePath(); ctx.fill();
+      // segunda repetición
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0]+mOffset+W, pts[0][1]);
+      pts.forEach(([mx,my])=>ctx.lineTo(mx+mOffset+W,my));
+      ctx.lineTo(pts[pts.length-1][0]+mOffset+W,GROUND);
+      ctx.lineTo(pts[0][0]+mOffset+W,GROUND);
+      ctx.closePath(); ctx.fill();
+    };
+    drawMtn([[0,GROUND-70],[100,GROUND-120],[200,GROUND-80],[320,GROUND-110],[420,GROUND-60],[W,GROUND-75],[W+50,GROUND]],'#6b9e5a');
+    drawMtn([[0,GROUND-50],[80,GROUND-90],[180,GROUND-60],[280,GROUND-100],[380,GROUND-55],[W,GROUND-65]],'#4a7a3a');
+
+    /* ── Árboles fondo (capa 2) ── */
+    const treePositions = [50,140,230,330,420,520,620,720,810,900,1000,1100];
+    treePositions.forEach(tp => {
+      const tx = ((tp + parallaxX[2]) % (W*2+200) - 200 + W*2) % (W*2) - W*0.1;
+      if (tx < -30 || tx > W+30) return;
+      const th = 50 + (tp%3)*12;
+      /* Tronco */
+      ctx.fillStyle='#6b4226'; ctx.fillRect(tx-4,GROUND-th,8,th*0.42);
+      /* Copa */
+      ctx.fillStyle=`hsl(${120+tp%20},55%,${32+tp%8}%)`;
+      ctx.beginPath(); ctx.arc(tx,GROUND-th,th*0.38,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle=`hsl(${125+tp%15},60%,${38+tp%6}%)`;
+      ctx.beginPath(); ctx.arc(tx-th*0.18,GROUND-th*0.85,th*0.28,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(tx+th*0.2,GROUND-th*0.9,th*0.24,0,Math.PI*2); ctx.fill();
+    });
+
+    /* ── Suelo ── */
+    /* Base del suelo */
+    const dirtG = ctx.createLinearGradient(0,GROUND,0,H);
+    dirtG.addColorStop(0,'#8B6914'); dirtG.addColorStop(1,'#5a3d08');
+    ctx.fillStyle=dirtG; ctx.fillRect(0,GROUND,W,H-GROUND);
+    /* Césped */
+    const grassG = ctx.createLinearGradient(0,GROUND-6,0,GROUND+6);
+    grassG.addColorStop(0,'#4a9e2a'); grassG.addColorStop(1,'#2e6a15');
+    ctx.fillStyle=grassG; ctx.fillRect(0,GROUND-6,W,10);
+    /* Textura raíces/hierba pequeña */
+    for (let gx=0; gx<W; gx+=18) {
+      ctx.fillStyle=`rgba(0,100,0,${0.15+Math.sin(gx)*0.1})`;
+      ctx.fillRect(gx+((frameN*speed*0.05)|0)%18, GROUND-2, 6, 4);
+    }
+
+    /* ── Obstáculos ── */
+    obstacles.forEach(o => {
+      if (o.type==='cactus') {
+        ctx.fillStyle='#2d7a1e';
+        ctx.beginPath(); ctx.roundRect(o.x+6,o.y,10,o.h,4); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(o.x,o.y+o.h*0.35,22,8,4); ctx.fill();
+        ctx.fillStyle='#3a9a28';
+        ctx.beginPath(); ctx.roundRect(o.x+7,o.y+1,8,o.h-2,3); ctx.fill();
+        /* Espinas */
+        ctx.fillStyle='#1a5010';
+        for(let sp=0;sp<3;sp++){
+          const sy=o.y+o.h*0.2+sp*o.h*0.25;
+          ctx.fillRect(o.x+2,sy,5,2); ctx.fillRect(o.x+15,sy,5,2);
+        }
+      } else if (o.type==='stone') {
+        const stoneG=ctx.createLinearGradient(o.x,o.y,o.x,o.y+o.h);
+        stoneG.addColorStop(0,'#aaaaaa'); stoneG.addColorStop(1,'#666666');
+        ctx.fillStyle=stoneG;
+        ctx.beginPath(); ctx.roundRect(o.x,o.y,o.w,o.h,8); ctx.fill();
+        ctx.fillStyle='rgba(255,255,255,0.2)';
+        ctx.beginPath(); ctx.ellipse(o.x+o.w*0.35,o.y+o.h*0.3,o.w*0.22,o.h*0.18,0,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(0,0,0,0.15)';
+        ctx.beginPath(); ctx.roundRect(o.x+1,o.y+1,o.w-2,o.h-2,7); ctx.stroke();
+      } else {
+        /* Tronco caído */
+        ctx.fillStyle='#8B4513';
+        ctx.beginPath(); ctx.roundRect(o.x,o.y+4,o.w,o.h-4,5); ctx.fill();
+        ctx.fillStyle='#A0522D';
+        ctx.beginPath(); ctx.roundRect(o.x+2,o.y+4,o.w-4,o.h*0.5,4); ctx.fill();
+        /* Vetas */
+        ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=1;
+        [0.3,0.6,0.9].forEach(t=>{
+          ctx.beginPath(); ctx.moveTo(o.x+o.w*t,o.y+4); ctx.lineTo(o.x+o.w*t,o.y+o.h); ctx.stroke();
+        });
+      }
+    });
+
+    /* ── Monedas ── */
+    coins.forEach(c => {
+      if (c.got) return;
+      const bob = Math.sin(frameN*0.15+c.x)*3;
+      /* Sombra */
+      ctx.fillStyle='rgba(0,0,0,0.2)';
+      ctx.beginPath(); ctx.ellipse(c.x,c.y+c.r+bob+3,c.r*0.7,c.r*0.2,0,0,Math.PI*2); ctx.fill();
+      /* Moneda */
+      const coinG=ctx.createRadialGradient(c.x-c.r*0.3,c.y+bob-c.r*0.3,c.r*0.1,c.x,c.y+bob,c.r);
+      coinG.addColorStop(0,'#ffe066'); coinG.addColorStop(0.6,'#FFD600'); coinG.addColorStop(1,'#c89000');
+      ctx.fillStyle=coinG;
+      ctx.beginPath(); ctx.arc(c.x,c.y+bob,c.r,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#b07800'; ctx.lineWidth=1.5; ctx.stroke();
+      /* $ */
+      ctx.fillStyle='rgba(100,60,0,0.6)'; ctx.font=`bold ${c.r}px Nunito,sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('$',c.x,c.y+bob);
+    });
+
+    /* ── Partículas ── */
+    pars.filter(p=>p.life>0).forEach(p=>{
+      ctx.save(); ctx.globalAlpha=p.life*0.9;
+      ctx.fillStyle=p.col; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    });
+
+    /* ── Personaje animado ── */
+    drawHero();
+
+    /* ── Game Over ── */
+    if (!running) {
+      ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle='#FF4D9D'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('💥 ¡CHOQUE!', W/2, H/2-20);
+      ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
+      ctx.fillText(dist+'m · '+score+' 🪙', W/2, H/2+12);
+      ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${Math.round(W/22)}px Nunito,sans-serif`;
+      ctx.fillText('Toca para volver a jugar', W/2, H/2+36);
+    }
+  }
+
+  function drawHero() {
+    const hx = hero.x+hero.w/2, hy = hero.y;
+    const run = hero.run;
+    const inAir = hero.jumping;
+    ctx.save(); ctx.translate(hx, hy+hero.h/2);
+
+    /* Sombra */
+    ctx.fillStyle='rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.ellipse(0, hero.h/2+4, hero.w*0.5, 5, 0, 0, Math.PI*2); ctx.fill();
+
+    /* Cuerpo */
+    ctx.fillStyle='#2563EB';
+    ctx.beginPath(); ctx.roundRect(-10,-5,20,18,5); ctx.fill();
+    /* Chaqueta */
+    ctx.fillStyle='#1d4ed8';
+    ctx.beginPath(); ctx.roundRect(-10,-5,8,18,4); ctx.fill();
+
+    /* Cabeza */
+    ctx.fillStyle='#FDBCB4';
+    ctx.beginPath(); ctx.arc(0,-12,10,0,Math.PI*2); ctx.fill();
+    /* Pelo */
+    ctx.fillStyle='#5c3317';
+    ctx.beginPath(); ctx.arc(0,-16,7,Math.PI,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-6,-14,4,Math.PI*1.1,Math.PI*2.1); ctx.fill();
+    /* Ojo */
+    ctx.fillStyle='#333'; ctx.beginPath(); ctx.arc(4,-12,2,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(4.8,-12.5,0.8,0,Math.PI*2); ctx.fill();
+
+    /* Piernas animadas (correr/saltar) */
+    const legSwing = inAir ? 0 : Math.sin(run)*18;
+    ctx.strokeStyle='#1a40a0'; ctx.lineWidth=6; ctx.lineCap='round';
+    /* Pierna izq */
+    ctx.beginPath(); ctx.moveTo(-4,13); ctx.lineTo(-6+Math.sin(legSwing*Math.PI/180)*8, 22); ctx.stroke();
+    /* Pierna der */
+    ctx.beginPath(); ctx.moveTo(4,13); ctx.lineTo(6-Math.sin(legSwing*Math.PI/180)*8, 22); ctx.stroke();
+    /* Zapatos */
+    ctx.fillStyle='#111';
+    ctx.beginPath(); ctx.roundRect(-10+Math.sin(legSwing*Math.PI/180)*8,19,10,5,2); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(2-Math.sin(legSwing*Math.PI/180)*8,19,10,5,2); ctx.fill();
+
+    /* Brazos */
+    const armSwing = inAir ? -30 : Math.sin(run+Math.PI)*22;
+    ctx.strokeStyle='#2563EB'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.moveTo(-10,0); ctx.lineTo(-16,8+Math.sin(armSwing*Math.PI/180)*5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(10,0); ctx.lineTo(16,8-Math.sin(armSwing*Math.PI/180)*5); ctx.stroke();
+
+    /* Capa (efecto héroe) */
+    ctx.fillStyle='#FF4D9D';
+    ctx.save(); ctx.rotate(inAir?0.2:Math.sin(run)*0.1);
+    ctx.beginPath(); ctx.moveTo(-8,-4); ctx.lineTo(-16,10+Math.sin(run)*5); ctx.lineTo(-6,8); ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  /* Controles */
+  canvas.addEventListener('touchstart', e=>{jump();e.preventDefault();},{passive:false});
+  function keyHandler(e){if(e.key===' '||e.key==='ArrowUp'||e.key==='w'){jump();e.preventDefault();}}
+  document.addEventListener('keydown', keyHandler);
+  window.activeKeyHandlers.push(keyHandler);
+  window.plReset = reset;
+  container.querySelector('.game-container').appendChild(makeActionButton('🦸 SALTAR / DOBLE SALTO', jump));
   reset();
 }
 
@@ -9423,687 +10457,237 @@ if(_hgOriginalOpenGame){
 </script>
 
 <script>
-/* ══════════════════════════════════════════════════════════════════════
-   HUGOKIDS — SISTEMA DE TORNEOS COMPLETO v1.0
-   • Torneos programados con cuenta regresiva en tiempo real
-   • Inscripción gratis (sin costo de monedas para que todos puedan entrar)
-   • Ranking en vivo durante el torneo
-   • Premios automáticos: monedas + trofeo + título exclusivo
-   • Muro de campeones (últimos 3 ganadores de cada torneo)
-   • Power-ups comprables con monedas (escudo, doble puntos, vida extra)
-   • Racha diaria de login con recompensas
-   Tablas Supabase requeridas:
-     torneos(id, nombre, emoji, juego_id, descripcion, inicio, fin, premio_monedas, premio_titulo, premio_trofeo, estado)
-     participaciones_torneo(id, torneo_id, usuario_id, nombre_usuario, avatar, puntaje, actualizado_en)
-══════════════════════════════════════════════════════════════════════ */
-(function() {
+/* ══════════════════════════════════════════════════════════════
+   SISTEMA DE INVITADOS MEJORADO v1.0
+   • Invitados pueden ser invitados a jugar online
+   • Invitados NO ganan monedas ni trofeos (se les muestra el motivo)
+   • Admin decide qué juegos pueden jugar los invitados
+   • Si el invitado quiere ganar recompensas → banner para crear cuenta
+   • Tabla de jugadores online ahora muestra también invitados
+══════════════════════════════════════════════════════════════ */
+(function () {
   'use strict';
 
-  /* ── Helpers ── */
-  function sb() { try { return typeof getSupabase === 'function' ? getSupabase() : null; } catch(e) { return null; } }
-  function toast(m) { try { showToast(m); } catch(e) { console.log(m); } }
-  function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function sesion() { try { return !!usuarioActual; } catch(e) { return false; } }
-  function miNombre() { try { return (perfilNube && perfilNube.nombre) || (usuarioActual && usuarioActual.email ? usuarioActual.email.split('@')[0] : 'Jugador'); } catch(e){ return 'Jugador'; } }
-  function miAvatar() { try { return (perfilNube && perfilNube.avatar) || '👤'; } catch(e){ return '👤'; } }
-  function miId() { try { return usuarioActual && usuarioActual.id; } catch(e){ return null; } }
-  function miMonedas() { try { return (perfilNube && perfilNube.monedas) || 0; } catch(e){ return 0; } }
+  /* ── Clave en localStorage para juegos permitidos a invitados ── */
+  const KEY_JUEGOS_INVITADO = 'hk_juegos_invitado';
+  const KEY_INVITADOS_ONLINE = 'hk_invitados_pueden_online';
 
-  /* ── Estado global de torneos ── */
-  const HKT = {
-    torneoActivo: null,       // torneo en curso
-    miParticipacion: null,    // puntaje actual del usuario en torneo activo
-    ranking: [],              // ranking en vivo
-    canalTorneo: null,        // canal Supabase Realtime
-    cuentaAtras: null,        // intervalo del countdown
-    ultimaRacha: null,        // fecha última visita para racha
-  };
-
-  /* ══════════════════════════════
-     TORNEOS PREDEFINIDOS (fallback si Supabase no tiene tabla)
-     Usa fechas relativas para que siempre haya uno activo en demo.
-  ══════════════════════════════ */
-  function torneosDemo() {
-    const ahora = Date.now();
-    const h = 3600000, d = 86400000;
-    return [
-      {
-        id: 'demo_snake', nombre: '🐍 Copa Serpiente', emoji: '🐍',
-        juego_id: 'snake', descripcion: 'Mayor puntaje en Snake en 48 horas. ¡Sin límite de intentos!',
-        inicio: new Date(ahora - h).toISOString(), fin: new Date(ahora + 47 * h).toISOString(),
-        premio_monedas: 500, premio_titulo: '🐍 Maestro Serpiente', premio_trofeo: '🏆',
-        estado: 'activo'
-      },
-      {
-        id: 'demo_flappy', nombre: '🐤 Rey del Vuelo', emoji: '🐤',
-        juego_id: 'flappy', descripcion: 'Mejor puntaje en Flappy Bird. ¡Pasa los 20 tubos!',
-        inicio: new Date(ahora + 2 * d).toISOString(), fin: new Date(ahora + 4 * d).toISOString(),
-        premio_monedas: 400, premio_titulo: '🐤 Aviador Élite', premio_trofeo: '🥇',
-        estado: 'proximo'
-      },
-      {
-        id: 'demo_sumas', nombre: '➕ Cerebro Veloz', emoji: '➕',
-        juego_id: 'sumas', descripcion: 'Más respuestas correctas en Sumas y Restas. ¡El cerebro más rápido gana!',
-        inicio: new Date(ahora + 5 * d).toISOString(), fin: new Date(ahora + 7 * d).toISOString(),
-        premio_monedas: 600, premio_titulo: '🧠 Genio Matemático', premio_trofeo: '🏆',
-        estado: 'proximo'
-      },
-      {
-        id: 'demo_breakout', nombre: '🧱 Rey Breakout', emoji: '🧱',
-        juego_id: 'breakout', descripcion: 'Nivel más alto alcanzado en Breakout. ¡Rompe todos los ladrillos!',
-        inicio: new Date(ahora + 8 * d).toISOString(), fin: new Date(ahora + 10 * d).toISOString(),
-        premio_monedas: 450, premio_titulo: '🧱 Rompe Ladrillos Pro', premio_trofeo: '🥈',
-        estado: 'proximo'
-      },
-    ];
-  }
-
-  /* ── Cargar torneos desde Supabase (con fallback a demo) ── */
-  async function cargarTorneos() {
-    const c = sb();
-    if (!c) return torneosDemo();
-    try {
-      const { data, error } = await c.from('torneos')
-        .select('*').order('inicio', { ascending: true }).limit(20);
-      if (error || !data || !data.length) return torneosDemo();
-      return data;
-    } catch(e) { return torneosDemo(); }
-  }
-
-  /* ── Determinar torneo activo/próximo ── */
-  function clasificarTorneos(lista) {
-    const ahora = Date.now();
-    const activos = lista.filter(t => new Date(t.inicio) <= ahora && new Date(t.fin) > ahora);
-    const proximos = lista.filter(t => new Date(t.inicio) > ahora).sort((a,b) => new Date(a.inicio) - new Date(b.inicio));
-    const pasados = lista.filter(t => new Date(t.fin) <= ahora).sort((a,b) => new Date(b.fin) - new Date(a.fin));
-    return { activos, proximos, pasados };
-  }
-
-  /* ── Formatear tiempo restante ── */
-  function tiempoRestante(fecha) {
-    const diff = new Date(fecha) - Date.now();
-    if (diff <= 0) return 'Terminado';
-    const d = Math.floor(diff / 86400000);
-    const h = Math.floor((diff % 86400000) / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    if (d > 0) return `${d}d ${h}h ${m}m`;
-    if (h > 0) return `${h}h ${m}m ${s}s`;
-    return `${m}m ${s}s`;
-  }
-
-  function tiempoParaIniciar(fecha) {
-    const diff = new Date(fecha) - Date.now();
-    if (diff <= 0) return 'Empezando...';
-    const d = Math.floor(diff / 86400000);
-    const h = Math.floor((diff % 86400000) / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    if (d > 0) return `En ${d}d ${h}h`;
-    if (h > 0) return `En ${h}h ${m}m`;
-    return `En ${m} min`;
-  }
-
-  /* ── Actualizar banner del torneo activo ── */
-  async function actualizarBanner() {
-    const lista = await cargarTorneos();
-    const { activos, proximos } = clasificarTorneos(lista);
-    const banner = document.getElementById('torneoBanner');
-    const badge = document.getElementById('torneoBadge');
-    if (!banner) return;
-
-    const torneo = activos[0] || proximos[0];
-    if (!torneo) { banner.style.display = 'none'; return; }
-
-    const esActivo = activos.length > 0 && torneo === activos[0];
-
-    document.getElementById('torneoNombreBanner').textContent = torneo.nombre;
-    document.getElementById('torneoDescBanner').textContent = torneo.descripcion || '';
-    document.getElementById('torneoPremiosBanner').textContent = `🪙 ${torneo.premio_monedas} monedas · ${torneo.premio_trofeo || '🏆'} Trofeo · Título: ${torneo.premio_titulo || ''}`;
-    document.getElementById('torneoEmojiBanner').textContent = torneo.emoji || '🏆';
-    banner.style.display = '';
-
-    if (badge) { badge.style.display = esActivo ? 'flex' : 'none'; }
-
-    HKT.torneoActivo = esActivo ? torneo : null;
-
-    /* Cuenta atrás en tiempo real */
-    if (HKT.cuentaAtras) clearInterval(HKT.cuentaAtras);
-    HKT.cuentaAtras = setInterval(() => {
-      const el = document.getElementById('torneoCountdownBanner');
-      if (!el) return;
-      if (esActivo) {
-        el.textContent = '⏱ ' + tiempoRestante(torneo.fin);
-      } else {
-        el.textContent = tiempoParaIniciar(torneo.inicio);
-      }
-    }, 1000);
-  }
-
-  /* ── Cargar ranking de un torneo ── */
-  async function cargarRankingTorneo(torneoId) {
-    const c = sb();
-    if (!c) return [];
-    try {
-      const { data, error } = await c.from('participaciones_torneo')
-        .select('usuario_id,nombre_usuario,avatar,puntaje,actualizado_en')
-        .eq('torneo_id', torneoId)
-        .order('puntaje', { ascending: false })
-        .limit(50);
-      if (error) return [];
-      return data || [];
-    } catch(e) { return []; }
-  }
-
-  /* ── Guardar/actualizar puntaje en torneo activo ── */
-  async function registrarPuntajeTorneo(torneoId, puntaje) {
-    if (!sesion()) return;
-    const c = sb();
-    if (!c) return;
-    try {
-      const actual = await c.from('participaciones_torneo')
-        .select('puntaje').eq('torneo_id', torneoId).eq('usuario_id', miId()).maybeSingle();
-
-      const puntajeActual = (actual && actual.data && actual.data.puntaje) || 0;
-      if (puntaje <= puntajeActual) return; // solo guardar si es mejor
-
-      await c.from('participaciones_torneo').upsert({
-        torneo_id: torneoId,
-        usuario_id: miId(),
-        nombre_usuario: miNombre(),
-        avatar: miAvatar(),
-        puntaje: puntaje,
-        actualizado_en: new Date().toISOString()
-      }, { onConflict: 'torneo_id,usuario_id' });
-
-      toast(`🏆 ¡Nuevo récord en torneo! ${puntaje} pts`);
-    } catch(e) { console.warn('registrarPuntajeTorneo:', e); }
-  }
-  window.hkRegistrarPuntajeTorneo = registrarPuntajeTorneo;
-
-  /* ── Hook automático: cada vez que el jugador termina un juego ──
-     Intercepta saveRecord para detectar si hay torneo activo del mismo juego */
-  const _saveRecordOriginal = window.saveRecord;
-  window.saveRecord = function(gameId, value, cmp) {
-    const result = typeof _saveRecordOriginal === 'function' ? _saveRecordOriginal(gameId, value, cmp) : value;
-    // Si hay torneo activo y es del mismo juego, registrar
-    if (HKT.torneoActivo && HKT.torneoActivo.juego_id === gameId && sesion()) {
-      if (value > 0) {
-        registrarPuntajeTorneo(HKT.torneoActivo.id, value);
-        // Mostrar banner de torneo dentro del juego
-        mostrarNotifTorneo(value);
-      }
-    }
-    return result;
-  };
-
-  function mostrarNotifTorneo(puntaje) {
-    const box = document.createElement('div');
-    box.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#1a0533,#7C3AED);color:#FFD600;padding:10px 20px;border-radius:20px;font-weight:800;font-size:0.88rem;z-index:6500;box-shadow:0 6px 20px rgba(124,58,237,0.6);font-family:Nunito,sans-serif;white-space:nowrap;border:2px solid rgba(255,214,0,0.4)';
-    box.textContent = `🏆 Torneo activo · Puntaje registrado: ${puntaje}`;
-    document.body.appendChild(box);
-    setTimeout(() => { box.style.transition = 'opacity 0.4s'; box.style.opacity = '0'; setTimeout(() => box.remove(), 400); }, 2500);
-  }
-
-  /* ══════════════════════════════
-     POWER-UPS (tienda + activación)
-  ══════════════════════════════ */
-  const POWERUPS = [
-    { id: 'pu_escudo',    nombre: '🛡️ Escudo',          desc: 'No pierdas una vida en tu próxima partida', precio: 80,  duracion: 1 },
-    { id: 'pu_doble',     nombre: '⚡ Doble Puntos',     desc: 'El doble de puntos en tu próxima partida',   precio: 120, duracion: 1 },
-    { id: 'pu_vida',      nombre: '❤️ Vida Extra',       desc: 'Una vida adicional en tu próxima partida',   precio: 60,  duracion: 1 },
-    { id: 'pu_tiempo',    nombre: '⏱️ Tiempo Extra',     desc: '+20 segundos en juegos con tiempo',           precio: 100, duracion: 1 },
-    { id: 'pu_iman',      nombre: '🧲 Imán de Monedas',  desc: '2× monedas ganadas por 3 partidas',           precio: 200, duracion: 3 },
+  /* ── Juegos permitidos por defecto para invitados ── */
+  const JUEGOS_DEFAULT_INVITADO = [
+    'snake','breakout','whack','memory','maze','racing','pong',
+    'tictactoe','flappy','catch','jump','simon','2048','reaccion',
+    'platform','defender','dungeon'
   ];
 
-  const _puActivos = {};
-  function getPU(id) {
-    try { const v = localStorage.getItem('hk_pu_' + id); return v ? JSON.parse(v) : null; } catch(e) { return null; }
-  }
-  function setPU(id, usos) {
-    try { localStorage.setItem('hk_pu_' + id, JSON.stringify({ usos, ts: Date.now() })); } catch(e) {}
-  }
-  function tienePU(id) { const p = getPU(id); return p && p.usos > 0; }
-  function usarPU(id) {
-    const p = getPU(id); if (!p || p.usos <= 0) return false;
-    setPU(id, p.usos - 1); return true;
-  }
-
-  window.hkTienePowerUp = tienePU;
-  window.hkUsarPowerUp = usarPU;
-
-  /* ══════════════════════════════
-     RACHA DIARIA
-  ══════════════════════════════ */
-  const RACHA_PREMIOS = [
-    { dias: 1,  monedas: 50,   emoji: '🌟' },
-    { dias: 2,  monedas: 100,  emoji: '⭐' },
-    { dias: 3,  monedas: 150,  emoji: '🎯' },
-    { dias: 4,  monedas: 200,  emoji: '🔥' },
-    { dias: 5,  monedas: 250,  emoji: '💥' },
-    { dias: 6,  monedas: 300,  emoji: '🚀' },
-    { dias: 7,  monedas: 500,  emoji: '👑', avatar_bonus: true },
-  ];
-
-  async function verificarRachaDiaria() {
-    if (!sesion()) return;
+  function getJuegosPermitidos() {
     try {
-      const KEY_RACHA = 'hk_racha_' + miId();
-      const KEY_ULTIMA = 'hk_ultima_visita_' + miId();
-      const hoy = new Date().toDateString();
-      const ultimaVisita = localStorage.getItem(KEY_ULTIMA);
-      if (ultimaVisita === hoy) return; // ya se verificó hoy
-
-      const ayer = new Date(Date.now() - 86400000).toDateString();
-      let racha = parseInt(localStorage.getItem(KEY_RACHA) || '0');
-
-      if (ultimaVisita === ayer) {
-        racha = Math.min(racha + 1, 7); // continuó la racha
-      } else {
-        racha = 1; // racha reiniciada
-      }
-
-      localStorage.setItem(KEY_RACHA, String(racha));
-      localStorage.setItem(KEY_ULTIMA, hoy);
-
-      const premio = RACHA_PREMIOS[racha - 1] || RACHA_PREMIOS[0];
-
-      // Dar monedas
-      if (typeof darRecompensa === 'function') {
-        await darRecompensa(premio.monedas, racha * 5, `Racha día ${racha}`);
-      }
-
-      // Mostrar popup de racha
-      setTimeout(() => mostrarPopupRacha(racha, premio), 2000);
-
-    } catch(e) { console.warn('verificarRachaDiaria:', e); }
+      const v = localStorage.getItem(KEY_JUEGOS_INVITADO);
+      return v ? JSON.parse(v) : JUEGOS_DEFAULT_INVITADO;
+    } catch(e) { return JUEGOS_DEFAULT_INVITADO; }
+  }
+  function setJuegosPermitidos(lista) {
+    try { localStorage.setItem(KEY_JUEGOS_INVITADO, JSON.stringify(lista)); } catch(e) {}
+  }
+  function puedeInvitadoJugarOnline() {
+    try { return localStorage.getItem(KEY_INVITADOS_ONLINE) !== 'no'; } catch(e) { return true; }
   }
 
-  function mostrarPopupRacha(racha, premio) {
-    if (document.getElementById('hkRachaPopup')) return;
-    const dias = RACHA_PREMIOS.map((p, i) => {
-      const completado = i < racha;
-      const esHoy = i === racha - 1;
-      return `<div style="text-align:center;padding:8px 6px;background:${esHoy ? 'rgba(255,214,0,0.2)' : completado ? 'rgba(22,163,74,0.15)' : 'rgba(255,255,255,0.05)'};border-radius:10px;border:${esHoy ? '2px solid #FFD600' : '1px solid rgba(255,255,255,0.1)'}">
-        <div style="font-size:1.2rem">${p.emoji}</div>
-        <div style="font-size:0.65rem;color:${completado ? '#86efac' : '#666'};font-weight:700">Día ${i+1}</div>
-        <div style="font-size:0.7rem;color:#FFD600;font-weight:800">+${p.monedas}🪙</div>
-      </div>`;
-    }).join('');
-
-    const popup = document.createElement('div');
-    popup.id = 'hkRachaPopup';
-    popup.style.cssText = 'position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:20px';
-    popup.innerHTML = `
-      <div style="background:linear-gradient(135deg,#0a0a14,#1a0533);border:2px solid rgba(255,214,0,0.5);border-radius:24px;padding:28px;max-width:400px;width:100%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.6)">
-        <div style="font-size:3rem;margin-bottom:8px">${premio.emoji}</div>
-        <div style="font-family:'Fredoka One',cursive;font-size:1.6rem;color:#FFD600;margin-bottom:4px">¡Racha día ${racha}!</div>
-        <div style="color:#c4b5fd;font-size:0.88rem;margin-bottom:18px">Ganaste <strong style="color:#FFD600">+${premio.monedas} 🪙</strong>${racha >= 7 ? ' · ¡Avatar especial desbloqueado!' : ''}</div>
-        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:18px">${dias}</div>
-        ${racha < 7 ? `<div style="color:#86efac;font-size:0.78rem;margin-bottom:14px">Vuelve mañana para continuar tu racha 🔥 (${7-racha} días más = 👑 recompensa máxima)</div>` : `<div style="color:#FFD600;font-size:0.82rem;margin-bottom:14px;font-weight:800">🎉 ¡Racha máxima completada! Ganaste el avatar 👑</div>`}
-        <button onclick="document.getElementById('hkRachaPopup').remove()" style="background:linear-gradient(135deg,#FFD600,#FF6B00);border:none;color:#1a0533;padding:12px 32px;border-radius:20px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;font-size:1rem">¡Genial! 🎮</button>
-      </div>`;
-    document.body.appendChild(popup);
-    try { SFX.win(); launchConfetti(); } catch(e) {}
+  function esInvitado() {
+    try { return !usuarioActual; } catch(e) { return true; }
   }
+  function esc(v) { return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-  /* ══════════════════════════════
-     MURO DE CAMPEONES
-  ══════════════════════════════ */
-  async function cargarCampeones() {
-    const c = sb();
-    if (!c) return [];
-    try {
-      // Buscar los últimos ganadores (top 1 de torneos pasados)
-      const { data: torneos } = await c.from('torneos')
-        .select('id,nombre,emoji,juego_id').eq('estado', 'finalizado').order('fin', { ascending: false }).limit(5);
-      if (!torneos || !torneos.length) return [];
-
-      const campeones = [];
-      for (const t of torneos) {
-        const { data: top } = await c.from('participaciones_torneo')
-          .select('nombre_usuario,avatar,puntaje')
-          .eq('torneo_id', t.id).order('puntaje', { ascending: false }).limit(1).maybeSingle();
-        if (top) campeones.push({ torneo: t.nombre, emoji: t.emoji, ganador: top });
-      }
-      return campeones;
-    } catch(e) { return []; }
-  }
-
-  /* ══════════════════════════════
-     MODAL PRINCIPAL DE TORNEOS
-  ══════════════════════════════ */
-  window.openTorneos = async function() {
-    stopAllGames();
-    const modal = document.getElementById('modalOverlay');
-    const title = document.getElementById('modalTitle');
-    const body = document.getElementById('modalBody');
-    if (!modal || !body || !title) return;
-    modal.classList.add('open');
-    document.body.style.overflow = 'hidden';
-    try { activeGame = 'torneos'; } catch(e) {}
-    title.textContent = '🥊 Torneos';
-    body.innerHTML = `<div style="background:#0a0a14;min-height:400px;padding:20px;text-align:center;color:#c4b5fd">Cargando torneos...</div>`;
-
-    const lista = await cargarTorneos();
-    const { activos, proximos, pasados } = clasificarTorneos(lista);
-    renderModalTorneos(activos, proximos, pasados, 'activos');
-  };
-
-  function renderModalTorneos(activos, proximos, pasados, tabActual) {
-    const body = document.getElementById('modalBody');
-    if (!body) return;
-
-    const todosOrdenados = [...activos, ...proximos, ...pasados];
-    const torneo = tabActual === 'activos' ? activos[0] : tabActual === 'proximos' ? proximos[0] : pasados[0];
-
-    const tabBtn = (id, label, activ) =>
-      `<button id="hktab_${id}" onclick="window._hkTorneoTab('${id}')" style="flex:1;background:${activ===id?'#7C3AED':'#1a1a2e'};border:none;color:#fff;padding:10px 6px;border-radius:12px;font-weight:800;font-size:0.82rem;cursor:pointer">${label}</button>`;
-
-    body.innerHTML = `
-      <div style="background:#0a0a14;min-height:400px;color:white;padding:18px">
-        <div style="display:flex;gap:6px;margin-bottom:16px">
-          ${tabBtn('activos', `🔥 Activos (${activos.length})`, tabActual)}
-          ${tabBtn('proximos', `📅 Próximos (${proximos.length})`, tabActual)}
-          ${tabBtn('historial', '🏆 Historial', tabActual)}
-          ${tabBtn('powerups', '⚡ Power-Ups', tabActual)}
-          ${tabBtn('racha', '🔥 Racha', tabActual)}
-        </div>
-        <div id="hkTorneoContenido"></div>
-      </div>`;
-
-    window._hkTorneoTab = function(tab) {
-      renderModalTorneos(activos, proximos, pasados, tab);
-    };
-
-    const cont = document.getElementById('hkTorneoContenido');
-    if (!cont) return;
-
-    if (tabActual === 'activos') {
-      if (!activos.length) {
-        cont.innerHTML = `<div style="text-align:center;padding:40px;color:#666">
-          <div style="font-size:3rem;margin-bottom:12px">😴</div>
-          <div style="font-family:'Fredoka One',cursive;font-size:1.2rem;color:#7C3AED">No hay torneos activos ahora</div>
-          <div style="color:#aaa;margin-top:8px;font-size:0.88rem">¡Pero pronto habrá uno! Revisa la pestaña Próximos.</div>
-        </div>`;
-        return;
-      }
-      renderTorneoActivo(cont, activos[0]);
-
-    } else if (tabActual === 'proximos') {
-      if (!proximos.length) {
-        cont.innerHTML = `<div style="text-align:center;padding:40px;color:#666"><div style="font-size:2rem">📭</div><div style="color:#aaa;margin-top:8px">No hay torneos próximos programados.</div></div>`;
-        return;
-      }
-      cont.innerHTML = proximos.map(t => `
-        <div style="background:#13131f;border-radius:16px;padding:16px;margin-bottom:12px;border:1px solid rgba(255,255,255,0.08)">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-            <span style="font-size:2rem">${esc(t.emoji || '🏆')}</span>
-            <div>
-              <div style="font-family:'Fredoka One',cursive;font-size:1.1rem;color:#FFD600">${esc(t.nombre)}</div>
-              <div style="color:#86efac;font-size:0.78rem;font-weight:700">Inicia ${tiempoParaIniciar(t.inicio)}</div>
-            </div>
-          </div>
-          <div style="color:#c4b5fd;font-size:0.82rem;margin-bottom:8px">${esc(t.descripcion || '')}</div>
-          <div style="background:rgba(255,214,0,0.1);border-radius:10px;padding:8px 12px;font-size:0.8rem;color:#FFD600;font-weight:800">
-            Premio: 🪙 ${t.premio_monedas} monedas · ${t.premio_trofeo || '🏆'} · "${t.premio_titulo || ''}"
-          </div>
-        </div>`).join('');
-
-    } else if (tabActual === 'historial') {
-      renderHistorial(cont, pasados);
-
-    } else if (tabActual === 'powerups') {
-      renderPowerUps(cont);
-
-    } else if (tabActual === 'racha') {
-      renderRacha(cont);
-    }
-  }
-
-  function renderTorneoActivo(cont, torneo) {
-    const miUsr = sesion();
-    const tiempoFin = tiempoRestante(torneo.fin);
-
-    cont.innerHTML = `
-      <div style="background:linear-gradient(135deg,#1a0533,#2d0a6b);border:2px solid rgba(255,214,0,0.4);border-radius:20px;padding:20px;margin-bottom:16px">
-        <div style="text-align:center;margin-bottom:14px">
-          <div style="font-size:3rem">${esc(torneo.emoji || '🏆')}</div>
-          <div style="font-family:'Fredoka One',cursive;font-size:1.4rem;color:#FFD600;margin:4px 0">${esc(torneo.nombre)}</div>
-          <div style="color:#c4b5fd;font-size:0.84rem;margin-bottom:10px">${esc(torneo.descripcion || '')}</div>
-          <div id="hkCountdownTorneo" style="font-family:'Fredoka One',cursive;font-size:1.1rem;color:#ff6b6b">⏱ ${tiempoFin}</div>
-        </div>
-        <div style="background:rgba(255,214,0,0.1);border-radius:12px;padding:12px;text-align:center;margin-bottom:16px">
-          <div style="color:#FFD600;font-weight:800;font-size:0.9rem">🏆 Premios para el ganador</div>
-          <div style="color:#fff;font-size:0.84rem;margin-top:4px">🪙 ${torneo.premio_monedas} monedas · ${torneo.premio_trofeo || '🏆'} Trofeo</div>
-          <div style="color:#c4b5fd;font-size:0.8rem">Título exclusivo: "${esc(torneo.premio_titulo || '')}"</div>
-        </div>
-        ${miUsr
-          ? `<button onclick="window._hkJugarTorneo('${esc(torneo.juego_id)}','${esc(torneo.id)}')" style="width:100%;background:linear-gradient(135deg,#FFD600,#FF6B00);border:none;color:#1a0533;padding:14px;border-radius:14px;font-weight:800;font-size:1rem;cursor:pointer;font-family:Nunito,sans-serif">🎮 ¡Jugar ahora!</button>`
-          : `<div style="background:rgba(255,255,255,0.07);border-radius:12px;padding:12px;text-align:center">
-               <div style="color:#FFD600;font-weight:800;margin-bottom:8px">🔐 Necesitas una cuenta para participar</div>
-               <button onclick="closeModal();openCuenta()" style="background:#16A34A;border:none;color:#fff;padding:10px 24px;border-radius:12px;font-weight:800;cursor:pointer">Crear cuenta gratis</button>
-             </div>`}
-      </div>
-      <div style="font-family:'Fredoka One',cursive;font-size:1.1rem;color:#fff;margin-bottom:10px">📊 Ranking en vivo</div>
-      <div id="hkRankingVivo" style="min-height:80px">
-        <div style="text-align:center;color:#666;padding:20px">Cargando ranking...</div>
-      </div>`;
-
-    // Countdown del torneo
-    const cdEl = document.getElementById('hkCountdownTorneo');
-    if (cdEl) {
-      const iv = setInterval(() => {
-        if (!document.getElementById('hkCountdownTorneo')) { clearInterval(iv); return; }
-        document.getElementById('hkCountdownTorneo').textContent = '⏱ ' + tiempoRestante(torneo.fin);
-      }, 1000);
-    }
-
-    // Botón jugar
-    window._hkJugarTorneo = function(juegoId, torneoId) {
-      HKT.torneoActivo = torneo;
-      try { closeModal(); } catch(e) {}
-      setTimeout(() => {
-        try { openGame(juegoId); }
-        catch(e) { toast('Abriendo ' + juegoId + '...'); }
-        toast('🏆 Torneo activo · Tu mejor puntaje se registrará automáticamente');
-      }, 300);
-    };
-
-    // Cargar ranking
-    cargarRankingTorneo(torneo.id).then(ranking => {
-      const cont2 = document.getElementById('hkRankingVivo');
-      if (!cont2) return;
-      if (!ranking.length) {
-        cont2.innerHTML = '<div style="text-align:center;color:#666;padding:16px">Aún no hay participantes. ¡Sé el primero!</div>';
-        return;
-      }
-      const medallas = ['🥇','🥈','🥉'];
-      const miUID = miId();
-      cont2.innerHTML = ranking.map((p, i) => {
-        const esMio = p.usuario_id === miUID;
-        return `<div style="display:flex;align-items:center;gap:10px;background:${esMio ? 'rgba(22,163,74,0.15)' : 'rgba(255,255,255,0.04)'};border:${esMio ? '1px solid #16A34A' : '1px solid transparent'};border-radius:12px;padding:10px;margin-bottom:6px">
-          <div style="font-size:1.1rem;width:28px;text-align:center">${i < 3 ? medallas[i] : (i+1)}</div>
-          <span style="font-size:1.3rem">${esc(p.avatar || '👤')}</span>
-          <div style="flex:1;min-width:0">
-            <div style="color:#fff;font-weight:800;font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.nombre_usuario || 'Jugador')} ${esMio ? '(tú)' : ''}</div>
-          </div>
-          <div style="color:#FFD600;font-weight:800;font-size:0.9rem">${p.puntaje} pts</div>
-        </div>`;
-      }).join('');
-    });
-  }
-
-  async function renderHistorial(cont, pasados) {
-    cont.innerHTML = '<div style="text-align:center;color:#666;padding:20px">Cargando historial...</div>';
-    const campeones = await cargarCampeones();
-
-    if (!pasados.length && !campeones.length) {
-      cont.innerHTML = '<div style="text-align:center;color:#666;padding:30px"><div style="font-size:2rem;margin-bottom:8px">📭</div>Aún no hay torneos terminados.</div>';
+  /* ── Interceptar darRecompensa: invitados NO ganan monedas ── */
+  const _darOrig = window.darRecompensa;
+  window.darRecompensa = async function(monedas, puntos, motivo) {
+    if (esInvitado()) {
+      /* Mostrar banner de invitación a crear cuenta */
+      mostrarBannerInvitado(monedas, puntos);
       return;
     }
-
-    const lista = campeones.length ? campeones : pasados.map(t => ({ torneo: t.nombre, emoji: t.emoji, ganador: null }));
-    cont.innerHTML = `
-      <div style="font-family:'Fredoka One',cursive;font-size:1.1rem;color:#FFD600;margin-bottom:12px">🏆 Muro de Campeones</div>
-      ${lista.map(c => `
-        <div style="background:#13131f;border-radius:14px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px">
-          <span style="font-size:2rem">${esc(c.emoji || '🏆')}</span>
-          <div style="flex:1;min-width:0">
-            <div style="color:#fff;font-weight:800;font-size:0.9rem;margin-bottom:2px">${esc(c.torneo)}</div>
-            ${c.ganador
-              ? `<div style="display:flex;align-items:center;gap:6px">
-                   <span style="font-size:1.1rem">${esc(c.ganador.avatar || '👤')}</span>
-                   <span style="color:#86efac;font-size:0.82rem;font-weight:700">${esc(c.ganador.nombre_usuario)}</span>
-                   <span style="color:#FFD600;font-size:0.78rem;font-weight:800">· ${c.ganador.puntaje} pts</span>
-                 </div>`
-              : `<div style="color:#666;font-size:0.78rem">Sin ganador registrado</div>`}
-          </div>
-          <div style="font-size:1.5rem">🥇</div>
-        </div>`).join('')}`;
-  }
-
-  function renderPowerUps(cont) {
-    const miUsr = sesion();
-    cont.innerHTML = `
-      <div style="background:rgba(124,58,237,0.15);border-radius:14px;padding:12px;margin-bottom:16px;text-align:center">
-        <div style="color:#c4b5fd;font-size:0.84rem">Los power-ups te dan ventajas por 1 partida. Se activan automáticamente al inicio del juego.</div>
-        <div style="color:#FFD600;font-weight:800;font-size:0.9rem;margin-top:6px">🪙 Tus monedas: ${miMonedas()}</div>
-      </div>
-      ${!miUsr ? `<div style="text-align:center;padding:20px;color:#666">🔐 Necesitas cuenta para comprar power-ups.<br><button onclick="closeModal();openCuenta()" style="margin-top:10px;background:#16A34A;border:none;color:#fff;padding:10px 20px;border-radius:12px;font-weight:800;cursor:pointer">Crear cuenta</button></div>` :
-      POWERUPS.map(pu => {
-        const tengo = tienePU(pu.id);
-        const usos = tengo ? getPU(pu.id).usos : 0;
-        return `<div style="background:#13131f;border-radius:14px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px">
-          <div style="flex:1;min-width:0">
-            <div style="color:#fff;font-weight:800;margin-bottom:2px">${esc(pu.nombre)}</div>
-            <div style="color:#c4b5fd;font-size:0.78rem">${esc(pu.desc)}</div>
-            ${tengo ? `<div style="color:#86efac;font-size:0.75rem;font-weight:700;margin-top:2px">✅ Tienes ${usos} uso${usos !== 1 ? 's' : ''}</div>` : ''}
-          </div>
-          ${tengo
-            ? `<div style="background:#16A34A;color:#fff;padding:6px 12px;border-radius:10px;font-weight:800;font-size:0.8rem">✅ Activo</div>`
-            : `<button data-compraru="${pu.id}" data-precio="${pu.precio}" data-usos="${pu.duracion}" style="background:#FFD600;border:none;color:#3a2700;padding:8px 14px;border-radius:10px;font-weight:800;cursor:pointer;font-size:0.8rem;white-space:nowrap">🪙 ${pu.precio}</button>`}
-        </div>`;
-      }).join('')}`;
-
-    cont.querySelectorAll('button[data-compraru]').forEach(btn => {
-      btn.onclick = async () => {
-        const id = btn.dataset.compraru;
-        const precio = parseInt(btn.dataset.precio);
-        const usos = parseInt(btn.dataset.usos);
-        if (miMonedas() < precio) { toast('❌ No tienes suficientes monedas'); return; }
-        const ok = typeof gastarMonedas === 'function' ? await gastarMonedas(precio, id) : false;
-        if (ok) {
-          setPU(id, usos);
-          toast('✅ Power-up activado para tu próxima partida');
-          renderModalTorneos([], [], [], 'powerups');
-        }
-      };
-    });
-  }
-
-  function renderRacha(cont) {
-    const miUsr = sesion();
-    const KEY_RACHA = miUsr ? ('hk_racha_' + miId()) : 'hk_racha_guest';
-    const KEY_ULTIMA = miUsr ? ('hk_ultima_visita_' + miId()) : 'hk_ultima_visita_guest';
-    const racha = parseInt(localStorage.getItem(KEY_RACHA) || '0');
-    const ultimaVisita = localStorage.getItem(KEY_ULTIMA);
-    const hoy = new Date().toDateString();
-    const visitoHoy = ultimaVisita === hoy;
-
-    cont.innerHTML = `
-      <div style="text-align:center;margin-bottom:20px">
-        <div style="font-size:3rem;margin-bottom:8px">🔥</div>
-        <div style="font-family:'Fredoka One',cursive;font-size:1.4rem;color:#FFD600">${racha > 0 ? `¡Racha de ${racha} día${racha !== 1 ? 's' : ''}!` : 'Empieza tu racha hoy'}</div>
-        <div style="color:#c4b5fd;font-size:0.84rem;margin-top:4px">${visitoHoy ? '✅ Ya recogiste tu recompensa de hoy' : '¡Entra todos los días para ganar monedas!'}</div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:20px">
-        ${RACHA_PREMIOS.map((p, i) => {
-          const completado = i < racha;
-          const esHoy = i === racha - 1 && visitoHoy;
-          return `<div style="text-align:center;padding:10px 4px;background:${esHoy ? 'rgba(255,214,0,0.2)' : completado ? 'rgba(22,163,74,0.15)' : 'rgba(255,255,255,0.04)'};border-radius:10px;border:${esHoy ? '2px solid #FFD600' : '1px solid rgba(255,255,255,0.08)'}">
-            <div style="font-size:1.3rem">${p.emoji}</div>
-            <div style="font-size:0.62rem;color:${completado ? '#86efac' : '#666'};font-weight:700">Día ${i+1}</div>
-            <div style="font-size:0.7rem;color:#FFD600;font-weight:800">+${p.monedas}🪙</div>
-            ${p.avatar_bonus ? `<div style="font-size:0.58rem;color:#c4b5fd">+👑</div>` : ''}
-          </div>`;
-        }).join('')}
-      </div>
-      <div style="background:#13131f;border-radius:14px;padding:14px">
-        <div style="color:#fff;font-weight:800;margin-bottom:6px">¿Cómo funciona?</div>
-        <div style="color:#c4b5fd;font-size:0.82rem;line-height:1.7">
-          • Entra a HugoKids todos los días<br>
-          • Cada día consecutivo aumenta tu racha<br>
-          • Si un día no entras, la racha se reinicia<br>
-          • Día 7: ganas 👑 500🪙 + avatar especial<br>
-          • Necesitas cuenta para guardar tu racha
-        </div>
-      </div>`;
-  }
-
-  /* ══════════════════════════════
-     HOOK: registrar puntaje en torneo al ganar CUALQUIER juego
-     El hook en saveRecord ya lo hace. Aquí reforzamos para juegos que
-     usan darRecompensa directamente.
-  ══════════════════════════════ */
-  const _darRecompensaOriginal = window.darRecompensa;
-  window.darRecompensa = async function(monedas, puntos, motivo) {
-    if (typeof _darRecompensaOriginal === 'function') {
-      await _darRecompensaOriginal(monedas, puntos, motivo);
-    }
-    // Si hay torneo activo, refrescar ranking
-    if (HKT.torneoActivo && sesion()) {
-      // El hook de saveRecord ya manejó el registro del puntaje;
-      // aquí solo actualizamos el indicador visual si el modal está abierto
-      const rankEl = document.getElementById('hkRankingVivo');
-      if (rankEl) {
-        cargarRankingTorneo(HKT.torneoActivo.id).then(ranking => {
-          if (!document.getElementById('hkRankingVivo')) return;
-          if (!ranking.length) return;
-          const medallas = ['🥇','🥈','🥉'];
-          const miUID = miId();
-          document.getElementById('hkRankingVivo').innerHTML = ranking.map((p, i) => {
-            const esMio = p.usuario_id === miUID;
-            return `<div style="display:flex;align-items:center;gap:10px;background:${esMio ? 'rgba(22,163,74,0.15)' : 'rgba(255,255,255,0.04)'};border-radius:12px;padding:10px;margin-bottom:6px">
-              <div style="font-size:1.1rem;width:28px;text-align:center">${i < 3 ? medallas[i] : (i+1)}</div>
-              <span style="font-size:1.3rem">${esc(p.avatar || '👤')}</span>
-              <div style="flex:1;min-width:0"><div style="color:#fff;font-weight:800;font-size:0.88rem">${esc(p.nombre_usuario)} ${esMio ? '(tú)' : ''}</div></div>
-              <div style="color:#FFD600;font-weight:800">${p.puntaje} pts</div>
-            </div>`;
-          }).join('');
-        });
-      }
-    }
+    if (typeof _darOrig === 'function') return _darOrig(monedas, puntos, motivo);
   };
 
-  /* ══════════════════════════════
-     INIT: arrancar todo al cargar
-  ══════════════════════════════ */
-  function init() {
-    // Banner del torneo activo
-    setTimeout(actualizarBanner, 2000);
-    setInterval(actualizarBanner, 5 * 60 * 1000); // refrescar cada 5 min
+  function mostrarBannerInvitado(monedas, puntos) {
+    if (document.getElementById('hkBannerInvitado')) return;
+    const box = document.createElement('div');
+    box.id = 'hkBannerInvitado';
+    box.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#1a0533,#7C3AED);color:#fff;padding:12px 16px;border-radius:18px;z-index:7000;box-shadow:0 8px 28px rgba(0,0,0,0.5);text-align:center;max-width:92%;width:min(380px,92vw);font-family:Nunito,sans-serif;border:1px solid rgba(255,214,0,0.35)';
+    box.innerHTML = `
+      <div style="font-size:1.5rem;margin-bottom:4px">🪙</div>
+      <div style="font-weight:800;font-size:0.92rem;margin-bottom:2px">Habrías ganado <span style="color:#FFD600">+${monedas}🪙 +${puntos}⭐</span></div>
+      <div style="color:rgba(255,255,255,0.7);font-size:0.78rem;margin-bottom:10px">Los invitados no acumulan recompensas. ¡Crea tu cuenta gratis y guarda todo!</div>
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button onclick="document.getElementById('hkBannerInvitado').remove();openCuenta()" style="background:linear-gradient(135deg,#FFD600,#FF6B00);border:none;color:#1a0533;padding:8px 18px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">✨ Crear cuenta</button>
+        <button onclick="document.getElementById('hkBannerInvitado').remove()" style="background:rgba(255,255,255,0.12);border:none;color:#fff;padding:8px 14px;border-radius:12px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Cerrar</button>
+      </div>`;
+    document.body.appendChild(box);
+    setTimeout(() => { const b = document.getElementById('hkBannerInvitado'); if(b) b.remove(); }, 8000);
+  }
+  window.hkMostrarBannerInvitado = mostrarBannerInvitado;
 
-    // Racha diaria (verificar cuando haya sesión)
-    let rachaChecked = false;
-    const checkRacha = () => {
-      if (rachaChecked || !sesion()) return;
-      rachaChecked = true;
-      setTimeout(verificarRachaDiaria, 3000);
+  /* ── Interceptar openGame: verificar si el juego está permitido ── */
+  const _openGameOrig = window.openGame;
+  window.openGame = function(gameId) {
+    if (!esInvitado()) {
+      /* Usuario registrado: puede jugar todo */
+      if (typeof _openGameOrig === 'function') return _openGameOrig(gameId);
+      return;
+    }
+    /* Es invitado: verificar lista */
+    const permitidos = getJuegosPermitidos();
+    if (!permitidos.includes(gameId)) {
+      /* Juego bloqueado para invitados */
+      mostrarBloqueoPorInvitado(gameId);
+      return;
+    }
+    if (typeof _openGameOrig === 'function') return _openGameOrig(gameId);
+  };
+
+  function mostrarBloqueoPorInvitado(gameId) {
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;padding:20px';
+    box.innerHTML = `
+      <div style="background:linear-gradient(135deg,#0d1117,#1a0533);border:2px solid rgba(124,58,237,0.5);border-radius:22px;padding:26px 22px;max-width:340px;width:100%;text-align:center;font-family:Nunito,sans-serif">
+        <div style="font-size:2.5rem;margin-bottom:8px">🔐</div>
+        <div style="color:#FFD600;font-family:'Fredoka One',cursive;font-size:1.2rem;margin-bottom:8px">Juego para miembros</div>
+        <div style="color:rgba(255,255,255,0.75);font-size:0.84rem;line-height:1.6;margin-bottom:16px">
+          Este juego solo está disponible para usuarios registrados.<br>
+          <span style="color:#86efac">¡Crea tu cuenta gratis</span> para desbloquearlo y ganar monedas, trofeos y más.
+        </div>
+        <div style="display:flex;gap:8px;flex-direction:column">
+          <button onclick="this.closest('[style*=\"z-index:8000\"]').remove();openCuenta()" style="background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:13px;border-radius:14px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;font-size:0.95rem">✨ Crear cuenta gratis</button>
+          <button onclick="this.closest('[style*=\"z-index:8000\"]').remove()" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#aaa;padding:10px;border-radius:14px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Cancelar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(box);
+  }
+
+  /* ── Panel de admin: pestaña de configuración de invitados ── */
+  window.hkRenderAdminInvitados = function(cont) {
+    const todosLosJuegos = typeof window.GAMES_MAP === 'object'
+      ? Object.keys(window.GAMES_MAP)
+      : ['snake','breakout','whack','memory','maze','racing','pong','tictactoe','flappy',
+         'catch','jump','simon','2048','reaccion','platform','defender','dungeon',
+         'sumas','tablas','palabra','regiones','patrios','solar','cuerpo','figuras',
+         'idle','multitud','runner','merge','torre','dungeon'];
+
+    const permitidos = new Set(getJuegosPermitidos());
+    const puedeOnline = puedeInvitadoJugarOnline();
+
+    cont.innerHTML = `
+      <div style="background:#0d1117;color:#fff;font-family:Nunito,sans-serif;padding:4px">
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#1a2233,#0d1117);border:1px solid #1e2535;border-radius:14px;padding:14px;margin-bottom:12px">
+          <div style="font-weight:800;font-size:0.95rem;margin-bottom:4px">👥 Permisos de invitados</div>
+          <div style="color:#666;font-size:0.78rem">Los invitados entran sin cuenta. Controla qué pueden hacer.</div>
+        </div>
+
+        <!-- Toggle online -->
+        <div style="background:#13131f;border:1px solid #1e2535;border-radius:12px;padding:12px;margin-bottom:10px;display:flex;align-items:center;gap:12px">
+          <div style="flex:1">
+            <div style="font-weight:800;font-size:0.88rem">🌐 Invitados en juegos online</div>
+            <div style="color:#666;font-size:0.72rem;margin-top:2px">Si está activo, invitados pueden unirse a partidas online cuando son invitados por un usuario.</div>
+          </div>
+          <label style="cursor:pointer;user-select:none">
+            <input type="checkbox" id="toggleInvOnline" ${puedeOnline?'checked':''} style="display:none">
+            <div id="toggleInvOnlineVis" style="width:46px;height:26px;background:${puedeOnline?'#16A34A':'#333'};border-radius:13px;position:relative;transition:background .2s">
+              <div style="position:absolute;top:3px;left:${puedeOnline?'23px':'3px'};width:20px;height:20px;background:#fff;border-radius:50%;transition:left .2s"></div>
+            </div>
+          </label>
+        </div>
+
+        <!-- Info no ganan recompensas -->
+        <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:10px;margin-bottom:12px;font-size:0.76rem;color:#fbbf24;line-height:1.5">
+          🪙 Los invitados <strong>nunca ganan monedas ni trofeos</strong>, sin importar qué juegos puedan jugar. Se les muestra un banner para que creen su cuenta.
+        </div>
+
+        <!-- Lista de juegos -->
+        <div style="font-weight:800;font-size:0.82rem;color:#aaa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Juegos disponibles para invitados</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;max-height:260px;overflow-y:auto;padding-right:2px" id="adminJuegosGrid">
+          ${todosLosJuegos.map(jid => `
+            <label style="display:flex;align-items:center;gap:8px;background:#13131f;border:1px solid ${permitidos.has(jid)?'#16A34A':'#1e2535'};border-radius:10px;padding:8px 10px;cursor:pointer;transition:border-color .15s">
+              <input type="checkbox" data-jid="${jid}" ${permitidos.has(jid)?'checked':''} style="accent-color:#16A34A;width:15px;height:15px">
+              <span style="color:${permitidos.has(jid)?'#fff':'#666'};font-size:0.78rem;font-weight:${permitidos.has(jid)?'700':'500'}">${jid}</span>
+            </label>`).join('')}
+        </div>
+
+        <!-- Botones masivos -->
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <button id="invPermitirTodos" style="flex:1;background:#15803d;border:none;color:#86efac;padding:8px;border-radius:10px;font-weight:800;font-size:0.76rem;cursor:pointer">✅ Todos</button>
+          <button id="invBloquerarTodos" style="flex:1;background:#7f1d1d;border:none;color:#f87171;padding:8px;border-radius:10px;font-weight:800;font-size:0.76rem;cursor:pointer">❌ Ninguno</button>
+          <button id="invGuardar" style="flex:2;background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:8px;border-radius:10px;font-weight:800;font-size:0.82rem;cursor:pointer">💾 Guardar cambios</button>
+        </div>
+      </div>`;
+
+    /* Toggle online */
+    const togEl = cont.querySelector('#toggleInvOnline');
+    const togVis = cont.querySelector('#toggleInvOnlineVis');
+    if (togEl) togEl.onchange = () => {
+      const on = togEl.checked;
+      try { localStorage.setItem(KEY_INVITADOS_ONLINE, on?'si':'no'); } catch(e) {}
+      togVis.style.background = on ? '#16A34A' : '#333';
+      togVis.querySelector('div').style.left = on ? '23px' : '3px';
     };
-    setTimeout(checkRacha, 2500);
-    setInterval(checkRacha, 10000);
-  }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init, { once: true });
-  } else {
-    init();
-  }
+    /* Permitir / bloquear todos */
+    cont.querySelector('#invPermitirTodos').onclick = () => {
+      cont.querySelectorAll('input[data-jid]').forEach(cb => { cb.checked = true; });
+    };
+    cont.querySelector('#invBloquerarTodos').onclick = () => {
+      cont.querySelectorAll('input[data-jid]').forEach(cb => { cb.checked = false; });
+    };
 
-  /* Exponer globalmente */
-  window.hkTorneos = HKT;
-  window.hkVerificarRacha = verificarRachaDiaria;
-  window.hkActualizarBannerTorneo = actualizarBanner;
+    /* Guardar */
+    cont.querySelector('#invGuardar').onclick = () => {
+      const nueva = [];
+      cont.querySelectorAll('input[data-jid]:checked').forEach(cb => nueva.push(cb.dataset.jid));
+      setJuegosPermitidos(nueva);
+      try { showToast('✅ Permisos de invitados guardados'); } catch(e) {}
+      window.hkRenderAdminInvitados(cont); // re-render
+    };
+  };
+
+  /* ── Añadir pestaña de invitados al panel admin ── */
+  const _renderPanelAdminOrig = window.renderPanelAdmin;
+  window.renderPanelAdmin = async function() {
+    await _renderPanelAdminOrig();
+    /* Añadir pestaña extra si no existe ya */
+    const volver = document.getElementById('volverPanel');
+    if (!volver) return;
+    const footer = volver.closest('div');
+    if (!footer || footer.querySelector('#btnTabInvitados')) return;
+
+    const btnTab = document.createElement('button');
+    btnTab.id = 'btnTabInvitados';
+    btnTab.style.cssText = 'margin-left:14px;background:rgba(124,58,237,0.3);border:1px solid #7C3AED;color:#c4b5fd;padding:5px 12px;border-radius:10px;font-weight:800;font-size:0.78rem;cursor:pointer;font-family:Nunito,sans-serif';
+    btnTab.textContent = '👥 Invitados';
+    footer.appendChild(btnTab);
+
+    btnTab.onclick = () => {
+      const lista = document.getElementById('adminLista');
+      const stats = document.getElementById('adminStats');
+      if (!lista) return;
+      if (lista.dataset.modo === 'invitados') {
+        /* Volver a lista de usuarios */
+        lista.dataset.modo = '';
+        btnTab.textContent = '👥 Invitados';
+        btnTab.style.background = 'rgba(124,58,237,0.3)';
+        if (stats) stats.style.display = '';
+        window.renderPanelAdmin();
+      } else {
+        /* Mostrar panel de invitados */
+        lista.dataset.modo = 'invitados';
+        btnTab.textContent = '← Volver';
+        btnTab.style.background = '#7C3AED';
+        if (stats) stats.style.display = 'none';
+        window.hkRenderAdminInvitados(lista);
+      }
+    };
+  };
+
+  /* ── Exponer configuración globalmente ── */
+  window.hkJuegosInvitado = { getJuegosPermitidos, setJuegosPermitidos, puedeInvitadoJugarOnline };
 
 })();
 </script>
