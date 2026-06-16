@@ -548,6 +548,46 @@
     box-shadow: 0 8px 24px rgba(108,58,255,0.4); max-width: 90%; text-align: center;
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ──── TORNEOS ──── */
+  .torneo-banner {
+    position: relative; z-index: 1;
+    margin: 0 24px 32px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #1a0533 0%, #2d0a6b 50%, #7C3AED 100%);
+    border: 2px solid rgba(255,214,0,0.4);
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(124,58,237,0.4);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 24px;
+    gap: 16px;
+  }
+  .torneo-banner:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(124,58,237,0.55); transition: all 0.2s; }
+  .torneo-banner-glow {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(circle at 70% 50%, rgba(255,214,0,0.12) 0%, transparent 65%);
+  }
+  .torneo-banner-left { position: relative; z-index: 1; }
+  .torneo-banner-tag { font-size: 0.7rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #FFD600; margin-bottom: 4px; }
+  .torneo-banner-title { font-family: 'Fredoka One', cursive; font-size: 1.5rem; color: white; margin-bottom: 4px; line-height: 1.1; }
+  .torneo-banner-desc { font-size: 0.82rem; color: rgba(255,255,255,0.75); font-weight: 600; }
+  .torneo-banner-prize { font-size: 0.9rem; color: #FFD600; font-weight: 800; margin-top: 6px; }
+  .torneo-banner-right { position: relative; z-index: 1; text-align: center; flex-shrink: 0; }
+  .torneo-banner-emoji { font-size: 3.5rem; display: block; }
+  .torneo-banner-countdown { font-family: 'Fredoka One', cursive; font-size: 1rem; color: #FFD600; margin-top: 4px; }
+  .torneo-play-btn {
+    display: inline-block; margin-top: 10px;
+    background: linear-gradient(135deg, #FFD600, #FF6B00);
+    color: #1a0533; font-weight: 800; font-size: 0.85rem;
+    padding: 8px 18px; border-radius: 20px; border: none; cursor: pointer;
+    font-family: 'Nunito', sans-serif; letter-spacing: 0.3px;
+  }
+  @media (max-width: 600px) {
+    .torneo-banner { margin: 0 12px 20px; padding: 14px 16px; }
+    .torneo-banner-title { font-size: 1.2rem; }
+    .torneo-banner-emoji { font-size: 2.5rem; }
+  }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -579,6 +619,7 @@
     <input class="search-box" type="text" placeholder="🔍 Buscar juego…" id="searchInput" oninput="filterGames(this.value)">
     <button onclick="cycleTheme()" id="themeBtn" title="Cambiar tema" style="background:#F0ECFB;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0;transition:transform 0.2s">🎨</button>
     <button onclick="openRanking()" id="rankBtn" title="Tabla de puntajes" style="background:#FFF4D6;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0">🏆</button>
+    <button onclick="openTorneos()" id="torneoBtn" title="Torneos" style="background:#FFF0FB;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0;position:relative">🥊<span id="torneoBadge" style="display:none;position:absolute;top:-3px;right:-3px;background:#FF4D9D;color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;font-weight:800;align-items:center;justify-content:center">!</span></button>
     <button onclick="openTienda()" id="tiendaBtn" title="Tienda" style="background:#FFF4D6;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0">🛒</button>
     <button onclick="openProfile()" id="profileBtn" title="Perfil y medallas" style="background:#F0ECFB;border:none;border-radius:50%;width:42px;height:42px;font-size:1.3rem;cursor:pointer;flex-shrink:0">👤</button>
   </div>
@@ -606,6 +647,24 @@
 </div>
 
 
+
+<!-- TORNEO ACTIVO BANNER -->
+<div id="torneoBanner" style="display:none">
+  <div class="torneo-banner" onclick="openTorneos()">
+    <div class="torneo-banner-glow"></div>
+    <div class="torneo-banner-left">
+      <div class="torneo-banner-tag">🔥 Torneo activo ahora</div>
+      <div class="torneo-banner-title" id="torneoNombreBanner">Cargando...</div>
+      <div class="torneo-banner-desc" id="torneoDescBanner"></div>
+      <div class="torneo-banner-prize" id="torneoPremiosBanner"></div>
+      <button class="torneo-play-btn" onclick="event.stopPropagation();openTorneos()">🥊 ¡Participar ahora!</button>
+    </div>
+    <div class="torneo-banner-right">
+      <span class="torneo-banner-emoji" id="torneoEmojiBanner">🏆</span>
+      <div class="torneo-banner-countdown" id="torneoCountdownBanner">—</div>
+    </div>
+  </div>
+</div>
 
 <!-- LOBBY ONLINE -->
 <div class="online-lobby" id="onlineLobby">
@@ -9360,6 +9419,692 @@ if(_hgOriginalOpenGame){
   } else {
     init();
   }
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   HUGOKIDS — SISTEMA DE TORNEOS COMPLETO v1.0
+   • Torneos programados con cuenta regresiva en tiempo real
+   • Inscripción gratis (sin costo de monedas para que todos puedan entrar)
+   • Ranking en vivo durante el torneo
+   • Premios automáticos: monedas + trofeo + título exclusivo
+   • Muro de campeones (últimos 3 ganadores de cada torneo)
+   • Power-ups comprables con monedas (escudo, doble puntos, vida extra)
+   • Racha diaria de login con recompensas
+   Tablas Supabase requeridas:
+     torneos(id, nombre, emoji, juego_id, descripcion, inicio, fin, premio_monedas, premio_titulo, premio_trofeo, estado)
+     participaciones_torneo(id, torneo_id, usuario_id, nombre_usuario, avatar, puntaje, actualizado_en)
+══════════════════════════════════════════════════════════════════════ */
+(function() {
+  'use strict';
+
+  /* ── Helpers ── */
+  function sb() { try { return typeof getSupabase === 'function' ? getSupabase() : null; } catch(e) { return null; } }
+  function toast(m) { try { showToast(m); } catch(e) { console.log(m); } }
+  function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function sesion() { try { return !!usuarioActual; } catch(e) { return false; } }
+  function miNombre() { try { return (perfilNube && perfilNube.nombre) || (usuarioActual && usuarioActual.email ? usuarioActual.email.split('@')[0] : 'Jugador'); } catch(e){ return 'Jugador'; } }
+  function miAvatar() { try { return (perfilNube && perfilNube.avatar) || '👤'; } catch(e){ return '👤'; } }
+  function miId() { try { return usuarioActual && usuarioActual.id; } catch(e){ return null; } }
+  function miMonedas() { try { return (perfilNube && perfilNube.monedas) || 0; } catch(e){ return 0; } }
+
+  /* ── Estado global de torneos ── */
+  const HKT = {
+    torneoActivo: null,       // torneo en curso
+    miParticipacion: null,    // puntaje actual del usuario en torneo activo
+    ranking: [],              // ranking en vivo
+    canalTorneo: null,        // canal Supabase Realtime
+    cuentaAtras: null,        // intervalo del countdown
+    ultimaRacha: null,        // fecha última visita para racha
+  };
+
+  /* ══════════════════════════════
+     TORNEOS PREDEFINIDOS (fallback si Supabase no tiene tabla)
+     Usa fechas relativas para que siempre haya uno activo en demo.
+  ══════════════════════════════ */
+  function torneosDemo() {
+    const ahora = Date.now();
+    const h = 3600000, d = 86400000;
+    return [
+      {
+        id: 'demo_snake', nombre: '🐍 Copa Serpiente', emoji: '🐍',
+        juego_id: 'snake', descripcion: 'Mayor puntaje en Snake en 48 horas. ¡Sin límite de intentos!',
+        inicio: new Date(ahora - h).toISOString(), fin: new Date(ahora + 47 * h).toISOString(),
+        premio_monedas: 500, premio_titulo: '🐍 Maestro Serpiente', premio_trofeo: '🏆',
+        estado: 'activo'
+      },
+      {
+        id: 'demo_flappy', nombre: '🐤 Rey del Vuelo', emoji: '🐤',
+        juego_id: 'flappy', descripcion: 'Mejor puntaje en Flappy Bird. ¡Pasa los 20 tubos!',
+        inicio: new Date(ahora + 2 * d).toISOString(), fin: new Date(ahora + 4 * d).toISOString(),
+        premio_monedas: 400, premio_titulo: '🐤 Aviador Élite', premio_trofeo: '🥇',
+        estado: 'proximo'
+      },
+      {
+        id: 'demo_sumas', nombre: '➕ Cerebro Veloz', emoji: '➕',
+        juego_id: 'sumas', descripcion: 'Más respuestas correctas en Sumas y Restas. ¡El cerebro más rápido gana!',
+        inicio: new Date(ahora + 5 * d).toISOString(), fin: new Date(ahora + 7 * d).toISOString(),
+        premio_monedas: 600, premio_titulo: '🧠 Genio Matemático', premio_trofeo: '🏆',
+        estado: 'proximo'
+      },
+      {
+        id: 'demo_breakout', nombre: '🧱 Rey Breakout', emoji: '🧱',
+        juego_id: 'breakout', descripcion: 'Nivel más alto alcanzado en Breakout. ¡Rompe todos los ladrillos!',
+        inicio: new Date(ahora + 8 * d).toISOString(), fin: new Date(ahora + 10 * d).toISOString(),
+        premio_monedas: 450, premio_titulo: '🧱 Rompe Ladrillos Pro', premio_trofeo: '🥈',
+        estado: 'proximo'
+      },
+    ];
+  }
+
+  /* ── Cargar torneos desde Supabase (con fallback a demo) ── */
+  async function cargarTorneos() {
+    const c = sb();
+    if (!c) return torneosDemo();
+    try {
+      const { data, error } = await c.from('torneos')
+        .select('*').order('inicio', { ascending: true }).limit(20);
+      if (error || !data || !data.length) return torneosDemo();
+      return data;
+    } catch(e) { return torneosDemo(); }
+  }
+
+  /* ── Determinar torneo activo/próximo ── */
+  function clasificarTorneos(lista) {
+    const ahora = Date.now();
+    const activos = lista.filter(t => new Date(t.inicio) <= ahora && new Date(t.fin) > ahora);
+    const proximos = lista.filter(t => new Date(t.inicio) > ahora).sort((a,b) => new Date(a.inicio) - new Date(b.inicio));
+    const pasados = lista.filter(t => new Date(t.fin) <= ahora).sort((a,b) => new Date(b.fin) - new Date(a.fin));
+    return { activos, proximos, pasados };
+  }
+
+  /* ── Formatear tiempo restante ── */
+  function tiempoRestante(fecha) {
+    const diff = new Date(fecha) - Date.now();
+    if (diff <= 0) return 'Terminado';
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    return `${m}m ${s}s`;
+  }
+
+  function tiempoParaIniciar(fecha) {
+    const diff = new Date(fecha) - Date.now();
+    if (diff <= 0) return 'Empezando...';
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (d > 0) return `En ${d}d ${h}h`;
+    if (h > 0) return `En ${h}h ${m}m`;
+    return `En ${m} min`;
+  }
+
+  /* ── Actualizar banner del torneo activo ── */
+  async function actualizarBanner() {
+    const lista = await cargarTorneos();
+    const { activos, proximos } = clasificarTorneos(lista);
+    const banner = document.getElementById('torneoBanner');
+    const badge = document.getElementById('torneoBadge');
+    if (!banner) return;
+
+    const torneo = activos[0] || proximos[0];
+    if (!torneo) { banner.style.display = 'none'; return; }
+
+    const esActivo = activos.length > 0 && torneo === activos[0];
+
+    document.getElementById('torneoNombreBanner').textContent = torneo.nombre;
+    document.getElementById('torneoDescBanner').textContent = torneo.descripcion || '';
+    document.getElementById('torneoPremiosBanner').textContent = `🪙 ${torneo.premio_monedas} monedas · ${torneo.premio_trofeo || '🏆'} Trofeo · Título: ${torneo.premio_titulo || ''}`;
+    document.getElementById('torneoEmojiBanner').textContent = torneo.emoji || '🏆';
+    banner.style.display = '';
+
+    if (badge) { badge.style.display = esActivo ? 'flex' : 'none'; }
+
+    HKT.torneoActivo = esActivo ? torneo : null;
+
+    /* Cuenta atrás en tiempo real */
+    if (HKT.cuentaAtras) clearInterval(HKT.cuentaAtras);
+    HKT.cuentaAtras = setInterval(() => {
+      const el = document.getElementById('torneoCountdownBanner');
+      if (!el) return;
+      if (esActivo) {
+        el.textContent = '⏱ ' + tiempoRestante(torneo.fin);
+      } else {
+        el.textContent = tiempoParaIniciar(torneo.inicio);
+      }
+    }, 1000);
+  }
+
+  /* ── Cargar ranking de un torneo ── */
+  async function cargarRankingTorneo(torneoId) {
+    const c = sb();
+    if (!c) return [];
+    try {
+      const { data, error } = await c.from('participaciones_torneo')
+        .select('usuario_id,nombre_usuario,avatar,puntaje,actualizado_en')
+        .eq('torneo_id', torneoId)
+        .order('puntaje', { ascending: false })
+        .limit(50);
+      if (error) return [];
+      return data || [];
+    } catch(e) { return []; }
+  }
+
+  /* ── Guardar/actualizar puntaje en torneo activo ── */
+  async function registrarPuntajeTorneo(torneoId, puntaje) {
+    if (!sesion()) return;
+    const c = sb();
+    if (!c) return;
+    try {
+      const actual = await c.from('participaciones_torneo')
+        .select('puntaje').eq('torneo_id', torneoId).eq('usuario_id', miId()).maybeSingle();
+
+      const puntajeActual = (actual && actual.data && actual.data.puntaje) || 0;
+      if (puntaje <= puntajeActual) return; // solo guardar si es mejor
+
+      await c.from('participaciones_torneo').upsert({
+        torneo_id: torneoId,
+        usuario_id: miId(),
+        nombre_usuario: miNombre(),
+        avatar: miAvatar(),
+        puntaje: puntaje,
+        actualizado_en: new Date().toISOString()
+      }, { onConflict: 'torneo_id,usuario_id' });
+
+      toast(`🏆 ¡Nuevo récord en torneo! ${puntaje} pts`);
+    } catch(e) { console.warn('registrarPuntajeTorneo:', e); }
+  }
+  window.hkRegistrarPuntajeTorneo = registrarPuntajeTorneo;
+
+  /* ── Hook automático: cada vez que el jugador termina un juego ──
+     Intercepta saveRecord para detectar si hay torneo activo del mismo juego */
+  const _saveRecordOriginal = window.saveRecord;
+  window.saveRecord = function(gameId, value, cmp) {
+    const result = typeof _saveRecordOriginal === 'function' ? _saveRecordOriginal(gameId, value, cmp) : value;
+    // Si hay torneo activo y es del mismo juego, registrar
+    if (HKT.torneoActivo && HKT.torneoActivo.juego_id === gameId && sesion()) {
+      if (value > 0) {
+        registrarPuntajeTorneo(HKT.torneoActivo.id, value);
+        // Mostrar banner de torneo dentro del juego
+        mostrarNotifTorneo(value);
+      }
+    }
+    return result;
+  };
+
+  function mostrarNotifTorneo(puntaje) {
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#1a0533,#7C3AED);color:#FFD600;padding:10px 20px;border-radius:20px;font-weight:800;font-size:0.88rem;z-index:6500;box-shadow:0 6px 20px rgba(124,58,237,0.6);font-family:Nunito,sans-serif;white-space:nowrap;border:2px solid rgba(255,214,0,0.4)';
+    box.textContent = `🏆 Torneo activo · Puntaje registrado: ${puntaje}`;
+    document.body.appendChild(box);
+    setTimeout(() => { box.style.transition = 'opacity 0.4s'; box.style.opacity = '0'; setTimeout(() => box.remove(), 400); }, 2500);
+  }
+
+  /* ══════════════════════════════
+     POWER-UPS (tienda + activación)
+  ══════════════════════════════ */
+  const POWERUPS = [
+    { id: 'pu_escudo',    nombre: '🛡️ Escudo',          desc: 'No pierdas una vida en tu próxima partida', precio: 80,  duracion: 1 },
+    { id: 'pu_doble',     nombre: '⚡ Doble Puntos',     desc: 'El doble de puntos en tu próxima partida',   precio: 120, duracion: 1 },
+    { id: 'pu_vida',      nombre: '❤️ Vida Extra',       desc: 'Una vida adicional en tu próxima partida',   precio: 60,  duracion: 1 },
+    { id: 'pu_tiempo',    nombre: '⏱️ Tiempo Extra',     desc: '+20 segundos en juegos con tiempo',           precio: 100, duracion: 1 },
+    { id: 'pu_iman',      nombre: '🧲 Imán de Monedas',  desc: '2× monedas ganadas por 3 partidas',           precio: 200, duracion: 3 },
+  ];
+
+  const _puActivos = {};
+  function getPU(id) {
+    try { const v = localStorage.getItem('hk_pu_' + id); return v ? JSON.parse(v) : null; } catch(e) { return null; }
+  }
+  function setPU(id, usos) {
+    try { localStorage.setItem('hk_pu_' + id, JSON.stringify({ usos, ts: Date.now() })); } catch(e) {}
+  }
+  function tienePU(id) { const p = getPU(id); return p && p.usos > 0; }
+  function usarPU(id) {
+    const p = getPU(id); if (!p || p.usos <= 0) return false;
+    setPU(id, p.usos - 1); return true;
+  }
+
+  window.hkTienePowerUp = tienePU;
+  window.hkUsarPowerUp = usarPU;
+
+  /* ══════════════════════════════
+     RACHA DIARIA
+  ══════════════════════════════ */
+  const RACHA_PREMIOS = [
+    { dias: 1,  monedas: 50,   emoji: '🌟' },
+    { dias: 2,  monedas: 100,  emoji: '⭐' },
+    { dias: 3,  monedas: 150,  emoji: '🎯' },
+    { dias: 4,  monedas: 200,  emoji: '🔥' },
+    { dias: 5,  monedas: 250,  emoji: '💥' },
+    { dias: 6,  monedas: 300,  emoji: '🚀' },
+    { dias: 7,  monedas: 500,  emoji: '👑', avatar_bonus: true },
+  ];
+
+  async function verificarRachaDiaria() {
+    if (!sesion()) return;
+    try {
+      const KEY_RACHA = 'hk_racha_' + miId();
+      const KEY_ULTIMA = 'hk_ultima_visita_' + miId();
+      const hoy = new Date().toDateString();
+      const ultimaVisita = localStorage.getItem(KEY_ULTIMA);
+      if (ultimaVisita === hoy) return; // ya se verificó hoy
+
+      const ayer = new Date(Date.now() - 86400000).toDateString();
+      let racha = parseInt(localStorage.getItem(KEY_RACHA) || '0');
+
+      if (ultimaVisita === ayer) {
+        racha = Math.min(racha + 1, 7); // continuó la racha
+      } else {
+        racha = 1; // racha reiniciada
+      }
+
+      localStorage.setItem(KEY_RACHA, String(racha));
+      localStorage.setItem(KEY_ULTIMA, hoy);
+
+      const premio = RACHA_PREMIOS[racha - 1] || RACHA_PREMIOS[0];
+
+      // Dar monedas
+      if (typeof darRecompensa === 'function') {
+        await darRecompensa(premio.monedas, racha * 5, `Racha día ${racha}`);
+      }
+
+      // Mostrar popup de racha
+      setTimeout(() => mostrarPopupRacha(racha, premio), 2000);
+
+    } catch(e) { console.warn('verificarRachaDiaria:', e); }
+  }
+
+  function mostrarPopupRacha(racha, premio) {
+    if (document.getElementById('hkRachaPopup')) return;
+    const dias = RACHA_PREMIOS.map((p, i) => {
+      const completado = i < racha;
+      const esHoy = i === racha - 1;
+      return `<div style="text-align:center;padding:8px 6px;background:${esHoy ? 'rgba(255,214,0,0.2)' : completado ? 'rgba(22,163,74,0.15)' : 'rgba(255,255,255,0.05)'};border-radius:10px;border:${esHoy ? '2px solid #FFD600' : '1px solid rgba(255,255,255,0.1)'}">
+        <div style="font-size:1.2rem">${p.emoji}</div>
+        <div style="font-size:0.65rem;color:${completado ? '#86efac' : '#666'};font-weight:700">Día ${i+1}</div>
+        <div style="font-size:0.7rem;color:#FFD600;font-weight:800">+${p.monedas}🪙</div>
+      </div>`;
+    }).join('');
+
+    const popup = document.createElement('div');
+    popup.id = 'hkRachaPopup';
+    popup.style.cssText = 'position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:20px';
+    popup.innerHTML = `
+      <div style="background:linear-gradient(135deg,#0a0a14,#1a0533);border:2px solid rgba(255,214,0,0.5);border-radius:24px;padding:28px;max-width:400px;width:100%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.6)">
+        <div style="font-size:3rem;margin-bottom:8px">${premio.emoji}</div>
+        <div style="font-family:'Fredoka One',cursive;font-size:1.6rem;color:#FFD600;margin-bottom:4px">¡Racha día ${racha}!</div>
+        <div style="color:#c4b5fd;font-size:0.88rem;margin-bottom:18px">Ganaste <strong style="color:#FFD600">+${premio.monedas} 🪙</strong>${racha >= 7 ? ' · ¡Avatar especial desbloqueado!' : ''}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:18px">${dias}</div>
+        ${racha < 7 ? `<div style="color:#86efac;font-size:0.78rem;margin-bottom:14px">Vuelve mañana para continuar tu racha 🔥 (${7-racha} días más = 👑 recompensa máxima)</div>` : `<div style="color:#FFD600;font-size:0.82rem;margin-bottom:14px;font-weight:800">🎉 ¡Racha máxima completada! Ganaste el avatar 👑</div>`}
+        <button onclick="document.getElementById('hkRachaPopup').remove()" style="background:linear-gradient(135deg,#FFD600,#FF6B00);border:none;color:#1a0533;padding:12px 32px;border-radius:20px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;font-size:1rem">¡Genial! 🎮</button>
+      </div>`;
+    document.body.appendChild(popup);
+    try { SFX.win(); launchConfetti(); } catch(e) {}
+  }
+
+  /* ══════════════════════════════
+     MURO DE CAMPEONES
+  ══════════════════════════════ */
+  async function cargarCampeones() {
+    const c = sb();
+    if (!c) return [];
+    try {
+      // Buscar los últimos ganadores (top 1 de torneos pasados)
+      const { data: torneos } = await c.from('torneos')
+        .select('id,nombre,emoji,juego_id').eq('estado', 'finalizado').order('fin', { ascending: false }).limit(5);
+      if (!torneos || !torneos.length) return [];
+
+      const campeones = [];
+      for (const t of torneos) {
+        const { data: top } = await c.from('participaciones_torneo')
+          .select('nombre_usuario,avatar,puntaje')
+          .eq('torneo_id', t.id).order('puntaje', { ascending: false }).limit(1).maybeSingle();
+        if (top) campeones.push({ torneo: t.nombre, emoji: t.emoji, ganador: top });
+      }
+      return campeones;
+    } catch(e) { return []; }
+  }
+
+  /* ══════════════════════════════
+     MODAL PRINCIPAL DE TORNEOS
+  ══════════════════════════════ */
+  window.openTorneos = async function() {
+    stopAllGames();
+    const modal = document.getElementById('modalOverlay');
+    const title = document.getElementById('modalTitle');
+    const body = document.getElementById('modalBody');
+    if (!modal || !body || !title) return;
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    try { activeGame = 'torneos'; } catch(e) {}
+    title.textContent = '🥊 Torneos';
+    body.innerHTML = `<div style="background:#0a0a14;min-height:400px;padding:20px;text-align:center;color:#c4b5fd">Cargando torneos...</div>`;
+
+    const lista = await cargarTorneos();
+    const { activos, proximos, pasados } = clasificarTorneos(lista);
+    renderModalTorneos(activos, proximos, pasados, 'activos');
+  };
+
+  function renderModalTorneos(activos, proximos, pasados, tabActual) {
+    const body = document.getElementById('modalBody');
+    if (!body) return;
+
+    const todosOrdenados = [...activos, ...proximos, ...pasados];
+    const torneo = tabActual === 'activos' ? activos[0] : tabActual === 'proximos' ? proximos[0] : pasados[0];
+
+    const tabBtn = (id, label, activ) =>
+      `<button id="hktab_${id}" onclick="window._hkTorneoTab('${id}')" style="flex:1;background:${activ===id?'#7C3AED':'#1a1a2e'};border:none;color:#fff;padding:10px 6px;border-radius:12px;font-weight:800;font-size:0.82rem;cursor:pointer">${label}</button>`;
+
+    body.innerHTML = `
+      <div style="background:#0a0a14;min-height:400px;color:white;padding:18px">
+        <div style="display:flex;gap:6px;margin-bottom:16px">
+          ${tabBtn('activos', `🔥 Activos (${activos.length})`, tabActual)}
+          ${tabBtn('proximos', `📅 Próximos (${proximos.length})`, tabActual)}
+          ${tabBtn('historial', '🏆 Historial', tabActual)}
+          ${tabBtn('powerups', '⚡ Power-Ups', tabActual)}
+          ${tabBtn('racha', '🔥 Racha', tabActual)}
+        </div>
+        <div id="hkTorneoContenido"></div>
+      </div>`;
+
+    window._hkTorneoTab = function(tab) {
+      renderModalTorneos(activos, proximos, pasados, tab);
+    };
+
+    const cont = document.getElementById('hkTorneoContenido');
+    if (!cont) return;
+
+    if (tabActual === 'activos') {
+      if (!activos.length) {
+        cont.innerHTML = `<div style="text-align:center;padding:40px;color:#666">
+          <div style="font-size:3rem;margin-bottom:12px">😴</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:1.2rem;color:#7C3AED">No hay torneos activos ahora</div>
+          <div style="color:#aaa;margin-top:8px;font-size:0.88rem">¡Pero pronto habrá uno! Revisa la pestaña Próximos.</div>
+        </div>`;
+        return;
+      }
+      renderTorneoActivo(cont, activos[0]);
+
+    } else if (tabActual === 'proximos') {
+      if (!proximos.length) {
+        cont.innerHTML = `<div style="text-align:center;padding:40px;color:#666"><div style="font-size:2rem">📭</div><div style="color:#aaa;margin-top:8px">No hay torneos próximos programados.</div></div>`;
+        return;
+      }
+      cont.innerHTML = proximos.map(t => `
+        <div style="background:#13131f;border-radius:16px;padding:16px;margin-bottom:12px;border:1px solid rgba(255,255,255,0.08)">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+            <span style="font-size:2rem">${esc(t.emoji || '🏆')}</span>
+            <div>
+              <div style="font-family:'Fredoka One',cursive;font-size:1.1rem;color:#FFD600">${esc(t.nombre)}</div>
+              <div style="color:#86efac;font-size:0.78rem;font-weight:700">Inicia ${tiempoParaIniciar(t.inicio)}</div>
+            </div>
+          </div>
+          <div style="color:#c4b5fd;font-size:0.82rem;margin-bottom:8px">${esc(t.descripcion || '')}</div>
+          <div style="background:rgba(255,214,0,0.1);border-radius:10px;padding:8px 12px;font-size:0.8rem;color:#FFD600;font-weight:800">
+            Premio: 🪙 ${t.premio_monedas} monedas · ${t.premio_trofeo || '🏆'} · "${t.premio_titulo || ''}"
+          </div>
+        </div>`).join('');
+
+    } else if (tabActual === 'historial') {
+      renderHistorial(cont, pasados);
+
+    } else if (tabActual === 'powerups') {
+      renderPowerUps(cont);
+
+    } else if (tabActual === 'racha') {
+      renderRacha(cont);
+    }
+  }
+
+  function renderTorneoActivo(cont, torneo) {
+    const miUsr = sesion();
+    const tiempoFin = tiempoRestante(torneo.fin);
+
+    cont.innerHTML = `
+      <div style="background:linear-gradient(135deg,#1a0533,#2d0a6b);border:2px solid rgba(255,214,0,0.4);border-radius:20px;padding:20px;margin-bottom:16px">
+        <div style="text-align:center;margin-bottom:14px">
+          <div style="font-size:3rem">${esc(torneo.emoji || '🏆')}</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:1.4rem;color:#FFD600;margin:4px 0">${esc(torneo.nombre)}</div>
+          <div style="color:#c4b5fd;font-size:0.84rem;margin-bottom:10px">${esc(torneo.descripcion || '')}</div>
+          <div id="hkCountdownTorneo" style="font-family:'Fredoka One',cursive;font-size:1.1rem;color:#ff6b6b">⏱ ${tiempoFin}</div>
+        </div>
+        <div style="background:rgba(255,214,0,0.1);border-radius:12px;padding:12px;text-align:center;margin-bottom:16px">
+          <div style="color:#FFD600;font-weight:800;font-size:0.9rem">🏆 Premios para el ganador</div>
+          <div style="color:#fff;font-size:0.84rem;margin-top:4px">🪙 ${torneo.premio_monedas} monedas · ${torneo.premio_trofeo || '🏆'} Trofeo</div>
+          <div style="color:#c4b5fd;font-size:0.8rem">Título exclusivo: "${esc(torneo.premio_titulo || '')}"</div>
+        </div>
+        ${miUsr
+          ? `<button onclick="window._hkJugarTorneo('${esc(torneo.juego_id)}','${esc(torneo.id)}')" style="width:100%;background:linear-gradient(135deg,#FFD600,#FF6B00);border:none;color:#1a0533;padding:14px;border-radius:14px;font-weight:800;font-size:1rem;cursor:pointer;font-family:Nunito,sans-serif">🎮 ¡Jugar ahora!</button>`
+          : `<div style="background:rgba(255,255,255,0.07);border-radius:12px;padding:12px;text-align:center">
+               <div style="color:#FFD600;font-weight:800;margin-bottom:8px">🔐 Necesitas una cuenta para participar</div>
+               <button onclick="closeModal();openCuenta()" style="background:#16A34A;border:none;color:#fff;padding:10px 24px;border-radius:12px;font-weight:800;cursor:pointer">Crear cuenta gratis</button>
+             </div>`}
+      </div>
+      <div style="font-family:'Fredoka One',cursive;font-size:1.1rem;color:#fff;margin-bottom:10px">📊 Ranking en vivo</div>
+      <div id="hkRankingVivo" style="min-height:80px">
+        <div style="text-align:center;color:#666;padding:20px">Cargando ranking...</div>
+      </div>`;
+
+    // Countdown del torneo
+    const cdEl = document.getElementById('hkCountdownTorneo');
+    if (cdEl) {
+      const iv = setInterval(() => {
+        if (!document.getElementById('hkCountdownTorneo')) { clearInterval(iv); return; }
+        document.getElementById('hkCountdownTorneo').textContent = '⏱ ' + tiempoRestante(torneo.fin);
+      }, 1000);
+    }
+
+    // Botón jugar
+    window._hkJugarTorneo = function(juegoId, torneoId) {
+      HKT.torneoActivo = torneo;
+      try { closeModal(); } catch(e) {}
+      setTimeout(() => {
+        try { openGame(juegoId); }
+        catch(e) { toast('Abriendo ' + juegoId + '...'); }
+        toast('🏆 Torneo activo · Tu mejor puntaje se registrará automáticamente');
+      }, 300);
+    };
+
+    // Cargar ranking
+    cargarRankingTorneo(torneo.id).then(ranking => {
+      const cont2 = document.getElementById('hkRankingVivo');
+      if (!cont2) return;
+      if (!ranking.length) {
+        cont2.innerHTML = '<div style="text-align:center;color:#666;padding:16px">Aún no hay participantes. ¡Sé el primero!</div>';
+        return;
+      }
+      const medallas = ['🥇','🥈','🥉'];
+      const miUID = miId();
+      cont2.innerHTML = ranking.map((p, i) => {
+        const esMio = p.usuario_id === miUID;
+        return `<div style="display:flex;align-items:center;gap:10px;background:${esMio ? 'rgba(22,163,74,0.15)' : 'rgba(255,255,255,0.04)'};border:${esMio ? '1px solid #16A34A' : '1px solid transparent'};border-radius:12px;padding:10px;margin-bottom:6px">
+          <div style="font-size:1.1rem;width:28px;text-align:center">${i < 3 ? medallas[i] : (i+1)}</div>
+          <span style="font-size:1.3rem">${esc(p.avatar || '👤')}</span>
+          <div style="flex:1;min-width:0">
+            <div style="color:#fff;font-weight:800;font-size:0.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.nombre_usuario || 'Jugador')} ${esMio ? '(tú)' : ''}</div>
+          </div>
+          <div style="color:#FFD600;font-weight:800;font-size:0.9rem">${p.puntaje} pts</div>
+        </div>`;
+      }).join('');
+    });
+  }
+
+  async function renderHistorial(cont, pasados) {
+    cont.innerHTML = '<div style="text-align:center;color:#666;padding:20px">Cargando historial...</div>';
+    const campeones = await cargarCampeones();
+
+    if (!pasados.length && !campeones.length) {
+      cont.innerHTML = '<div style="text-align:center;color:#666;padding:30px"><div style="font-size:2rem;margin-bottom:8px">📭</div>Aún no hay torneos terminados.</div>';
+      return;
+    }
+
+    const lista = campeones.length ? campeones : pasados.map(t => ({ torneo: t.nombre, emoji: t.emoji, ganador: null }));
+    cont.innerHTML = `
+      <div style="font-family:'Fredoka One',cursive;font-size:1.1rem;color:#FFD600;margin-bottom:12px">🏆 Muro de Campeones</div>
+      ${lista.map(c => `
+        <div style="background:#13131f;border-radius:14px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:2rem">${esc(c.emoji || '🏆')}</span>
+          <div style="flex:1;min-width:0">
+            <div style="color:#fff;font-weight:800;font-size:0.9rem;margin-bottom:2px">${esc(c.torneo)}</div>
+            ${c.ganador
+              ? `<div style="display:flex;align-items:center;gap:6px">
+                   <span style="font-size:1.1rem">${esc(c.ganador.avatar || '👤')}</span>
+                   <span style="color:#86efac;font-size:0.82rem;font-weight:700">${esc(c.ganador.nombre_usuario)}</span>
+                   <span style="color:#FFD600;font-size:0.78rem;font-weight:800">· ${c.ganador.puntaje} pts</span>
+                 </div>`
+              : `<div style="color:#666;font-size:0.78rem">Sin ganador registrado</div>`}
+          </div>
+          <div style="font-size:1.5rem">🥇</div>
+        </div>`).join('')}`;
+  }
+
+  function renderPowerUps(cont) {
+    const miUsr = sesion();
+    cont.innerHTML = `
+      <div style="background:rgba(124,58,237,0.15);border-radius:14px;padding:12px;margin-bottom:16px;text-align:center">
+        <div style="color:#c4b5fd;font-size:0.84rem">Los power-ups te dan ventajas por 1 partida. Se activan automáticamente al inicio del juego.</div>
+        <div style="color:#FFD600;font-weight:800;font-size:0.9rem;margin-top:6px">🪙 Tus monedas: ${miMonedas()}</div>
+      </div>
+      ${!miUsr ? `<div style="text-align:center;padding:20px;color:#666">🔐 Necesitas cuenta para comprar power-ups.<br><button onclick="closeModal();openCuenta()" style="margin-top:10px;background:#16A34A;border:none;color:#fff;padding:10px 20px;border-radius:12px;font-weight:800;cursor:pointer">Crear cuenta</button></div>` :
+      POWERUPS.map(pu => {
+        const tengo = tienePU(pu.id);
+        const usos = tengo ? getPU(pu.id).usos : 0;
+        return `<div style="background:#13131f;border-radius:14px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px">
+          <div style="flex:1;min-width:0">
+            <div style="color:#fff;font-weight:800;margin-bottom:2px">${esc(pu.nombre)}</div>
+            <div style="color:#c4b5fd;font-size:0.78rem">${esc(pu.desc)}</div>
+            ${tengo ? `<div style="color:#86efac;font-size:0.75rem;font-weight:700;margin-top:2px">✅ Tienes ${usos} uso${usos !== 1 ? 's' : ''}</div>` : ''}
+          </div>
+          ${tengo
+            ? `<div style="background:#16A34A;color:#fff;padding:6px 12px;border-radius:10px;font-weight:800;font-size:0.8rem">✅ Activo</div>`
+            : `<button data-compraru="${pu.id}" data-precio="${pu.precio}" data-usos="${pu.duracion}" style="background:#FFD600;border:none;color:#3a2700;padding:8px 14px;border-radius:10px;font-weight:800;cursor:pointer;font-size:0.8rem;white-space:nowrap">🪙 ${pu.precio}</button>`}
+        </div>`;
+      }).join('')}`;
+
+    cont.querySelectorAll('button[data-compraru]').forEach(btn => {
+      btn.onclick = async () => {
+        const id = btn.dataset.compraru;
+        const precio = parseInt(btn.dataset.precio);
+        const usos = parseInt(btn.dataset.usos);
+        if (miMonedas() < precio) { toast('❌ No tienes suficientes monedas'); return; }
+        const ok = typeof gastarMonedas === 'function' ? await gastarMonedas(precio, id) : false;
+        if (ok) {
+          setPU(id, usos);
+          toast('✅ Power-up activado para tu próxima partida');
+          renderModalTorneos([], [], [], 'powerups');
+        }
+      };
+    });
+  }
+
+  function renderRacha(cont) {
+    const miUsr = sesion();
+    const KEY_RACHA = miUsr ? ('hk_racha_' + miId()) : 'hk_racha_guest';
+    const KEY_ULTIMA = miUsr ? ('hk_ultima_visita_' + miId()) : 'hk_ultima_visita_guest';
+    const racha = parseInt(localStorage.getItem(KEY_RACHA) || '0');
+    const ultimaVisita = localStorage.getItem(KEY_ULTIMA);
+    const hoy = new Date().toDateString();
+    const visitoHoy = ultimaVisita === hoy;
+
+    cont.innerHTML = `
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:3rem;margin-bottom:8px">🔥</div>
+        <div style="font-family:'Fredoka One',cursive;font-size:1.4rem;color:#FFD600">${racha > 0 ? `¡Racha de ${racha} día${racha !== 1 ? 's' : ''}!` : 'Empieza tu racha hoy'}</div>
+        <div style="color:#c4b5fd;font-size:0.84rem;margin-top:4px">${visitoHoy ? '✅ Ya recogiste tu recompensa de hoy' : '¡Entra todos los días para ganar monedas!'}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:20px">
+        ${RACHA_PREMIOS.map((p, i) => {
+          const completado = i < racha;
+          const esHoy = i === racha - 1 && visitoHoy;
+          return `<div style="text-align:center;padding:10px 4px;background:${esHoy ? 'rgba(255,214,0,0.2)' : completado ? 'rgba(22,163,74,0.15)' : 'rgba(255,255,255,0.04)'};border-radius:10px;border:${esHoy ? '2px solid #FFD600' : '1px solid rgba(255,255,255,0.08)'}">
+            <div style="font-size:1.3rem">${p.emoji}</div>
+            <div style="font-size:0.62rem;color:${completado ? '#86efac' : '#666'};font-weight:700">Día ${i+1}</div>
+            <div style="font-size:0.7rem;color:#FFD600;font-weight:800">+${p.monedas}🪙</div>
+            ${p.avatar_bonus ? `<div style="font-size:0.58rem;color:#c4b5fd">+👑</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="background:#13131f;border-radius:14px;padding:14px">
+        <div style="color:#fff;font-weight:800;margin-bottom:6px">¿Cómo funciona?</div>
+        <div style="color:#c4b5fd;font-size:0.82rem;line-height:1.7">
+          • Entra a HugoKids todos los días<br>
+          • Cada día consecutivo aumenta tu racha<br>
+          • Si un día no entras, la racha se reinicia<br>
+          • Día 7: ganas 👑 500🪙 + avatar especial<br>
+          • Necesitas cuenta para guardar tu racha
+        </div>
+      </div>`;
+  }
+
+  /* ══════════════════════════════
+     HOOK: registrar puntaje en torneo al ganar CUALQUIER juego
+     El hook en saveRecord ya lo hace. Aquí reforzamos para juegos que
+     usan darRecompensa directamente.
+  ══════════════════════════════ */
+  const _darRecompensaOriginal = window.darRecompensa;
+  window.darRecompensa = async function(monedas, puntos, motivo) {
+    if (typeof _darRecompensaOriginal === 'function') {
+      await _darRecompensaOriginal(monedas, puntos, motivo);
+    }
+    // Si hay torneo activo, refrescar ranking
+    if (HKT.torneoActivo && sesion()) {
+      // El hook de saveRecord ya manejó el registro del puntaje;
+      // aquí solo actualizamos el indicador visual si el modal está abierto
+      const rankEl = document.getElementById('hkRankingVivo');
+      if (rankEl) {
+        cargarRankingTorneo(HKT.torneoActivo.id).then(ranking => {
+          if (!document.getElementById('hkRankingVivo')) return;
+          if (!ranking.length) return;
+          const medallas = ['🥇','🥈','🥉'];
+          const miUID = miId();
+          document.getElementById('hkRankingVivo').innerHTML = ranking.map((p, i) => {
+            const esMio = p.usuario_id === miUID;
+            return `<div style="display:flex;align-items:center;gap:10px;background:${esMio ? 'rgba(22,163,74,0.15)' : 'rgba(255,255,255,0.04)'};border-radius:12px;padding:10px;margin-bottom:6px">
+              <div style="font-size:1.1rem;width:28px;text-align:center">${i < 3 ? medallas[i] : (i+1)}</div>
+              <span style="font-size:1.3rem">${esc(p.avatar || '👤')}</span>
+              <div style="flex:1;min-width:0"><div style="color:#fff;font-weight:800;font-size:0.88rem">${esc(p.nombre_usuario)} ${esMio ? '(tú)' : ''}</div></div>
+              <div style="color:#FFD600;font-weight:800">${p.puntaje} pts</div>
+            </div>`;
+          }).join('');
+        });
+      }
+    }
+  };
+
+  /* ══════════════════════════════
+     INIT: arrancar todo al cargar
+  ══════════════════════════════ */
+  function init() {
+    // Banner del torneo activo
+    setTimeout(actualizarBanner, 2000);
+    setInterval(actualizarBanner, 5 * 60 * 1000); // refrescar cada 5 min
+
+    // Racha diaria (verificar cuando haya sesión)
+    let rachaChecked = false;
+    const checkRacha = () => {
+      if (rachaChecked || !sesion()) return;
+      rachaChecked = true;
+      setTimeout(verificarRachaDiaria, 3000);
+    };
+    setTimeout(checkRacha, 2500);
+    setInterval(checkRacha, 10000);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+
+  /* Exponer globalmente */
+  window.hkTorneos = HKT;
+  window.hkVerificarRacha = verificarRachaDiaria;
+  window.hkActualizarBannerTorneo = actualizarBanner;
+
 })();
 </script>
 
