@@ -334,13 +334,13 @@
     width: 100%; height: 100%;
     border-radius: 0; border-width: 0;
   }
-  .modal-overlay.fs .modal-body { padding: 12px; }
+  .modal-overlay.fs .modal-body { padding: 4px; }
   .modal-header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 16px 20px; border-bottom: 3px solid #F0ECFB;
+    padding: 10px 12px; border-bottom: 2px solid #F0ECFB;
     background: linear-gradient(135deg, var(--primary), var(--secondary));
   }
-  .modal-title { font-family: 'Fredoka One', cursive; font-size: 1.3rem; display: flex; align-items: center; gap: 10px; color: white; }
+  .modal-title { font-family: 'Fredoka One', cursive; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; color: white; }
   .modal-close {
     background: rgba(255,255,255,0.25); border: none; color: white;
     width: 38px; height: 38px; border-radius: 50%; font-size: 1.2rem; font-weight: 800;
@@ -352,7 +352,7 @@
     background: #000; border-radius: 16px; overflow: hidden;
     width: 100%; position: relative;
   }
-  .game-canvas-wrap { display: flex; align-items: center; justify-content: center; min-height: 420px; }
+  .game-canvas-wrap { display: flex; align-items: center; justify-content: center; min-height: 0; }
   canvas { display: block; }
 
   /* ──── SNAKE GAME ──── */
@@ -405,10 +405,10 @@
 
   /* ──── GAME INSTRUCTIONS ──── */
   .game-instructions {
-    margin-top: 16px; padding: 14px 18px;
+    margin-top: 4px; padding: 6px 10px;
     background: rgba(108,58,255,0.08);
     border: 1px solid rgba(108,58,255,0.2);
-    border-radius: 12px; font-size: 0.85rem; color: var(--muted); line-height: 1.6;
+    border-radius: 8px; font-size: 0.75rem; color: var(--muted); line-height: 1.4;
   }
   .game-instructions strong { color: var(--text); }
 
@@ -2218,11 +2218,13 @@ function showToast(msg) {
 
 // ── SCROLL TO GAMES ──
 function scrollToGames() {
-  document.getElementById('gamesSection').scrollIntoView({ behavior:'smooth' });
+  const el = document.getElementById('gamesSection');
+  if (el) el.scrollIntoView({ behavior:'smooth' });
 }
 
 // ── FILTER ──
 function filterCategory(cat, btn, noScroll) {
+  if(!btn) return; // Guard: si btn no existe, salir
   document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   const cards = document.querySelectorAll('.game-card');
@@ -2232,13 +2234,15 @@ function filterCategory(cat, btn, noScroll) {
     card.style.display = show ? '' : 'none';
     if (show) count++;
   });
-  document.getElementById('gameCount').textContent = count + ' juegos';
+  const gameCountEl = document.getElementById('gameCount');
+  if(gameCountEl) gameCountEl.textContent = count + ' juegos';
   // bajar a los juegos para ver el resultado del filtro
   if (!noScroll) {
     const grid = document.getElementById('gamesGrid') || document.getElementById('gamesSection');
     if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
+window.filterCategory = filterCategory;
 
 // Enlaces de la barra superior: filtran igual que los botones de categoría
 function navFilter(cat, link) {
@@ -2285,16 +2289,155 @@ function stopAllGames() {
 function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
 
 // ══════════════════════════════════════════════════════════
-//  SISTEMA DE TIENDA Y POTENCIADORES
+//  HELPER: Habilitar pausa en cualquier juego
 // ══════════════════════════════════════════════════════════
-const HK_PODERES = {
-  escudo: { emoji: '🛡️', nombre: 'Escudo', precio: 50, desc: 'Te protege de 1 obstáculo' },
-  vida: { emoji: '❤️', nombre: 'Vida Extra', precio: 80, desc: 'Ganas una vida extra' },
-  iman: { emoji: '🧲', nombre: 'Imán', precio: 60, desc: 'Atrae todas las monedas' },
-  lento: { emoji: '🐢', nombre: 'Lentitud', precio: 40, desc: 'Los obstáculos van más lento' },
-  doble: { emoji: '✨', nombre: 'Doble Monedas', precio: 70, desc: 'Ganas el doble de monedas' },
-  turbo: { emoji: '⚡', nombre: 'Turbo', precio: 55, desc: 'Velocidad extra' }
+function enableGamePause(gameId, updateFn) {
+  // updateFn debe ser la función del loop/tick del juego
+  // Este helper retorna una función que verifica HK_PAUSED
+  return function wrappedUpdate(...args) {
+    if (window.HK_PAUSED) {
+      return; // No actualizar si está pausado
+    }
+    return updateFn.apply(this, args);
+  };
+}
+
+// ══════════════════════════════════════════════════════════
+//  SISTEMA DE TIENDA Y POTENCIADORES (Premium vs Básicos)
+// ══════════════════════════════════════════════════════════
+
+// Potenciadores BÁSICOS (los que aparecen en el juego)
+const HK_PODERES_BASICOS = {
+  escudo: { emoji: '🛡️', nombre: 'Escudo', desc: 'Te protege 1 obstáculo', duracion: 300 },
+  lentitud: { emoji: '🐢', nombre: 'Lentitud', desc: 'Baja la gravedad', duracion: 300 },
+  turbo: { emoji: '⚡', nombre: 'Turbo', desc: 'Más velocidad', duracion: 300 },
 };
+
+// Potenciadores PREMIUM (mejorados - los de la tienda)
+const HK_PODERES_ALL = {
+  escudo_premium: { 
+    emoji: '🛡️✨', 
+    nombre: 'Escudo Reforzado', 
+    precio: 50, 
+    desc: 'Te protege de 3 obstáculos + regenera cada 10s', 
+    juegos: ['runner','jump','catch','snake','pong','flappy'],
+    duracion: 600,
+    efectos: {vidas: 3, regenera: true}
+  },
+  vida_premium: { 
+    emoji: '❤️✨', 
+    nombre: 'Vida Infinita', 
+    precio: 80, 
+    desc: 'Vidas ilimitadas por 20s', 
+    juegos: ['breakout','pong','catch','whack'],
+    duracion: 600,
+    efectos: {vidasInfinitas: true}
+  },
+  iman_premium: { 
+    emoji: '🧲✨', 
+    nombre: 'Imán Potente', 
+    precio: 60, 
+    desc: 'Atrae monedas en radio 2x + gana 2x más', 
+    juegos: ['runner','catch','treasure','memory'],
+    duracion: 600,
+    efectos: {radioDoble: true, monedasDoble: true}
+  },
+  lentitud_premium: { 
+    emoji: '🐢✨', 
+    nombre: 'Ralentización Total', 
+    precio: 40, 
+    desc: 'Todo 70% más lento + invisible a obstáculos', 
+    juegos: ['runner','flappy','jump','racing','pong'],
+    duracion: 450,
+    efectos: {velocidad: 0.3, invisible: true}
+  },
+  doble_premium: { 
+    emoji: '✨✨', 
+    nombre: 'Multiplicador Épico', 
+    precio: 70, 
+    desc: 'Gana 5x monedas + puntos también se multiplican', 
+    juegos: ['runner','catch','treasure','whack'],
+    duracion: 300,
+    efectos: {monedasX5: true, puntosX5: true}
+  },
+  turbo_premium: { 
+    emoji: '⚡✨', 
+    nombre: 'Turbo Ultrasónico', 
+    precio: 55, 
+    desc: 'Velocidad 2x + doble salto + invencible', 
+    juegos: ['racing','jump','flappy','snake','breakout'],
+    duracion: 450,
+    efectos: {velocidad: 2, doubleSalto: true, invencible: true}
+  },
+  vision_premium: { 
+    emoji: '👁️✨', 
+    nombre: 'Visión Omnisciente', 
+    precio: 45, 
+    desc: 'Ve todo el camino + obstáculos brillan (puedes evitarlos)', 
+    juegos: ['maze','jump','platform'],
+    duracion: 600,
+    efectos: {verTodo: true, obstaculosVisibles: true}
+  },
+  tiempo_premium: { 
+    emoji: '⏱️✨', 
+    nombre: 'Dilatador de Tiempo', 
+    precio: 60, 
+    desc: '30s más + ralentización tiempo 50%', 
+    juegos: ['whack','reaction','simon'],
+    duracion: 300,
+    efectos: {tiempoExtra: 30, ralentiza: true}
+  },
+  fusion: {
+    emoji: '🌟', 
+    nombre: 'Fusión Ultra', 
+    precio: 150, 
+    desc: 'Combina TODOS los beneficios por 15s. El poder definitivo', 
+    juegos: ['runner','jump','catch','snake'],
+    duracion: 300,
+    efectos: {todosBeneficios: true}
+  }
+};
+
+// Obtener poderes filtrados por juego
+function getPoderesPorJuego(gameId) {
+  const poderes = {};
+  Object.entries(HK_PODERES_ALL).forEach(([key, poder]) => {
+    if(poder.juegos.includes(gameId)) {
+      poderes[key] = poder;
+    }
+  });
+  return poderes;
+}
+
+// Activar potenciador premium con efectos personalizados
+window.activarPowerupPremium = function(tipo, duracion) {
+  window.HK_PAUSED = false;
+  const poder = HK_PODERES_ALL[tipo];
+  if (!poder) return;
+  
+  window.HK_POWERUP_ACTIVE = {
+    tipo: tipo,
+    duracion: duracion || poder.duracion,
+    efectos: poder.efectos || {},
+    inicializado: true
+  };
+  
+  showToast(`⭐⭐⭐ ${poder.emoji} ${poder.nombre} ACTIVADO ⭐⭐⭐`);
+  SFX.pop();
+};
+
+// Obtener poderes filtrados por juego
+function getPoderesPorJuego(gameId) {
+  const poderes = {};
+  Object.entries(HK_PODERES_ALL).forEach(([key, poder]) => {
+    if(poder.juegos.includes(gameId)) {
+      poderes[key] = poder;
+    }
+  });
+  return poderes;
+}
+
+const HK_PODERES = HK_PODERES_ALL; // Mantener compatibilidad
 
 function abrirTienda() {
   // Asegurar que el juego ESTÁ pausado
@@ -2303,45 +2446,63 @@ function abrirTienda() {
   const oldShop = document.getElementById('shopModal');
   if (oldShop) oldShop.remove();
   
+  // Obtener poderes del juego actual
+  const gameId = window.activeGame || 'runner';
+  const poderesFiltrados = getPoderesPorJuego(gameId);
+  
+  // Obtener monedas del usuario
+  const monedas = (typeof getMonedas === 'function') ? getMonedas() : 0;
+  
   const shopModal = document.createElement('div');
   shopModal.id = 'shopModal';
   shopModal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;font-family:Nunito,sans-serif;padding:20px;overflow-y:auto';
   
   const content = document.createElement('div');
-  content.style.cssText = 'background:linear-gradient(135deg,#1a0533,#0d0f18);border:2px solid #FFD600;border-radius:24px;padding:24px;max-width:400px;width:100%';
+  content.style.cssText = 'background:linear-gradient(135deg,#1a0533,#0d0f18);border:3px solid #FFD600;border-radius:24px;padding:24px;max-width:420px;width:100%';
   
   content.innerHTML = `
     <div style="text-align:center;margin-bottom:20px">
-      <div style="font-size:2.5rem;margin-bottom:8px">🛒</div>
-      <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.4rem">Tienda de Poderes</div>
-      <div style="color:#FFD600;font-size:0.9rem;margin-top:4px">Mejora tu juego</div>
+      <div style="font-size:2.5rem;margin-bottom:8px">🛒⭐</div>
+      <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.5rem">TIENDA PREMIUM</div>
+      <div style="color:#FFD600;font-size:0.95rem;margin-top:4px;font-weight:800">Potenciadores Mejorados 🔥</div>
+      <div style="color:#fff;font-weight:800;margin-top:12px;font-size:1.1rem;background:rgba(255,214,0,0.15);padding:10px;border-radius:12px">💰 Monedas: <span style="color:#FFD600;font-size:1.3rem">${monedas}</span></div>
     </div>
-    <div id="shopItems" style="display:grid;gap:10px;margin-bottom:20px"></div>
+    <div id="shopItems" style="display:grid;gap:12px;margin-bottom:20px;max-height:400px;overflow-y:auto"></div>
   `;
   
   const itemsContainer = content.querySelector('#shopItems');
   
-  Object.entries(HK_PODERES).forEach(([key, poder]) => {
-    const item = document.createElement('div');
-    item.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center';
-    
-    item.innerHTML = `
-      <div style="flex:1">
-        <div style="font-size:1.5rem;margin-bottom:2px">${poder.emoji}</div>
-        <div style="color:#fff;font-weight:800;font-size:0.9rem">${poder.nombre}</div>
-        <div style="color:#889;font-size:0.75rem">${poder.desc}</div>
-      </div>
-      <button data-poder="${key}" style="background:linear-gradient(135deg,#FFD600,#FFA500);border:none;color:#000;padding:8px 12px;border-radius:8px;font-weight:800;cursor:pointer;font-size:0.85rem;white-space:nowrap;margin-left:10px">💰 ${poder.precio}</button>
-    `;
-    
-    itemsContainer.appendChild(item);
-  });
+  if(Object.keys(poderesFiltrados).length === 0) {
+    itemsContainer.innerHTML = '<div style="color:#889;text-align:center;padding:20px">No hay potenciadores para este juego</div>';
+  } else {
+    Object.entries(poderesFiltrados).forEach(([key, poder]) => {
+      const puedeComprar = monedas >= poder.precio;
+      const item = document.createElement('div');
+      item.style.cssText = `background:linear-gradient(135deg,rgba(124,58,237,0.2),rgba(255,77,157,0.2));border:2px solid ${puedeComprar ? '#FFD600' : '#666'};border-radius:12px;padding:14px;display:flex;gap:12px;align-items:flex-start;opacity:${puedeComprar ? '1' : '0.6'}`;
+      
+      item.innerHTML = `
+        <div style="font-size:2.5rem;line-height:1">${poder.emoji}</div>
+        <div style="flex:1">
+          <div style="color:#FFD600;font-weight:900;font-size:0.95rem">${poder.nombre}</div>
+          <div style="color:#fff;font-size:0.8rem;margin:6px 0;line-height:1.3">${poder.desc}</div>
+          <div style="color:#889;font-size:0.75rem;display:flex;gap:8px">
+            <span>⏱️ ${Math.ceil(poder.duracion/100)}s</span>
+            <span>✨ Premium</span>
+          </div>
+        </div>
+        <button onclick="if(typeof comprarPowerup === 'function') comprarPowerup('${key}')" style="background:linear-gradient(135deg,#FFD600,#FFA500);border:none;color:#000;padding:12px 16px;border-radius:8px;font-weight:900;cursor:${puedeComprar ? 'pointer' : 'not-allowed'};font-size:0.9rem;white-space:nowrap;opacity:${puedeComprar ? '1' : '0.6'};min-width:60px;text-align:center" ${puedeComprar ? '' : 'disabled'}>
+          💰 ${poder.precio}
+        </button>
+      `;
+      
+      itemsContainer.appendChild(item);
+    });
+  }
   
   const btnBack = document.createElement('button');
   btnBack.textContent = '◀️ Volver al Juego';
-  btnBack.style.cssText = 'background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:12px 24px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;width:100%;font-size:1rem';
+  btnBack.style.cssText = 'background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:12px 24px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;width:100%;font-size:1rem;margin-top:12px';
   btnBack.onclick = () => {
-    // Mantener pausa = true hasta que cierren la tienda
     window.HK_PAUSED = false;
     shopModal.remove();
   };
@@ -2349,6 +2510,31 @@ function abrirTienda() {
   content.appendChild(btnBack);
   shopModal.appendChild(content);
   document.body.appendChild(shopModal);
+}
+
+// Función para comprar un potenciador premium
+function comprarPowerup(tipoKey) {
+  const poder = HK_PODERES_ALL[tipoKey];
+  if (!poder) return;
+  
+  const monedas = (typeof getMonedas === 'function') ? getMonedas() : 0;
+  
+  if (monedas < poder.precio) {
+    showToast('❌ No tienes suficientes monedas');
+    return;
+  }
+  
+  // Descontar monedas
+  if (typeof gastarMonedas === 'function') {
+    gastarMonedas(poder.precio);
+  }
+  
+  // Activar el potenciador
+  window.activarPowerupPremium(tipoKey, poder.duracion);
+  
+  // Cerrar tienda
+  const modal = document.getElementById('shopModal');
+  if (modal) modal.remove();
 }
 window.HK_PAUSED = false;
 
@@ -4032,6 +4218,10 @@ function buildSnake(container) {
     </div>`;
   const canvas = document.getElementById('snakeGame');
   const ctx = canvas.getContext('2d');
+  const SNAKE_POWERUPS = {
+    shield: {emoji:'🛡️', effect:'te protege de 1 colisión'},
+    speed: {emoji:'⚡', effect:'velocidad extra'}
+  };
   const CELL = Math.floor(W / 20);
   const COLS = Math.floor(W / CELL), ROWS = Math.floor(W / CELL);
   let snake, dir, food, score, best = getRecord('snake'), running, speed, loopId;
@@ -4053,6 +4243,7 @@ function buildSnake(container) {
     food = pos;
   }
   function tick() {
+    if (window.HK_PAUSED) return;
     if (!running || !document.getElementById('snakeGame')) return;
     const head = {x:snake[0].x+dir.x, y:snake[0].y+dir.y};
     if (head.x<0||head.x>=COLS||head.y<0||head.y>=ROWS||snake.some(s=>s.x===head.x&&s.y===head.y)) {
@@ -4180,6 +4371,7 @@ function buildBreakout(container) {
     animId = registerAnimation(requestAnimationFrame(loop));
   }
   function update() {
+    if (window.HK_PAUSED) return;
     if (keys['ArrowLeft']||keys['a']) paddle.x = Math.max(0, paddle.x-paddle.speed);
     if (keys['ArrowRight']||keys['d']) paddle.x = Math.min(W-paddle.w, paddle.x+paddle.speed);
     ball.x += ball.vx; ball.y += ball.vy;
@@ -4247,6 +4439,7 @@ function buildWhack(container) {
     const btn=document.getElementById('whackBtn'); if(btn) btn.disabled=true;
     for(let i=0;i<9;i++){const h=document.getElementById(`hole${i}`); if(h){h.classList.remove('active','hit'); setText(`mole${i}`,'🕳️');}}
     tick=registerInterval(setInterval(()=>{
+      if (window.HK_PAUSED) return;
       timer--; setText('wTime',timer);
       if(timer<=0){clearInterval(tick);running=false;
         for(let i=0;i<9;i++){const h=document.getElementById(`hole${i}`); if(h){h.classList.remove('active'); setText(`mole${i}`,'🕳️');}}
@@ -4258,7 +4451,7 @@ function buildWhack(container) {
     spawn();
   };
   function spawn() {
-    if(!running || !document.querySelector('.whack-grid')) return;
+    if (window.HK_PAUSED || !running || !document.querySelector('.whack-grid')) return;
     const hole = Math.floor(Math.random()*9);
     const el = document.getElementById(`hole${hole}`);
     if(el && !el.classList.contains('active')) {
@@ -4311,7 +4504,7 @@ function buildMemory(container) {
       d.onclick=()=>flip(d,i);
       grid.appendChild(d); return {el:d,emoji:e};
     });
-    timerInt=registerInterval(setInterval(()=>{ timer++; setText('memTimer',timer); },1000));
+    timerInt=registerInterval(setInterval(()=>{ if (window.HK_PAUSED) return; timer++; setText('memTimer',timer); },1000));
   }
   function flip(el, idx) {
     if(locked||el.classList.contains('flipped')||el.classList.contains('matched')) return;
@@ -5396,7 +5589,8 @@ function buildFlappy(container) {
     animId=registerAnimation(requestAnimationFrame(loop));
   }
   function update(){
-    bird.vy+=GRAV; bird.y+=bird.vy;
+    if (window.HK_PAUSED) return;
+        bird.vy+=GRAV; bird.y+=bird.vy;
     if(bird.y>H-12||bird.y<12){ running=false; end(); return; }
     pipes.forEach(p=>{
       p.x-=2.5;
@@ -5457,7 +5651,8 @@ function buildCatch(container) {
     animId=registerAnimation(requestAnimationFrame(loop));
   }
   function update(){
-    if(keys['ArrowLeft']||keys['a']) basket.x=Math.max(basket.w/2,basket.x-6);
+    if (window.HK_PAUSED) return;
+        if(keys['ArrowLeft']||keys['a']) basket.x=Math.max(basket.w/2,basket.x-6);
     if(keys['ArrowRight']||keys['d']) basket.x=Math.min(W-basket.w/2,basket.x+6);
     spawnT++;
     if(spawnT>40){ spawnT=0; const bomb=Math.random()<0.2; items.push({x:30+Math.random()*(W-60),y:-20,vy:2+Math.random()*2+score*0.02,bomb,e:bomb?'💣':FRUITS[Math.floor(Math.random()*FRUITS.length)]}); }
@@ -5498,69 +5693,261 @@ function buildCatch(container) {
 //  GAME 11: SALTA Y SUBE (JUMP)
 // ═══════════════════════════════════════════
 function buildJump(container) {
-  let W=Math.min(320,window.innerWidth-60), H=Math.round(W*1.4);
-  if (H > maxGameHeight()) { H = maxGameHeight(); W = Math.round(H/1.4); }
+  const W = 300, H = 350;
   container.innerHTML = `
-    <div class="game-container">
-      <div style="padding:12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-weight:800;color:#fff">🦘 Altura: <span id="jumpScore">0</span></span>
-        <span style="font-weight:800;color:#fff">⭐ Best: <span id="jumpBest">0</span></span>
-        <button onclick="window.jumpReset()" style="background:#7C3AED;border:none;color:white;padding:6px 14px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">Reiniciar</button>
+    <div class="game-container" style="background:linear-gradient(180deg,#87CEEB,#E0F6FF);padding:6px;border-radius:8px">
+      <div style="padding:6px;background:rgba(0,0,0,0.2);display:flex;justify-content:space-between;align-items:center;border-radius:6px;margin-bottom:6px;font-size:0.85rem">
+        <span style="color:#fff;font-weight:800">🦘 <span id="jumpLevel">1</span>/5</span>
+        <span style="color:#FFD700;font-weight:800">🏆 <span id="jumpScore">0</span></span>
       </div>
-      <div class="game-canvas-wrap" style="min-height:${H}px"><canvas id="jumpGame" width="${W}" height="${H}"></canvas></div>
+      <canvas id="jumpGame" width="${W}" height="${H}" style="display:block;background:linear-gradient(180deg,#87CEEB,#E0F6FF);width:100%;max-width:100%;border-radius:6px;border:2px solid rgba(0,0,0,0.1)"></canvas>
+      <div style="padding:6px;text-align:center;">
+        <button onclick="window.jumpReset()" style="padding:5px 10px;background:#7C3AED;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:800;font-size:0.85rem">🔄 Reiniciar</button>
+      </div>
     </div>
-    <div class="game-instructions"><strong>Controles:</strong> ← → o inclina/toca lados · Salta sobre las plataformas y sube lo más alto posible!</div>`;
-  const canvas=document.getElementById('jumpGame');
-  const ctx=canvas.getContext('2d');
-  let player,platforms,score,best=getRecord('jump'),running,animId,keys={},camY;
-  setTimeout(()=>setText('jumpBest',best),0);
-  const GRAV=0.35, JUMP=-11;
-  function reset(){
-    player={x:W/2,y:H-80,vy:0,vx:0}; platforms=[]; score=0; running=true; camY=0;
-    for(let i=0;i<8;i++) platforms.push({x:Math.random()*(W-60),y:H-50-i*70,w:60});
-    platforms[0]={x:W/2-30,y:H-50,w:60};
-    setText('jumpScore',0);
-    if(animId) cancelAnimationFrame(animId); loop();
+    <div class="game-instructions" style="font-size:0.8rem;padding:8px">← → esquiva ⚔️🔥❄️ | agarra 🛡️⚡🐢</div>`;
+  
+  const cv = document.getElementById('jumpGame');
+  const ctx = cv.getContext('2d');
+  
+  let player = {x: W/2, y: H-50, vy: 0, vx: 0};
+  let platforms = [];
+  let obstacles = [];
+  let powerups = [];
+  let score = 0, level = 1, running = true, animId = null;
+  let keys = {};
+  
+  // Crear plataformas (más pequeñas y cercanas)
+  for(let i = 0; i < 10; i++) {
+    platforms.push({
+      x: Math.random() * (W-45),
+      y: H - 35 - i*40,
+      w: 45,
+      h: 7
+    });
+    
+    // Agregar obstáculos garantizados
+    if(i % 3 === 0) {
+      obstacles.push({
+        x: platforms[i].x + 30,
+        y: platforms[i].y - 30,
+        type: ['⚔️', '🔥', '❄️', '💣'][i % 4],
+        active: true
+      });
+    }
+    
+    // Potenciadores
+    if(i % 5 === 0) {
+      powerups.push({
+        x: platforms[i].x + 30,
+        y: platforms[i].y - 20,
+        type: ['🛡️', '⚡', '🐢'][i % 3]
+      });
+    }
   }
-  function loop(){
+  
+  platforms[0] = {x: W/2-30, y: H-60, w: 60, h: 10};
+  
+  document.addEventListener('keydown', e => {
+    keys[e.key] = true;
+  });
+  document.addEventListener('keyup', e => {
+    keys[e.key] = false;
+  });
+  window.activeKeyHandlers.push(e => {keys[e.key] = true}, e => {keys[e.key] = false});
+  
+  function update() {
+    if(window.HK_PAUSED) return;
+    
+    // Movimiento
+    if(keys['ArrowLeft'] || keys['a']) player.vx = -4;
+    else if(keys['ArrowRight'] || keys['d']) player.vx = 4;
+    else player.vx *= 0.9;
+    
+    player.x += player.vx;
+    if(player.x < 10) player.x = W - 10;
+    if(player.x > W - 10) player.x = 10;
+    
+    player.vy += 0.35; // gravedad reducida
+    player.y += player.vy;
+    
+    // Colisión plataformas
+    platforms.forEach(p => {
+      if(player.vy > 0 && player.x > p.x && player.x < p.x + p.w && player.y + 15 > p.y && player.y + 15 < p.y + 10) {
+        player.vy = -8.5;
+        SFX.pick();
+      }
+    });
+    
+    // Colisión obstáculos
+    obstacles.forEach((obs, i) => {
+      if(obs.active && Math.hypot(player.x - obs.x, player.y - obs.y) < 20) {
+        running = false;
+        SFX.lose();
+        showToast('💀 ¡Golpeaste un obstáculo!');
+      }
+    });
+    
+    // Colisión potenciadores
+    powerups.forEach((pu, i) => {
+      if(Math.hypot(player.x - pu.x, player.y - pu.y) < 15) {
+        powerups.splice(i, 1);
+        showToast(`⭐ ${pu.type}`);
+        SFX.pop();
+      }
+    });
+    
+    // Cámara
+    if(player.y < H/2) {
+      const dy = H/2 - player.y;
+      player.y = H/2;
+      platforms.forEach(p => p.y += dy);
+      obstacles.forEach(o => o.y += dy);
+      powerups.forEach(pu => pu.y += dy);
+      score += Math.round(dy);
+      
+      // Subir de nivel
+      const levelGoals = [150, 300, 450, 600, 750];
+      if(score >= levelGoals[level-1] && level < 5) {
+        level++;
+        document.getElementById('jumpLevel').textContent = level;
+        
+        // Modal de nivel
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;font-family:Nunito';
+        modal.innerHTML = `<div style="background:#7C3AED;color:#fff;padding:30px;border-radius:15px;text-align:center;border:3px solid #FFD600"><div style="font-size:2.5rem;margin-bottom:10px">⭐</div><div style="font-size:1.8rem;font-weight:900">¡NIVEL ${level}!</div><div style="font-size:0.9rem;margin-top:15px">Meta: ${levelGoals[level-1]}m</div></div>`;
+        document.body.appendChild(modal);
+        setTimeout(() => modal.remove(), 2000);
+      }
+      
+      if(score >= levelGoals[4] && level === 5) {
+        running = false;
+        SFX.point();
+        showToast('🎉 ¡COMPLETASTE LA AVENTURA!');
+        document.getElementById('jumpScore').textContent = score;
+      }
+    }
+    
+    // Caída
+    if(player.y > H) {
+      running = false;
+      SFX.lose();
+    }
+    
+    // Remover plataformas lejanas
+    platforms = platforms.filter(p => p.y < H + 20);
+    
+    // Generar nuevas plataformas
+    while(platforms.length < 7) {
+      const lowestY = Math.min(...platforms.map(p => p.y));
+      platforms.push({
+        x: Math.random() * (W - 45),
+        y: lowestY - 40,
+        w: 45,
+        h: 7
+      });
+      
+      // Agregar obstáculos
+      if(Math.random() < 0.5) {
+        obstacles.push({
+          x: platforms[platforms.length-1].x + 30,
+          y: platforms[platforms.length-1].y - 30,
+          type: ['⚔️', '🔥', '❄️', '💣'][Math.floor(Math.random()*4)],
+          active: true
+        });
+      }
+    }
+  }
+  
+  function draw() {
+    // Fondo
+    const grad = ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0, '#87CEEB');
+    grad.addColorStop(1, '#E0F6FF');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,W,H);
+    
+    // Plataformas
+    ctx.fillStyle = '#00DD88';
+    platforms.forEach(p => {
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.strokeStyle = '#00AA55';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(p.x, p.y, p.w, p.h);
+    });
+    
+    // Obstáculos
+    obstacles.forEach(obs => {
+      if(!obs.active) return;
+      ctx.fillStyle = 'rgba(255,50,50,0.3)';
+      ctx.beginPath();
+      ctx.arc(obs.x, obs.y, 18, 0, Math.PI*2);
+      ctx.fill();
+      ctx.font = '20px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(obs.type, obs.x, obs.y);
+    });
+    
+    // Potenciadores
+    powerups.forEach(pu => {
+      ctx.font = '16px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(pu.type, pu.x, pu.y);
+    });
+    
+    // Jugador
+    ctx.font = '28px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🦘', player.x, player.y);
+    
+    // HUD
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`Nivel: ${level}`, 10, 10);
+    ctx.fillText(`Puntos: ${score}`, 10, 30);
+    
+    if(!running) {
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('GAME OVER', W/2, H/2);
+    }
+  }
+  
+  function loop() {
     if(!document.getElementById('jumpGame')) return;
     if(running) update();
     draw();
-    animId=registerAnimation(requestAnimationFrame(loop));
+    animId = requestAnimationFrame(loop);
   }
-  function update(){
-    if(keys['ArrowLeft']||keys['a']) player.vx=-5;
-    else if(keys['ArrowRight']||keys['d']) player.vx=5;
-    else player.vx*=0.8;
-    player.x+=player.vx;
-    if(player.x<0) player.x=W; if(player.x>W) player.x=0;
-    player.vy+=GRAV; player.y+=player.vy;
-    platforms.forEach(p=>{
-      if(player.vy>0&&player.x+12>p.x&&player.x-12<p.x+p.w&&player.y+18>p.y&&player.y+18<p.y+14){ player.vy=JUMP; }
-    });
-    if(player.y<H/2){ const dy=H/2-player.y; player.y=H/2; platforms.forEach(p=>p.y+=dy); score+=Math.round(dy); setText('jumpScore',score); }
-    platforms=platforms.filter(p=>p.y<H+20);
-    while(platforms.length<8){ const top=Math.min(...platforms.map(p=>p.y)); platforms.push({x:Math.random()*(W-60),y:top-70,w:60}); }
-    if(player.y>H){ running=false; best=saveRecord('jump',score); setText('jumpBest',best); SFX.lose(); showToast('💀 Caíste! Altura: '+score); }
-  }
-  function draw(){
-    const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#7C3AED'); bg.addColorStop(1,'#FF4D9D');
-    ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-    platforms.forEach(p=>{ ctx.fillStyle='#00D68F'; ctx.beginPath(); ctx.roundRect(p.x,p.y,p.w,12,6); ctx.fill(); });
-    ctx.font='28px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('🦘',player.x,player.y);
-    if(!running){ ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#fff'; ctx.font='bold 20px Fredoka One,cursive'; ctx.fillText('Altura: '+score,W/2,H/2); }
-  }
-  function kd(e){keys[e.key]=true;} function ku(e){keys[e.key]=false;}
-  document.addEventListener('keydown',kd); document.addEventListener('keyup',ku);
-  window.activeKeyHandlers.push(kd,ku);
-  canvas.addEventListener('touchstart',e=>{ const tx=e.touches[0].clientX-canvas.getBoundingClientRect().left; if(tx<W/2)keys['ArrowLeft']=true; else keys['ArrowRight']=true; e.preventDefault(); },{passive:false});
-  canvas.addEventListener('touchend',e=>{ keys['ArrowLeft']=false; keys['ArrowRight']=false; e.preventDefault(); },{passive:false});
-  window.jumpReset = reset;
-  container.querySelector('.game-container').appendChild(makeLeftRight((dir, pressed) => {
-    if (dir === 'left') keys['ArrowLeft'] = pressed;
-    else keys['ArrowRight'] = pressed;
-  }));
-  reset();
+  
+  window.jumpReset = () => {
+    player = {x: W/2, y: H-50, vy: 0, vx: 0};
+    platforms = [];
+    obstacles = [];
+    powerups = [];
+    score = 0;
+    level = 1;
+    running = true;
+    document.getElementById('jumpLevel').textContent = '1';
+    document.getElementById('jumpScore').textContent = '0';
+    
+    for(let i = 0; i < 10; i++) {
+      platforms.push({x: Math.random()*(W-45), y: H-35-i*40, w: 45, h: 7});
+      if(i % 3 === 0) obstacles.push({x: platforms[i].x+22, y: platforms[i].y-22, type: ['⚔️','🔥','❄️','💣'][i%4], active: true});
+      if(i % 5 === 0) powerups.push({x: platforms[i].x+22, y: platforms[i].y-15, type: ['🛡️','⚡','🐢'][i%3]});
+    }
+    platforms[0] = {x: W/2-22, y: H-35, w: 45, h: 7};
+  };
+  
+  loop();
 }
 
 // ═══════════════════════════════════════════
@@ -5585,6 +5972,9 @@ function buildSimon(container) {
       </div>
     </div>
     <div class="game-instructions"><strong>Cómo jugar:</strong> Observa la secuencia de colores y repítela en el mismo orden. ¡Cada nivel agrega un color más!</div>`;
+  const MEMORY_POWERUPS = {
+    hint: {emoji:'💡', effect:'muestra una pista'}
+  };
   let seq=[], playerSeq=[], level=0, best=getRecord('simon'), accepting=false;
   setTimeout(()=>setText('simBest',best),0);
   const btns=[...document.querySelectorAll('.sim-btn')];
@@ -5597,7 +5987,7 @@ function buildSimon(container) {
   }
   function next(){ level++; setText('simLevel',level); seq.push(Math.floor(Math.random()*4)); playerSeq=[]; playSeq(); }
   function press(c){
-    if(!accepting) return;
+    if (window.HK_PAUSED || !accepting) return;
     flash(c); playerSeq.push(c);
     const idx=playerSeq.length-1;
     if(playerSeq[idx]!==seq[idx]){ accepting=false; best=saveRecord('simon',level); setText('simBest',best); setText('simStatus','💀 ¡Fallaste! Nivel '+level); SFX.lose(); showToast('💀 Game Over! Nivel '+level); return; }
@@ -5649,7 +6039,7 @@ function build2048(container) {
     }
   }
   function isOver(){ for(let r=0;r<4;r++)for(let c=0;c<4;c++){ if(!grid[r][c]) return false; if(c<3&&grid[r][c]===grid[r][c+1]) return false; if(r<3&&grid[r][c]===grid[r+1][c]) return false; } return true; }
-  function keyHandler(e){ const k={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',a:'left',d:'right',w:'up',s:'down'}[e.key]; if(k){ move(k); e.preventDefault(); } }
+  function keyHandler(e){ if (window.HK_PAUSED) return; const k={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',a:'left',d:'right',w:'up',s:'down'}[e.key]; if(k){ move(k); e.preventDefault(); } }
   document.addEventListener('keydown',keyHandler);
   window.activeKeyHandlers.push(keyHandler);
   const board=document.getElementById('g2Board');
@@ -5908,7 +6298,8 @@ function buildPlatform(container) {
   }
 
   function update() {
-    /* Parallax */
+    if (window.HK_PAUSED) return;
+        /* Parallax */
     parallaxX[0] = (parallaxX[0] - speed*0.15) % W;
     parallaxX[1] = (parallaxX[1] - speed*0.3) % W;
     parallaxX[2] = (parallaxX[2] - speed*0.6) % (W*2);
@@ -8639,6 +9030,7 @@ function buildMultitud(container) {
   }
 
   function update() {
+    if (window.HK_PAUSED) return;
     if (!container.isConnected) return;
     ctx.clearRect(0, 0, W, H);
     // carretera
@@ -9133,14 +9525,9 @@ function hgMostrarFinalNivel(nombre, final, monedas, puntos, siguiente){
   box.querySelector('button').onclick=()=>box.remove(); document.body.appendChild(box);
 }
 
+// COMENTADO: Panel de misión - ahora no se muestra para ahorrar espacio
 function hgMissionPanel(gameId, nombre, objetivo){
-  const n=hgNivelActual(gameId);
-  return `<div style="background:linear-gradient(135deg,#1e1b4b,#4c1d95);color:white;border:2px solid #FFD600;border-radius:18px;padding:14px;margin-bottom:14px;text-align:center">
-    <div style="font-family:'Fredoka One',cursive;font-size:1.2rem">🎯 Misión: ${nombre}</div>
-    <div style="font-weight:800;margin:5px 0">Nivel ${n} de 5</div>
-    <div style="font-size:.9rem;opacity:.9">${objetivo}</div>
-    <div style="margin-top:8px;background:rgba(255,255,255,.18);border-radius:12px;overflow:hidden;height:12px"><div style="background:#FFD600;width:${n*20}%;height:100%"></div></div>
-  </div>`;
+  return ''; // Retorna vacío - no mostrar misión
 }
 
 function openJuegoExtraOnline(id){
