@@ -2269,7 +2269,6 @@ function filterGames(val) {
 window.activeIntervals = [];
 window.activeAnimations = [];
 window.activeKeyHandlers = [];
-window.HK_PAUSED = false;   // bandera global de pausa para todos los juegos
 function registerInterval(id) { window.activeIntervals.push(id); return id; }
 function registerAnimation(id) { window.activeAnimations.push(id); return id; }
 function stopAllGames() {
@@ -2280,208 +2279,133 @@ function stopAllGames() {
   window.activeIntervals = [];
   window.activeAnimations = [];
   window.activeKeyHandlers = [];
-  window.HK_PAUSED = false;
-  if (typeof HK_POWER !== 'undefined') HK_POWER.ocultarBarra();
   if (typeof stopSpeak === 'function') stopSpeak();  // detener lectura en voz alta
 }
-
-// ═══════════════════════════════════════════════════════════════════
-//  SISTEMA UNIVERSAL DE POTENCIADORES + PAUSA + TIENDA EN JUEGO
-//  Se inyecta en cualquier juego con HK_POWER.iniciar(...)
-// ═══════════════════════════════════════════════════════════════════
-const HK_POWER = {
-  // Catálogo de potenciadores (precio en monedas)
-  catalogo: {
-    escudo:    { emoji:'🛡️', nombre:'Escudo',       precio:50,  desc:'Te protege de 1 golpe' },
-    vidaExtra: { emoji:'❤️', nombre:'Vida Extra',    precio:80,  desc:'+1 vida en el juego' },
-    iman:      { emoji:'🧲', nombre:'Imán',          precio:60,  desc:'Atrae monedas cercanas' },
-    lento:     { emoji:'🐢', nombre:'Cámara Lenta',  precio:40,  desc:'Todo va más lento 8s' },
-    doble:     { emoji:'✨', nombre:'Doble Monedas', precio:70,  desc:'x2 monedas por 15s' },
-    turbo:     { emoji:'⚡', nombre:'Turbo',         precio:55,  desc:'Impulso de velocidad' },
-  },
-
-  _juegoActual: null,
-  _onActivar: null,       // callback que el juego define para usar un poder
-  _onPausar: null,        // callback opcional al pausar
-  _onReanudar: null,      // callback opcional al reanudar
-
-  // Inventario: cuántos tiene el jugador de cada poder
-  getInventario() {
-    try {
-      const inv = (perfilNube && perfilNube.power_inv) ? perfilNube.power_inv : null;
-      if (inv) return inv;
-      const ls = localStorage.getItem('hk_power_inv');
-      return ls ? JSON.parse(ls) : {};
-    } catch(e) { return {}; }
-  },
-  setInventario(inv) {
-    try { localStorage.setItem('hk_power_inv', JSON.stringify(inv)); } catch(e){}
-    try {
-      if (perfilNube) perfilNube.power_inv = inv;
-      if (usuarioActual && typeof getSupabase==='function') {
-        const c = getSupabase();
-        if (c) c.from('perfiles').update({ power_inv: inv }).eq('id', usuarioActual.id).then(()=>{},()=>{});
-      }
-    } catch(e){}
-  },
-  tiene(poder) { return (this.getInventario()[poder] || 0) > 0; },
-  consumir(poder) {
-    const inv = this.getInventario();
-    if ((inv[poder]||0) > 0) { inv[poder]--; this.setInventario(inv); this.refrescarBarra(); return true; }
-    return false;
-  },
-  agregar(poder, n=1) {
-    const inv = this.getInventario();
-    inv[poder] = (inv[poder]||0) + n; this.setInventario(inv); this.refrescarBarra();
-  },
-
-  // Iniciar el sistema para un juego. onActivar(poder) lo define cada juego.
-  iniciar(juegoId, onActivar, opts={}) {
-    this._juegoActual = juegoId;
-    this._onActivar = onActivar;
-    this._onPausar = opts.onPausar || null;
-    this._onReanudar = opts.onReanudar || null;
-    this.mostrarBarra();
-  },
-
-  mostrarBarra() {
-    this.ocultarBarra();
-    const barra = document.createElement('div');
-    barra.id = 'hkPowerBar';
-    barra.style.cssText = 'position:fixed;top:8px;right:8px;z-index:6500;display:flex;gap:6px;align-items:center;background:rgba(13,15,24,0.85);backdrop-filter:blur(6px);border:1px solid rgba(124,58,237,0.4);border-radius:16px;padding:6px 8px;box-shadow:0 4px 16px rgba(0,0,0,0.4)';
-    barra.innerHTML = `
-      <button id="hkBtnPausa" title="Pausa" style="background:#7C3AED;border:none;color:#fff;width:34px;height:34px;border-radius:10px;font-size:1rem;cursor:pointer">⏸️</button>
-      <div id="hkPowerSlots" style="display:flex;gap:4px"></div>`;
-    document.body.appendChild(barra);
-    document.getElementById('hkBtnPausa').onclick = () => this.pausar();
-    this.refrescarBarra();
-  },
-
-  ocultarBarra() {
-    const b = document.getElementById('hkPowerBar'); if (b) b.remove();
-    const m = document.getElementById('hkPauseMenu'); if (m) m.remove();
-  },
-
-  refrescarBarra() {
-    const slots = document.getElementById('hkPowerSlots');
-    if (!slots) return;
-    const inv = this.getInventario();
-    const conPoderes = Object.keys(this.catalogo).filter(p => (inv[p]||0) > 0);
-    if (!conPoderes.length) {
-      slots.innerHTML = `<button id="hkBtnTiendaQuick" style="background:#1e2535;border:1px solid #2a3650;color:#FFD600;height:34px;padding:0 10px;border-radius:10px;font-size:0.72rem;font-weight:800;cursor:pointer;white-space:nowrap">🛒 Poderes</button>`;
-      const q = document.getElementById('hkBtnTiendaQuick');
-      if (q) q.onclick = () => this.abrirTienda();
-      return;
-    }
-    slots.innerHTML = conPoderes.map(p => {
-      const it = this.catalogo[p];
-      return `<button class="hkPowerSlot" data-poder="${p}" title="${it.nombre}" style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;height:34px;padding:0 8px;border-radius:10px;font-size:0.9rem;cursor:pointer;position:relative">${it.emoji}<span style="position:absolute;top:-5px;right:-5px;background:#FFD600;color:#3a2700;font-size:0.6rem;font-weight:800;border-radius:8px;padding:0 4px">${inv[p]}</span></button>`;
-    }).join('');
-    slots.querySelectorAll('.hkPowerSlot').forEach(b => {
-      b.onclick = () => {
-        const poder = b.dataset.poder;
-        if (this.consumir(poder)) {
-          if (this._onActivar) this._onActivar(poder);
-          try { showToast(this.catalogo[poder].emoji + ' ¡' + this.catalogo[poder].nombre + ' activado!'); SFX.pick(); } catch(e){}
-        }
-      };
-    });
-  },
-
-  pausar() {
-    window.HK_PAUSED = true;
-    if (this._onPausar) try { this._onPausar(); } catch(e){}
-    const menu = document.createElement('div');
-    menu.id = 'hkPauseMenu';
-    menu.style.cssText = 'position:fixed;inset:0;z-index:7800;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;padding:24px';
-    menu.innerHTML = `
-      <div style="background:linear-gradient(135deg,#1a0533,#0d0f18);border:2px solid rgba(124,58,237,0.5);border-radius:24px;padding:28px 24px;max-width:340px;width:100%;text-align:center;font-family:Nunito,sans-serif">
-        <div style="font-size:3rem;margin-bottom:6px">⏸️</div>
-        <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.5rem;margin-bottom:4px">Pausa</div>
-        <div style="color:#889;font-size:0.82rem;margin-bottom:22px">Tu partida está congelada</div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <button id="hkResumeBtn" style="background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:14px;border-radius:14px;font-weight:800;font-size:1rem;cursor:pointer;font-family:Nunito,sans-serif">▶️ Seguir jugando</button>
-          <button id="hkShopBtn" style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:14px;border-radius:14px;font-weight:800;font-size:1rem;cursor:pointer;font-family:Nunito,sans-serif">🛒 Tienda de poderes</button>
-        </div>
-        <div style="color:#556;font-size:0.72rem;margin-top:14px">🪙 Tienes <span id="hkPauseMonedas">${getMonedas()}</span> monedas</div>
-      </div>`;
-    document.body.appendChild(menu);
-    document.getElementById('hkResumeBtn').onclick = () => this.reanudar();
-    document.getElementById('hkShopBtn').onclick = () => this.abrirTienda();
-  },
-
-  reanudar() {
-    window.HK_PAUSED = false;
-    const m = document.getElementById('hkPauseMenu'); if (m) m.remove();
-    if (this._onReanudar) try { this._onReanudar(); } catch(e){}
-  },
-
-  // Tienda de poderes ENCIMA del juego (el juego sigue pausado)
-  abrirTienda() {
-    const prev = document.getElementById('hkPowerShop'); if (prev) prev.remove();
-    window.HK_PAUSED = true;
-    const inv = this.getInventario();
-    const shop = document.createElement('div');
-    shop.id = 'hkPowerShop';
-    shop.style.cssText = 'position:fixed;inset:0;z-index:7900;background:#0d0f18;display:flex;flex-direction:column;font-family:Nunito,sans-serif';
-    shop.innerHTML = `
-      <div style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-        <div>
-          <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.25rem;line-height:1">🛒 Tienda de Poderes</div>
-          <div style="color:rgba(255,255,255,0.7);font-size:0.72rem">🪙 <span id="hkShopMonedas">${getMonedas()}</span> monedas</div>
-        </div>
-        <button id="hkShopVolver" style="background:rgba(255,255,255,0.18);border:none;color:#fff;padding:9px 14px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif">▶️ Volver al juego</button>
-      </div>
-      <div style="flex:1;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch">
-        <div style="color:#889;font-size:0.8rem;margin-bottom:12px;line-height:1.5">Compra poderes y actívalos durante el juego con los botones de la esquina. 💡 Cada compra agrega 1 al inventario.</div>
-        <div id="hkShopGrid" style="display:flex;flex-direction:column;gap:8px"></div>
-      </div>`;
-    document.body.appendChild(shop);
-    document.getElementById('hkShopVolver').onclick = () => {
-      shop.remove();
-      // Volver al menú de pausa o directo al juego
-      const pm = document.getElementById('hkPauseMenu');
-      if (pm) this.reanudar(); else this.reanudar();
-    };
-    this._pintarTienda();
-  },
-
-  _pintarTienda() {
-    const grid = document.getElementById('hkShopGrid');
-    if (!grid) return;
-    const inv = this.getInventario();
-    grid.innerHTML = Object.keys(this.catalogo).map(p => {
-      const it = this.catalogo[p];
-      const tengo = inv[p] || 0;
-      const puede = getMonedas() >= it.precio;
-      return `<div style="display:flex;align-items:center;gap:12px;background:#13131f;border:1px solid #1e2535;border-radius:14px;padding:12px">
-        <div style="font-size:2rem;flex-shrink:0">${it.emoji}</div>
-        <div style="flex:1;min-width:0">
-          <div style="color:#fff;font-weight:800;font-size:0.95rem">${it.nombre} ${tengo>0?`<span style="color:#86efac;font-size:0.78rem">(tienes ${tengo})</span>`:''}</div>
-          <div style="color:#667;font-size:0.76rem">${it.desc}</div>
-        </div>
-        <button data-comprar="${p}" ${puede?'':'disabled'} style="background:${puede?'linear-gradient(135deg,#16A34A,#2563EB)':'#2a2a35'};border:none;color:#fff;padding:10px 14px;border-radius:12px;font-weight:800;font-size:0.82rem;cursor:${puede?'pointer':'not-allowed'};white-space:nowrap;flex-shrink:0;opacity:${puede?1:0.5}">🪙 ${it.precio}</button>
-      </div>`;
-    }).join('');
-    grid.querySelectorAll('button[data-comprar]').forEach(b => {
-      b.onclick = async () => {
-        const poder = b.dataset.comprar;
-        const precio = this.catalogo[poder].precio;
-        const ok = await gastarMonedas(precio, null);
-        if (ok) {
-          this.agregar(poder, 1);
-          try { showToast(this.catalogo[poder].emoji + ' ¡' + this.catalogo[poder].nombre + ' comprado!'); SFX.coin(); } catch(e){}
-          const m1 = document.getElementById('hkShopMonedas'); if (m1) m1.textContent = getMonedas();
-          const m2 = document.getElementById('hkPauseMonedas'); if (m2) m2.textContent = getMonedas();
-          this._pintarTienda();
-        }
-      };
-    });
-  }
-};
-window.HK_POWER = HK_POWER;
 // Helper: safe element setter (evita errores null)
 function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+
+// ══════════════════════════════════════════════════════════
+//  SISTEMA DE TIENDA Y POTENCIADORES
+// ══════════════════════════════════════════════════════════
+const HK_PODERES = {
+  escudo: { emoji: '🛡️', nombre: 'Escudo', precio: 50, desc: 'Te protege de 1 obstáculo' },
+  vida: { emoji: '❤️', nombre: 'Vida Extra', precio: 80, desc: 'Ganas una vida extra' },
+  iman: { emoji: '🧲', nombre: 'Imán', precio: 60, desc: 'Atrae todas las monedas' },
+  lento: { emoji: '🐢', nombre: 'Lentitud', precio: 40, desc: 'Los obstáculos van más lento' },
+  doble: { emoji: '✨', nombre: 'Doble Monedas', precio: 70, desc: 'Ganas el doble de monedas' },
+  turbo: { emoji: '⚡', nombre: 'Turbo', precio: 55, desc: 'Velocidad extra' }
+};
+
+function abrirTienda() {
+  // Asegurar que el juego ESTÁ pausado
+  window.HK_PAUSED = true;
+  
+  const oldShop = document.getElementById('shopModal');
+  if (oldShop) oldShop.remove();
+  
+  const shopModal = document.createElement('div');
+  shopModal.id = 'shopModal';
+  shopModal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;font-family:Nunito,sans-serif;padding:20px;overflow-y:auto';
+  
+  const content = document.createElement('div');
+  content.style.cssText = 'background:linear-gradient(135deg,#1a0533,#0d0f18);border:2px solid #FFD600;border-radius:24px;padding:24px;max-width:400px;width:100%';
+  
+  content.innerHTML = `
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:2.5rem;margin-bottom:8px">🛒</div>
+      <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.4rem">Tienda de Poderes</div>
+      <div style="color:#FFD600;font-size:0.9rem;margin-top:4px">Mejora tu juego</div>
+    </div>
+    <div id="shopItems" style="display:grid;gap:10px;margin-bottom:20px"></div>
+  `;
+  
+  const itemsContainer = content.querySelector('#shopItems');
+  
+  Object.entries(HK_PODERES).forEach(([key, poder]) => {
+    const item = document.createElement('div');
+    item.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center';
+    
+    item.innerHTML = `
+      <div style="flex:1">
+        <div style="font-size:1.5rem;margin-bottom:2px">${poder.emoji}</div>
+        <div style="color:#fff;font-weight:800;font-size:0.9rem">${poder.nombre}</div>
+        <div style="color:#889;font-size:0.75rem">${poder.desc}</div>
+      </div>
+      <button data-poder="${key}" style="background:linear-gradient(135deg,#FFD600,#FFA500);border:none;color:#000;padding:8px 12px;border-radius:8px;font-weight:800;cursor:pointer;font-size:0.85rem;white-space:nowrap;margin-left:10px">💰 ${poder.precio}</button>
+    `;
+    
+    itemsContainer.appendChild(item);
+  });
+  
+  const btnBack = document.createElement('button');
+  btnBack.textContent = '◀️ Volver al Juego';
+  btnBack.style.cssText = 'background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:12px 24px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;width:100%;font-size:1rem';
+  btnBack.onclick = () => {
+    // Mantener pausa = true hasta que cierren la tienda
+    window.HK_PAUSED = false;
+    shopModal.remove();
+  };
+  
+  content.appendChild(btnBack);
+  shopModal.appendChild(content);
+  document.body.appendChild(shopModal);
+}
+window.HK_PAUSED = false;
+
+function mostrarPausa() {
+  window.HK_PAUSED = true;
+  
+  // Remover modal anterior si existe
+  const oldModal = document.getElementById('pauseModal');
+  if (oldModal) oldModal.remove();
+  
+  const modal = document.createElement('div');
+  modal.id = 'pauseModal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;font-family:Nunito,sans-serif;padding:20px';
+  
+  const content = document.createElement('div');
+  content.style.cssText = 'background:linear-gradient(135deg,#1a0533,#0d0f18);border:2px solid #7C3AED;border-radius:24px;padding:28px;max-width:380px;text-align:center';
+  
+  content.innerHTML = `
+    <div style="font-size:3rem;margin-bottom:12px">⏸️</div>
+    <div style="color:#fff;font-family:'Fredoka One',cursive;font-size:1.5rem;margin-bottom:8px">Pausa</div>
+    <div style="color:#889;font-size:0.9rem;margin-bottom:24px">Tu partida está pausada</div>`;
+  
+  const btnContinue = document.createElement('button');
+  btnContinue.textContent = '▶️ Seguir jugando';
+  btnContinue.style.cssText = 'background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:12px 24px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;width:100%;margin-bottom:10px;font-size:1rem;transition:all 0.2s';
+  btnContinue.onclick = () => {
+    window.HK_PAUSED = false;
+    modal.remove();
+  };
+  btnContinue.onmouseover = () => btnContinue.style.opacity = '0.8';
+  btnContinue.onmouseout = () => btnContinue.style.opacity = '1';
+  
+  const btnShop = document.createElement('button');
+  btnShop.textContent = '🛒 Tienda';
+  btnShop.style.cssText = 'background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;padding:12px 24px;border-radius:12px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;width:100%;font-size:1rem;transition:all 0.2s';
+  btnShop.onclick = (e) => {
+    e.stopPropagation();
+    // Cerrar pausa modal pero mantener HK_PAUSED = true
+    modal.remove();
+    abrirTienda();
+  };
+  
+  content.appendChild(btnContinue);
+  content.appendChild(btnShop);
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+  
+  // Permitir cerrar con ESC
+  const closeOnEsc = (e) => {
+    if (e.key === 'Escape') {
+      window.HK_PAUSED = false;
+      modal.remove();
+      document.removeEventListener('keydown', closeOnEsc);
+    }
+  };
+  document.addEventListener('keydown', closeOnEsc);
+}
 
 // ══════════════════════════════════════════════════════════
 //  SISTEMA DE SONIDO (Web Audio API - sin archivos)
@@ -2913,6 +2837,18 @@ function openGame(id) {
   requestFullscreen();
   body.innerHTML = '';
   g.fn(body);
+  
+  // Agregar botón de pausa después de renderizar el juego
+  setTimeout(() => {
+    const pauseBtn = document.createElement('button');
+    pauseBtn.id = 'gamePauseBtn';
+    pauseBtn.innerHTML = '⏸️';
+    pauseBtn.style.cssText = 'position:fixed;top:60px;right:8px;z-index:99998;background:#7C3AED;border:none;color:#fff;width:36px;height:36px;border-radius:10px;font-size:1.2rem;cursor:pointer;font-weight:800;transition:all 0.2s;padding:0;display:flex;align-items:center;justify-content:center;pointer-events:auto';
+    pauseBtn.onclick = mostrarPausa;
+    pauseBtn.onmouseenter = () => pauseBtn.style.background = '#9333ea';
+    pauseBtn.onmouseleave = () => pauseBtn.style.background = '#7C3AED';
+    document.body.appendChild(pauseBtn);
+  }, 100);
 }
 
 // Solicitar pantalla completa real del navegador (con respaldo visual si no se puede)
@@ -3989,17 +3925,12 @@ function refrescarListaAmigos() {
         <div style="color:#fff;font-weight:700;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombre}</div>
         <div style="color:${on?'#16A34A':'#666'};font-size:0.7rem">${on?'🟢 En línea':'⚫ Desconectado'} · #${a.num}</div>
       </div>
-      ${on ? `<button data-inv="${a.num}" style="background:#16A34A;border:none;color:#fff;padding:7px 11px;border-radius:10px;font-weight:800;font-size:0.76rem;cursor:pointer;-webkit-tap-highlight-color:transparent">⚔️ Jugar</button>` : ''}
-      <button data-chat="${a.num}" data-nombre="${(nombre||'').replace(/"/g,'&quot;')}" data-avatar="${emoji}" style="background:#7C3AED;border:none;color:#fff;padding:7px 11px;border-radius:10px;font-weight:800;font-size:0.76rem;cursor:pointer;-webkit-tap-highlight-color:transparent">💬 Chat</button>
+      ${on ? `<button data-inv="${a.num}" style="background:#16A34A;border:none;color:#fff;padding:7px 12px;border-radius:10px;font-weight:800;font-size:0.78rem;cursor:pointer;-webkit-tap-highlight-color:transparent">⚔️ Invitar</button>` : ''}
       <button data-del="${a.num}" style="background:rgba(220,38,38,0.2);border:none;color:#f87171;padding:7px 9px;border-radius:10px;cursor:pointer;-webkit-tap-highlight-color:transparent">🗑️</button>
     </div>`;
   }).join('');
   cont.querySelectorAll('button[data-inv]').forEach(b => {
     const f = e => { e.preventDefault(); e.stopPropagation(); invitarAmigo(b.dataset.inv); };
-    b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
-  });
-  cont.querySelectorAll('button[data-chat]').forEach(b => {
-    const f = e => { e.preventDefault(); e.stopPropagation(); if (window.HKChat) window.HKChat.abrir(b.dataset.chat, b.dataset.nombre, b.dataset.avatar); };
     b.addEventListener('touchstart', f, {passive:false}); b.addEventListener('click', f);
   });
   cont.querySelectorAll('button[data-del]').forEach(b => {
@@ -4080,120 +4011,6 @@ setTimeout(async () => {
 }, 3000);
 
 
-// ═══════════════════════════════════════════════════════════════
-//  SISTEMA DE NIVELES UNIFICADO (1 → 10) para todos los juegos
-//  Cada juego define metas crecientes. Al cumplir la meta, sube de
-//  nivel y gana monedas. El progreso se guarda por jugador.
-// ═══════════════════════════════════════════════════════════════
-const HK_NIVELES = {
-  metas: {
-    snake:    [5, 8, 12, 16, 20, 25, 30, 36, 42, 50],
-    racing:   [200, 350, 500, 700, 900, 1200, 1500, 1900, 2400, 3000],
-    flappy:   [3, 5, 8, 12, 16, 20, 25, 30, 36, 45],
-    platform: [150, 250, 350, 500, 650, 800, 1000, 1250, 1500, 2000],
-  },
-
-  getNivel(juego) {
-    try {
-      const v = localStorage.getItem('hk_nivel_' + juego);
-      const n = v ? parseInt(v) : 1;
-      return Math.max(1, Math.min(10, n));
-    } catch(e) { return 1; }
-  },
-
-  setNivel(juego, nivel) {
-    nivel = Math.max(1, Math.min(10, nivel));
-    try { localStorage.setItem('hk_nivel_' + juego, String(nivel)); } catch(e) {}
-    try {
-      if (typeof getSupabase === 'function' && usuarioActual) {
-        const c = getSupabase();
-        if (c) {
-          const niveles = this._leerTodosLocal();
-          niveles[juego] = nivel;
-          c.from('perfiles').update({ niveles }).eq('id', usuarioActual.id).then(()=>{}, ()=>{});
-        }
-      }
-    } catch(e) {}
-  },
-
-  _leerTodosLocal() {
-    const r = {};
-    ['snake','racing','flappy','platform'].forEach(j => { r[j] = this.getNivel(j); });
-    return r;
-  },
-
-  metaNivel(juego, nivel) {
-    const arr = this.metas[juego];
-    if (!arr) return 999;
-    return arr[Math.max(0, Math.min(9, nivel - 1))];
-  },
-
-  barraHTML(juego) {
-    return `<div id="hkBarra_${juego}">${this._barraInterna(juego)}</div>`;
-  },
-
-  actualizarProgreso(juego, valor) {
-    const el = document.getElementById('hkMeta_' + juego);
-    if (el) el.textContent = valor;
-    const meta = this.metaNivel(juego, this.getNivel(juego));
-    return valor >= meta;
-  },
-
-  // Regenera la barra de nivel del HUD (llamar al reiniciar tras subir nivel)
-  refrescarBarra(juego) {
-    const cont = document.getElementById('hkBarra_' + juego);
-    if (cont) cont.innerHTML = this._barraInterna(juego);
-  },
-
-  _barraInterna(juego) {
-    const nivel = this.getNivel(juego);
-    const meta = this.metaNivel(juego, nivel);
-    return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center">
-      <span style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);color:#fff;font-weight:800;font-size:0.72rem;padding:2px 8px;border-radius:8px">Nivel ${nivel}/10</span>
-      <span style="color:#FFD600;font-weight:800;font-size:0.75rem">Meta: <span id="hkMeta_${juego}">0</span>/${meta}</span>
-    </div>`;
-  },
-
-  completarNivel(juego, nombreJuego) {
-    const nivelCompletado = this.getNivel(juego);   // el nivel que acaba de superar
-    const monedas = 20 + nivelCompletado * 10;
-    if (nivelCompletado >= 10) {
-      // Guardar info para la pantalla de victoria
-      this._ultimaVictoria = { juego, completado: 10, nuevo: 10, max: true };
-      if (typeof darRecompensa === 'function') darRecompensa(monedas, 100, '🏆 ' + nombreJuego + ' Nivel MAX');
-      try { showToast('🏆 ¡Completaste el Nivel MÁXIMO! +' + monedas + '🪙'); launchConfetti(); if(SFX&&SFX.win)SFX.win(); } catch(e){}
-      return 10;
-    }
-    const nuevoNivel = nivelCompletado + 1;
-    this.setNivel(juego, nuevoNivel);
-    this._ultimaVictoria = { juego, completado: nivelCompletado, nuevo: nuevoNivel, max: false };
-    if (typeof darRecompensa === 'function') darRecompensa(monedas, 50, '⭐ ' + nombreJuego + ' Nivel ' + nivelCompletado);
-    try {
-      showToast('🎉 ¡Nivel ' + nivelCompletado + ' completado! +' + monedas + '🪙');
-      launchConfetti();
-      if (typeof SFX !== 'undefined' && SFX.win) SFX.win();
-    } catch(e){}
-    return nuevoNivel;
-  },
-
-  dibujarVictoria(ctx, W, H, juego, nombreJuego) {
-    const v = this._ultimaVictoria || { completado: this.getNivel(juego), nuevo: this.getNivel(juego), max: false };
-    ctx.fillStyle = 'rgba(0,0,0,0.78)'; ctx.fillRect(0,0,W,H);
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillStyle='#86efac'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
-    ctx.fillText('🎉 ¡NIVEL ' + v.completado, W/2, H/2-34);
-    ctx.fillText('COMPLETADO!', W/2, H/2+2);
-    ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/19)}px Nunito,sans-serif`;
-    if (v.max) {
-      ctx.fillText('¡Eres un MAESTRO! Toca para seguir', W/2, H/2+42);
-    } else {
-      ctx.fillText('Avanzas al Nivel ' + v.nuevo + ' · Toca para seguir', W/2, H/2+42);
-    }
-  }
-};
-window.HK_NIVELES = HK_NIVELES;
-
-
 // ═══════════════════════════════════════════
 //  GAME 1: SNAKE
 // ═══════════════════════════════════════════
@@ -4201,34 +4018,29 @@ function buildSnake(container) {
   const W = Math.min(400, window.innerWidth - 60, maxGameHeight());
   container.innerHTML = `
     <div class="game-container">
-      <div style="padding:10px 12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-weight:800;font-size:0.92rem;color:#fff">🐍 <span id="snakeScore">0</span></span>
-        <span style="font-weight:800;font-size:0.92rem;color:#fff">⭐ <span id="snakeBest">0</span></span>
-        <button onclick="window.snakeReset()" style="background:#7C3AED;border:none;color:white;padding:6px 14px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">↺</button>
+      <div style="padding:12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:800;font-size:1rem;color:#fff">🐍 Score: <span id="snakeScore">0</span></span>
+        <span style="font-weight:800;font-size:1rem;color:#fff">⭐ Best: <span id="snakeBest">0</span></span>
+        <button onclick="window.snakeReset()" style="background:#7C3AED;border:none;color:white;padding:6px 14px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">Reiniciar</button>
       </div>
-      <div style="padding:6px 12px;background:#0a0a14;text-align:center">${HK_NIVELES.barraHTML('snake')}</div>
       <div class="game-canvas-wrap" style="min-height:${W}px">
         <canvas id="snakeGame" width="${W}" height="${W}"></canvas>
       </div>
     </div>
     <div class="game-instructions">
-      <strong>Controles:</strong> Flechas o WASD · En móvil: desliza · Come 🍎 hasta la meta para subir de nivel.
+      <strong>Controles:</strong> Flechas o WASD · En móvil: desliza la pantalla · Come 🍎 para crecer.
     </div>`;
   const canvas = document.getElementById('snakeGame');
   const ctx = canvas.getContext('2d');
   const CELL = Math.floor(W / 20);
   const COLS = Math.floor(W / CELL), ROWS = Math.floor(W / CELL);
-  let snake, dir, food, score, best = getRecord('snake'), running, speed, loopId, won;
+  let snake, dir, food, score, best = getRecord('snake'), running, speed, loopId;
 
   function reset() {
     snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
-    dir = {x:1,y:0}; score = 0; won = false;
-    // Velocidad inicial según nivel: más rápido en niveles altos
-    const nivel = HK_NIVELES.getNivel('snake');
-    speed = Math.max(80, 160 - nivel * 8);
+    dir = {x:1,y:0}; score = 0; speed = 150;
     setText('snakeScore', 0);
     setText('snakeBest', best);
-    HK_NIVELES.refrescarBarra('snake'); HK_NIVELES.actualizarProgreso('snake', 0);
     placeFood();
     if (loopId) clearInterval(loopId);
     running = true;
@@ -4248,21 +4060,13 @@ function buildSnake(container) {
       best = saveRecord('snake', score); setText('snakeBest', best);
       if(score>=20) awardBadge('snake_pro');
       SFX.lose();
-      draw(); showToast('💀 Game Over! Comiste: ' + score); return;
+      draw(); showToast('💀 Game Over! Score: ' + score); return;
     }
     snake.unshift(head);
     if (head.x===food.x&&head.y===food.y) {
       score++; setText('snakeScore', score); SFX.pick();
       if (score > best) { best = score; setText('snakeBest', best); }
-      // ¿Alcanzó la meta del nivel?
-      if (HK_NIVELES.actualizarProgreso('snake', score)) {
-        running = false; won = true; clearInterval(loopId);
-        saveRecord('snake', score);
-        HK_NIVELES.completarNivel('snake', 'Snake Pro');
-        draw();
-        return;
-      }
-      placeFood(); speed = Math.max(50, speed - 2);
+      placeFood(); speed = Math.max(60, speed - 2);
       clearInterval(loopId); loopId = registerInterval(setInterval(tick, speed));
     } else snake.pop();
     draw();
@@ -4275,13 +4079,11 @@ function buildSnake(container) {
       ctx.fillStyle = i===0 ? '#7C3AED' : `hsl(${280-i*4},70%,${62-i*1.5}%)`;
       ctx.beginPath(); ctx.roundRect(s.x*CELL+1,s.y*CELL+1,CELL-2,CELL-2,4); ctx.fill();
     });
-    if (won) {
-      HK_NIVELES.dibujarVictoria(ctx, W, W, 'snake', 'Snake Pro');
-    } else if (!running) {
+    if (!running) {
       ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,W);
       ctx.fillStyle='white'; ctx.font='bold 26px Fredoka One,cursive'; ctx.textAlign='center';
       ctx.fillText('💀 GAME OVER', W/2, W/2-20);
-      ctx.font='15px Nunito,sans-serif'; ctx.fillText('Comiste: '+score, W/2, W/2+14);
+      ctx.font='15px Nunito,sans-serif'; ctx.fillText('Score: '+score, W/2, W/2+14);
     }
   }
   let touchStart = null;
@@ -4683,9 +4485,8 @@ function buildRacing(container) {
         </div>
       </div>
     </div>
-    <div style="padding:6px 12px;background:#0a0a14;text-align:center">${HK_NIVELES.barraHTML('racing')}</div>
     <div class="game-instructions">
-      <strong>◀ ▶</strong> girar &nbsp;·&nbsp; <strong>⚡ NITRO</strong> boost &nbsp;·&nbsp; Llega a la meta de metros para subir de nivel · 3 vidas.
+      <strong>◀ ▶</strong> girar &nbsp;·&nbsp; <strong>⚡ NITRO</strong> boost &nbsp;·&nbsp; Centro pantalla = nitro en móvil &nbsp;·&nbsp; ¡Esquiva los autos! 3 vidas.
     </div>`;
 
   const canvas = document.getElementById('racingGame');
@@ -4698,7 +4499,7 @@ function buildRacing(container) {
 
   /* ── Estado ── */
   let pos, speed, steering, lives, score, dist, nitro, nitroActive;
-  let running, animId, keys = {}, lastT = 0, won = false, GOAL_RACE = 200;
+  let running, animId, keys = {}, lastT = 0;
   let roadCurve = 0, targetCurve = 0, curveTimer = 0;
   let cameraX = 0, shakeT = 0;
   let dayTime = 0;
@@ -4725,10 +4526,8 @@ function buildRacing(container) {
     pos = 0; speed = 0; steering = 0; lives = 3; score = 0; dist = 0;
     nitro = 100; nitroActive = false; running = true; cameraX = 0;
     roadCurve = 0; targetCurve = 0; curveTimer = 0; dayTime = 0; shakeT = 0;
-    rivals = []; won = false;
-    GOAL_RACE = HK_NIVELES.metaNivel('racing', HK_NIVELES.getNivel('racing'));
+    rivals = [];
     setText('raceDist', 0); setText('raceScore', 0);
-    HK_NIVELES.refrescarBarra('racing'); HK_NIVELES.actualizarProgreso('racing', 0);
     const lh = document.getElementById('raceLivesHUD');
     if (lh) lh.textContent = '❤️❤️❤️';
     updateSpeedArc(0); updateNitroSegs(100); updateGear(0);
@@ -4818,14 +4617,6 @@ function buildRacing(container) {
     pos += speed * dtS * 0.01;
     dist += Math.round(speed * dtS * 0.05);
     setText('raceDist', dist);
-
-    /* ¿Alcanzó la meta de metros del nivel? → sube de nivel */
-    if (HK_NIVELES.actualizarProgreso('racing', dist)) {
-      running = false; won = true;
-      saveRecord('racing', dist);
-      HK_NIVELES.completarNivel('racing', 'Speed Racer');
-      return;
-    }
 
     /* Curva dinámica (suave, una sola dirección a la vez) */
     curveTimer -= dtS;
@@ -5151,20 +4942,16 @@ function buildRacing(container) {
       }
     }
 
-    /* ── Game Over / Victoria overlay ── */
+    /* ── Game Over overlay ── */
     if (!running) {
-      if (won) {
-        HK_NIVELES.dibujarVictoria(ctx, W, H, 'racing', 'Speed Racer');
-      } else {
-        ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0,0,W,H);
-        ctx.fillStyle='#FF4D9D'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
-        ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText('💥 ¡CHOCASTE!', W/2, H/2-24);
-        ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
-        ctx.fillText(dist+'/'+GOAL_RACE+'m', W/2, H/2+10);
-        ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${Math.round(W/22)}px Nunito,sans-serif`;
-        ctx.fillText('Toca ↺ para volver a jugar', W/2, H/2+38);
-      }
+      ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle='#FF4D9D'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('💥 GAME OVER', W/2, H/2-24);
+      ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
+      ctx.fillText(dist+'m · '+score+' pts', W/2, H/2+10);
+      ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${Math.round(W/22)}px Nunito,sans-serif`;
+      ctx.fillText('Toca ↺ para volver a jugar', W/2, H/2+38);
     }
 
     ctx.restore();
@@ -5582,26 +5369,22 @@ function buildFlappy(container) {
   if (H > maxGameHeight()) { H = maxGameHeight(); W = Math.round(H/1.2); }
   container.innerHTML = `
     <div class="game-container">
-      <div style="padding:10px 12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-weight:800;color:#fff">🐤 <span id="flapScore">0</span></span>
-        <span style="font-weight:800;color:#fff">⭐ <span id="flapBest">0</span></span>
-        <button onclick="window.flapReset()" style="background:#7C3AED;border:none;color:white;padding:6px 14px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">↺</button>
+      <div style="padding:12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:800;color:#fff">🐤 Score: <span id="flapScore">0</span></span>
+        <span style="font-weight:800;color:#fff">⭐ Best: <span id="flapBest">0</span></span>
+        <button onclick="window.flapReset()" style="background:#7C3AED;border:none;color:white;padding:6px 14px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">Reiniciar</button>
       </div>
-      <div style="padding:6px 12px;background:#0a0a14;text-align:center">${HK_NIVELES.barraHTML('flappy')}</div>
       <div class="game-canvas-wrap" style="min-height:${H}px"><canvas id="flappyGame" width="${W}" height="${H}"></canvas></div>
     </div>
-    <div class="game-instructions"><strong>Controles:</strong> Toca o ESPACIO para volar · ¡Pasa los tubos hasta la meta para subir de nivel!</div>`;
+    <div class="game-instructions"><strong>Controles:</strong> Toca la pantalla o ESPACIO/clic para volar · ¡Pasa entre los tubos!</div>`;
   const canvas=document.getElementById('flappyGame');
   const ctx=canvas.getContext('2d');
-  let bird,pipes,score,best=getRecord('flappy'),running,animId,won;
+  let bird,pipes,score,best=getRecord('flappy'),running,animId;
   setTimeout(()=>setText('flapBest',best),0);
-  const nivelF = HK_NIVELES.getNivel('flappy');
-  const GAP=Math.max(105, 135 - nivelF*3), PIPE_W=50, GRAV=0.4, FLAP=-7;
-  const PIPE_SPEED = 2.3 + nivelF*0.12;
+  const GAP=130, PIPE_W=50, GRAV=0.4, FLAP=-7;
   function reset(){
-    bird={y:H/2,vy:0,x:W*0.25}; pipes=[]; score=0; running=true; won=false;
+    bird={y:H/2,vy:0,x:W*0.25}; pipes=[]; score=0; running=true;
     setText('flapScore',0);
-    HK_NIVELES.refrescarBarra('flappy'); HK_NIVELES.actualizarProgreso('flappy', 0);
     for(let i=0;i<3;i++) pipes.push({x:W+i*200,top:60+Math.random()*(H-GAP-120),passed:false});
     if(animId) cancelAnimationFrame(animId); loop();
   }
@@ -5616,21 +5399,13 @@ function buildFlappy(container) {
     bird.vy+=GRAV; bird.y+=bird.vy;
     if(bird.y>H-12||bird.y<12){ running=false; end(); return; }
     pipes.forEach(p=>{
-      p.x-=PIPE_SPEED;
-      if(!p.passed&&p.x+PIPE_W<bird.x){
-        p.passed=true; score++; setText('flapScore',score); SFX.point();
-        // ¿Meta del nivel alcanzada?
-        if (HK_NIVELES.actualizarProgreso('flappy', score)) {
-          running = false; won = true;
-          saveRecord('flappy', score);
-          HK_NIVELES.completarNivel('flappy', 'Flappy Bird');
-        }
-      }
+      p.x-=2.5;
+      if(!p.passed&&p.x+PIPE_W<bird.x){ p.passed=true; score++; setText('flapScore',score); SFX.point(); }
       if(bird.x+12>p.x&&bird.x-12<p.x+PIPE_W&&(bird.y-12<p.top||bird.y+12>p.top+GAP)){ running=false; end(); }
     });
     if(pipes[0].x<-PIPE_W){ pipes.shift(); pipes.push({x:pipes[pipes.length-1].x+200,top:60+Math.random()*(H-GAP-120),passed:false}); }
   }
-  function end(){ best=saveRecord('flappy',score); setText('flapBest',best); SFX.lose(); showToast('💀 Game Over! Tubos: '+score); }
+  function end(){ best=saveRecord('flappy',score); setText('flapBest',best); SFX.lose(); showToast('💀 Game Over! Score: '+score); }
   function draw(){
     const sky=ctx.createLinearGradient(0,0,0,H); sky.addColorStop(0,'#4EC0CA'); sky.addColorStop(1,'#8FE3E8');
     ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
@@ -5638,8 +5413,7 @@ function buildFlappy(container) {
     pipes.forEach(p=>{ ctx.fillRect(p.x,0,PIPE_W,p.top); ctx.fillRect(p.x,p.top+GAP,PIPE_W,H-p.top-GAP); ctx.fillStyle='#4A9E2E'; ctx.fillRect(p.x-3,p.top-20,PIPE_W+6,20); ctx.fillRect(p.x-3,p.top+GAP,PIPE_W+6,20); ctx.fillStyle='#5BBF3A'; });
     ctx.font='26px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.save(); ctx.translate(bird.x,bird.y); ctx.rotate(Math.min(Math.max(bird.vy*0.05,-0.4),0.6)); ctx.fillText('🐤',0,0); ctx.restore();
-    if(won){ HK_NIVELES.dibujarVictoria(ctx, W, H, 'flappy', 'Flappy Bird'); }
-    else if(!running){ ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#fff'; ctx.font='bold 22px Fredoka One,cursive'; ctx.fillText('Toca para volar',W/2,H/2); }
+    if(!running){ ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#fff'; ctx.font='bold 22px Fredoka One,cursive'; ctx.fillText('Toca para volar',W/2,H/2); }
   }
   canvas.addEventListener('touchstart',e=>{flap();e.preventDefault();},{passive:false});
   canvas.addEventListener('mousedown',flap);
@@ -6078,8 +5852,7 @@ function buildPlatform(container) {
         <button onclick="window.plReset()" style="background:#7C3AED;border:none;color:#fff;padding:4px 10px;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.75rem">↺</button>
       </div>
     </div>
-    <div style="padding:6px 12px;background:#0a0a14;text-align:center">${HK_NIVELES.barraHTML('platform')}</div>
-    <div class="game-instructions"><strong>SALTAR:</strong> Toca pantalla / Espacio / ↑ · Doble toque = doble salto · ¡Llega a la meta para subir de nivel!</div>`;
+    <div class="game-instructions"><strong>SALTAR:</strong> Toca pantalla / Espacio / ↑ · Doble toque = doble salto · ¡Llega a la meta de 300m esquivando obstáculos!</div>`;
 
   const canvas = document.getElementById('plGame');
   const ctx = canvas.getContext('2d');
@@ -6101,14 +5874,12 @@ function buildPlatform(container) {
   /* ── Estado ── */
   let hero, obstacles, coins, dist, distFloat, score, speed, animId, running, lives, won;
   let frameN = 0;  // para animación del personaje
-  let GOAL = HK_NIVELES.metaNivel('platform', HK_NIVELES.getNivel('platform'));  // meta del nivel actual
+  const GOAL = 300;  // meta en metros
 
   function reset() {
-    GOAL = HK_NIVELES.metaNivel('platform', HK_NIVELES.getNivel('platform'));  // recalcular por si subió de nivel
     hero = {x:60, y:GROUND-40, w:28, h:40, vy:0, vx:0, jumping:false, djump:false, run:0, dead:false};
     obstacles=[]; coins=[]; dist=0; distFloat=0; score=0; speed=4; running=true; lives=3; frameN=0; won=false;
     parallaxX=[0,0,0]; pars.length=0;
-    HK_NIVELES.refrescarBarra('platform');
     setText('plScore',0); setText('plDist',0); setText('plGoal', GOAL);
     document.getElementById('plLives').textContent='3';
     if (animId) cancelAnimationFrame(animId);
@@ -6174,11 +5945,12 @@ function buildPlatform(container) {
     speed = 4 + dist/120;   // acelera gradualmente
     setText('plDist', Math.min(dist, GOAL));
 
-    /* ¿Llegó a la meta? → ¡Subió de nivel! */
+    /* ¿Llegó a la meta? → ¡Ganó! */
     if (dist >= GOAL && running) {
       running = false; won = true;
       saveRecord('platform', dist);
-      HK_NIVELES.completarNivel('platform', 'Súper Salto');
+      if (typeof darRecompensa==='function') darRecompensa(score + 20, dist, '🦸 Plataforma');
+      try { showToast('🏁 ¡Meta alcanzada! +20🪙 bonus'); launchConfetti(); SFX.win(); } catch(e) {}
     }
 
     /* Colisiones obstáculos */
@@ -6346,18 +6118,21 @@ function buildPlatform(container) {
 
     /* ── Pantalla final (ganó o perdió) ── */
     if (!running) {
+      ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
+      ctx.textAlign='center'; ctx.textBaseline='middle';
       if (won) {
-        HK_NIVELES.dibujarVictoria(ctx, W, H, 'platform', 'Súper Salto');
+        ctx.fillStyle='#86efac'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
+        ctx.fillText('🏁 ¡META!', W/2, H/2-20);
+        ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
+        ctx.fillText('¡Llegaste! '+score+' 🪙 +20 bonus', W/2, H/2+12);
       } else {
-        ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
-        ctx.textAlign='center'; ctx.textBaseline='middle';
         ctx.fillStyle='#FF4D9D'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`;
         ctx.fillText('💥 ¡CHOQUE!', W/2, H/2-20);
         ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/16)}px Nunito,sans-serif`;
         ctx.fillText(dist+'/'+GOAL+'m · '+score+' 🪙', W/2, H/2+12);
-        ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${Math.round(W/22)}px Nunito,sans-serif`;
-        ctx.fillText('Toca para volver a jugar', W/2, H/2+36);
       }
+      ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.font=`${Math.round(W/22)}px Nunito,sans-serif`;
+      ctx.fillText('Toca para volver a jugar', W/2, H/2+36);
     }
   }
 
@@ -6463,209 +6238,62 @@ function buildPlatform(container) {
 //  GAME 18: DEFENSA ESPACIAL (disparar)
 // ═══════════════════════════════════════════
 function buildDefender(container) {
-  /* ══ DEFENSA ESPACIAL 3D — los enemigos vienen del fondo del espacio
-     creciendo hacia la cámara. Nave con diseño 3D, láseres con profundidad,
-     campo de estrellas en movimiento, pausa + potenciadores. ══ */
-  let W=Math.min(420,window.innerWidth-20), H=Math.round(W*1.25);
-  if(H>maxGameHeight()){ H=maxGameHeight(); W=Math.round(H/1.25); }
+  let W=Math.min(360,window.innerWidth-60), H=Math.round(W*1.1);
+  if(H>maxGameHeight()){ H=maxGameHeight(); W=Math.round(H/1.1); }
   container.innerHTML = `
-    <div class="game-container" style="position:relative;background:#05050f;width:100%">
-      <canvas id="dfGame" width="${W}" height="${H}" style="display:block;width:100%;height:auto"></canvas>
-      <div style="position:absolute;top:0;left:0;right:0;pointer-events:none;display:flex;justify-content:space-between;align-items:center;padding:9px 14px;background:linear-gradient(180deg,rgba(0,0,0,0.6),rgba(0,0,0,0))">
-        <span style="color:#fff;font-weight:800;font-size:0.85rem">⭐ <span id="dfScore">0</span></span>
-        <span style="color:#67e8f9;font-weight:800;font-size:0.85rem">🌊 Oleada <span id="dfLevel">1</span></span>
-        <span style="color:#fff;font-weight:800;font-size:0.85rem">❤️ <span id="dfLives">3</span></span>
+    <div class="game-container">
+      <div style="padding:12px;background:#0a0a14;display:flex;justify-content:space-between;align-items:center;color:#fff">
+        <span style="font-weight:800">⭐ <span id="dfScore">0</span></span>
+        <span style="font-weight:800">🌊 Oleada <span id="dfLevel">1</span></span>
+        <span style="font-weight:800">❤️ <span id="dfLives">3</span></span>
+        <button onclick="window.dfReset()" style="background:#7C3AED;border:none;color:white;padding:6px 12px;border-radius:12px;cursor:pointer;font-family:Nunito,sans-serif;font-weight:700">Reiniciar</button>
       </div>
+      <div class="game-canvas-wrap" style="min-height:${H}px"><canvas id="dfGame" width="${W}" height="${H}"></canvas></div>
     </div>
-    <div class="game-instructions"><strong>Cómo jugar:</strong> Mueve tu nave con ◀ ▶ y pulsa 🔫 para disparar. Los enemigos vienen del fondo. Cada 10 destruidos pasas de oleada. ¡Usa potenciadores con los botones de arriba!</div>`;
+    <div class="game-instructions"><strong>Cómo jugar:</strong> Mueve tu 🚀 con ◀ ▶ y pulsa 🔫 para disparar a los 👾. Cada 10 destruidos pasas de oleada (más rápidos). ¡No dejes que lleguen abajo!</div>`;
   const canvas=document.getElementById('dfGame'), ctx=canvas.getContext('2d');
-  const HORIZON = H*0.18, VX = W/2;
-  let ship, bullets, enemies, score, lives, animId, running, keys={}, shootCooldown=0, level, killsThisWave, lastT=0, stars=[];
-  /* Potenciadores */
-  let escudoDf=false, lentoDfT=0, tripleT=0, dobleDfT=0;
-
-  function activarPoder(p){
-    if(p==='escudo'||p==='vidaExtra'){ if(p==='vidaExtra'){lives++;setText('dfLives',lives);} else escudoDf=true; }
-    else if(p==='lento') lentoDfT=8;
-    else if(p==='doble') dobleDfT=15;
-    else if(p==='turbo'||p==='iman') tripleT=12;  // turbo/imán = disparo triple
-  }
-
-  function initStars(){ stars=[]; for(let i=0;i<70;i++) stars.push({x:Math.random()*2-1, y:Math.random()*2-1, z:Math.random()}); }
-
+  let ship, bullets, enemies, score, lives, animId, running, keys={}, shootCooldown=0, level, killsThisWave;
   function reset(){
-    ship={lane:0, laneF:0}; bullets=[]; enemies=[]; score=0; lives=3; running=true; keys={}; level=1; killsThisWave=0;
-    escudoDf=false; lentoDfT=0; tripleT=0; dobleDfT=0;
-    initStars();
+    ship={x:W/2,y:H-40,w:30}; bullets=[]; enemies=[]; score=0; lives=3; running=true; keys={}; level=1; killsThisWave=0;
     setText('dfScore',0); setText('dfLives',3); setText('dfLevel',1);
-    lastT=performance.now();
-    if(animId) cancelAnimationFrame(animId);
-    if(typeof HK_POWER!=='undefined') HK_POWER.iniciar('defender', activarPoder);
-    loop();
+    if(animId) cancelAnimationFrame(animId); loop();
   }
-
-  /* Proyección: (x:-1..1, z:0 cerca..1 lejos) → pantalla */
-  function proj(x, z){
-    const persp = 1 - z;
-    const scale = 0.2 + persp*0.8;
-    const sy = HORIZON + (H-HORIZON)*persp;
-    const sx = VX + x * (W*0.42) * scale;
-    return {x:sx, y:sy, scale};
-  }
-
-  function shoot(){
-    if(shootCooldown<=0&&running&&!window.HK_PAUSED){
-      const lanes = tripleT>0 ? [ship.laneF-0.3, ship.laneF, ship.laneF+0.3] : [ship.laneF];
-      lanes.forEach(l=> bullets.push({x:l, z:0.05}));
-      shootCooldown=10; if(SFX.shoot)SFX.shoot();
-    }
-  }
-
-  function loop(ts){
+  function shoot(){ if(shootCooldown<=0&&running){ bullets.push({x:ship.x,y:ship.y-15}); shootCooldown=12; SFX.shoot(); } }
+  function loop(){
     if(!document.getElementById('dfGame')) return;
-    const dt=Math.min((ts-lastT)/1000,0.05); lastT=ts;
-    if(running && !window.HK_PAUSED) update(dt);
-    draw(ts);
-    animId=registerAnimation(requestAnimationFrame(loop));
-  }
-
-  function update(dt){
-    const slow = lentoDfT>0 ? 0.4 : 1;
-    if(lentoDfT>0) lentoDfT-=dt;
-    if(tripleT>0) tripleT-=dt;
-    if(dobleDfT>0) dobleDfT-=dt;
-
-    if(keys.left) ship.lane=Math.max(-1,ship.lane-3.5*dt);
-    if(keys.right) ship.lane=Math.min(1,ship.lane+3.5*dt);
-    ship.laneF += (ship.lane-ship.laneF)*0.3;
-    if(shootCooldown>0) shootCooldown--;
-
-    /* Estrellas hacia la cámara */
-    stars.forEach(s=>{ s.z-=dt*0.25*slow; if(s.z<=0){ s.z=1; s.x=Math.random()*2-1; s.y=Math.random()*2-1; } });
-
-    /* Balas van al fondo (z aumenta) */
-    bullets.forEach(b=> b.z += dt*1.8);
-    bullets=bullets.filter(b=> b.z<1.1 && !b.dead);
-
-    /* Spawn enemigos desde el fondo */
-    const spawnRate = (0.6 + level*0.12)*dt;
-    if(Math.random()<spawnRate) enemies.push({x:Math.random()*2-1, z:1.1, vy:(0.12+level*0.03), tipo:Math.floor(Math.random()*3)});
-
-    /* Enemigos hacia la cámara */
-    enemies.forEach(e=> e.z -= e.vy*dt*slow);
-
-    /* Colisión bala-enemigo (cercanía en x y z) */
-    enemies.forEach(e=>{
-      bullets.forEach(b=>{
-        if(!b.dead && !e.dead && Math.abs(b.z-e.z)<0.08 && Math.abs(b.x-e.x)<0.12){
-          e.dead=true; b.dead=true;
-          const gan = dobleDfT>0?2:1;
-          score+=gan; killsThisWave++; setText('dfScore',score); if(SFX.pop)SFX.pop();
-          if(killsThisWave>=10){
-            killsThisWave=0; level++; setText('dfLevel',level);
-            if(level>=3) awardBadge('space_hero'); awardBadge('first_win');
-            running=false;
-            showLevelScreen(level, ()=>{ enemies=[]; bullets=[]; running=true; lastT=performance.now(); }, '¡Oleada más rápida!');
-          }
-        }
+    if(running){
+      if(keys.left) ship.x=Math.max(18,ship.x-5);
+      if(keys.right) ship.x=Math.min(W-18,ship.x+5);
+      if(shootCooldown>0) shootCooldown--;
+      bullets.forEach(b=>b.y-=7); bullets=bullets.filter(b=>b.y>-10);
+      const spawnRate = 0.03 + level*0.006;          // más enemigos cada oleada
+      const eSpeed = 1 + level*0.4;                   // más rápidos cada oleada
+      if(Math.random()<spawnRate) enemies.push({x:20+Math.random()*(W-40),y:-20,vy:eSpeed+Math.random()*0.8});
+      enemies.forEach(e=>e.y+=e.vy);
+      enemies.forEach(e=>{
+        bullets.forEach(b=>{ if(Math.abs(b.x-e.x)<18&&Math.abs(b.y-e.y)<18){ e.dead=true; b.dead=true; score++; killsThisWave++; setText('dfScore',score); SFX.pop();
+          if(killsThisWave>=10){ killsThisWave=0; level++; setText('dfLevel',level); if(level>=3) awardBadge('space_hero'); awardBadge('first_win'); running=false; showLevelScreen(level, ()=>{ enemies=[]; bullets=[]; running=true; }, '¡Oleada más rápida!'); } } });
+        if(e.y>H-20){ e.dead=true; lives--; setText('dfLives',lives); if(lives<=0){ running=false; SFX.lose(); showToast('👾 ¡Te invadieron! Score: '+score); } }
       });
-      /* Enemigo llegó a la nave (z cerca de 0) */
-      if(e.z<=0.04 && !e.dead){
-        e.dead=true;
-        if(escudoDf){ escudoDf=false; try{showToast('🛡️ ¡Escudo te protegió!');}catch(x){} }
-        else { lives--; setText('dfLives',lives); if(SFX.hit)SFX.hit();
-          if(lives<=0){ running=false; if(SFX.lose)SFX.lose(); } }
-      }
-    });
-    bullets=bullets.filter(b=>!b.dead); enemies=enemies.filter(e=>!e.dead);
-  }
-
-  function draw(ts){
-    /* Fondo espacial degradado */
-    const g=ctx.createLinearGradient(0,0,0,H);
-    g.addColorStop(0,'#05050f'); g.addColorStop(0.5,'#0a0a2e'); g.addColorStop(1,'#13073a');
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-
-    /* Estrellas con profundidad */
-    stars.forEach(s=>{ const p=proj(s.x*1.5, s.z); const r=(1-s.z)*2.2; ctx.fillStyle=`rgba(255,255,255,${0.3+(1-s.z)*0.7})`; ctx.beginPath(); ctx.arc(p.x, HORIZON+(H-HORIZON)*(1-s.z)*0.5 + s.y*60*(1-s.z), r, 0, Math.PI*2); ctx.fill(); });
-
-    /* Líneas de fuga (sensación de túnel espacial) */
-    ctx.strokeStyle='rgba(103,232,249,0.08)'; ctx.lineWidth=1;
-    for(let i=-2;i<=2;i++){ const f=proj(i*0.5,1), n=proj(i*0.5,0); ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(n.x,n.y); ctx.stroke(); }
-
-    /* Enemigos (ordenar lejos primero) */
-    [...enemies].sort((a,b)=>b.z-a.z).forEach(e=>{
-      if(e.z<0||e.z>1.1) return;
-      const p=proj(e.x, Math.max(0,e.z));
-      drawEnemy3D(p.x, p.y, 34*p.scale, e.tipo, ts);
-    });
-
-    /* Balas láser */
-    bullets.forEach(b=>{
-      const p=proj(b.x, Math.max(0,b.z));
-      const len=18*p.scale;
-      ctx.strokeStyle='#FFD600'; ctx.lineWidth=Math.max(2,4*p.scale); ctx.lineCap='round';
-      ctx.shadowColor='#FFD600'; ctx.shadowBlur=8;
-      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x,p.y+len); ctx.stroke();
-      ctx.shadowBlur=0;
-    });
-
-    /* Nave del jugador (3D, vista trasera) */
-    const sp=proj(ship.laneF, 0.02);
-    drawShip3D(sp.x, sp.y, escudoDf);
-
-    if(!running){
-      ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H);
-      ctx.fillStyle='#67e8f9'; ctx.font=`bold ${Math.round(W/9)}px Fredoka One,cursive`; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('👾 ¡INVADIDO!',W/2,H/2-16);
-      ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/18)}px Nunito,sans-serif`;
-      ctx.fillText('Puntos: '+score+' · Oleada '+level,W/2,H/2+16);
+      bullets=bullets.filter(b=>!b.dead); enemies=enemies.filter(e=>!e.dead);
     }
+    draw(); animId=registerAnimation(requestAnimationFrame(loop));
   }
-
-  function drawEnemy3D(x,y,s,tipo,ts){
-    ctx.save(); ctx.translate(x,y);
-    const pulse=1+Math.sin(ts/200)*0.06; s*=pulse;
-    if(tipo===0){ /* OVNI */
-      ctx.fillStyle='#9333ea'; ctx.beginPath(); ctx.ellipse(0,0,s*0.6,s*0.22,0,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='#c4b5fd'; ctx.beginPath(); ctx.ellipse(0,-s*0.12,s*0.32,s*0.25,0,Math.PI,0); ctx.fill();
-      ctx.fillStyle='#67e8f9'; for(let i=-2;i<=2;i++){ ctx.beginPath(); ctx.arc(i*s*0.2,s*0.06,s*0.05,0,Math.PI*2); ctx.fill(); }
-    } else if(tipo===1){ /* Meteoro-alien rojo */
-      ctx.fillStyle='#dc2626'; ctx.beginPath(); ctx.arc(0,0,s*0.5,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='#fca5a5'; ctx.beginPath(); ctx.arc(-s*0.15,-s*0.15,s*0.15,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(-s*0.12,0,s*0.08,0,Math.PI*2); ctx.arc(s*0.12,0,s*0.08,0,Math.PI*2); ctx.fill();
-    } else { /* Nave caza enemiga */
-      ctx.fillStyle='#16a34a'; ctx.beginPath(); ctx.moveTo(0,s*0.4); ctx.lineTo(-s*0.5,-s*0.3); ctx.lineTo(0,-s*0.1); ctx.lineTo(s*0.5,-s*0.3); ctx.closePath(); ctx.fill();
-      ctx.fillStyle='#86efac'; ctx.beginPath(); ctx.arc(0,0,s*0.12,0,Math.PI*2); ctx.fill();
-    }
-    ctx.restore();
+  function draw(){
+    ctx.fillStyle='#0a0a2e'; ctx.fillRect(0,0,W,H);
+    for(let i=0;i<30;i++){ ctx.fillStyle='rgba(255,255,255,0.3)'; const sx=(i*53)%W, sy=(i*97+Date.now()/30)%H; ctx.fillRect(sx,sy,2,2); }
+    ctx.font='26px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    enemies.forEach(e=>ctx.fillText('👾',e.x,e.y));
+    ctx.fillStyle='#FFD600'; bullets.forEach(b=>{ ctx.fillRect(b.x-2,b.y-8,4,12); });
+    ctx.fillText('🚀',ship.x,ship.y);
+    if(!running){ ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#fff'; ctx.font='bold 22px Fredoka One,cursive'; ctx.fillText('👾 GAME OVER',W/2,H/2-10); ctx.font='14px Nunito,sans-serif'; ctx.fillText('Score: '+score,W/2,H/2+16); }
   }
-
-  function drawShip3D(x,y,escudo){
-    ctx.save(); ctx.translate(x,y);
-    /* Escudo */
-    if(escudo){ ctx.strokeStyle='rgba(103,232,249,0.7)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,-8,34,0,Math.PI*2); ctx.stroke(); ctx.fillStyle='rgba(103,232,249,0.12)'; ctx.fill(); }
-    /* Llamas del motor */
-    const f=8+Math.random()*8;
-    ctx.fillStyle='#FF6B00'; ctx.beginPath(); ctx.moveTo(-8,6); ctx.lineTo(0,6+f); ctx.lineTo(8,6); ctx.closePath(); ctx.fill();
-    ctx.fillStyle='#FFD600'; ctx.beginPath(); ctx.moveTo(-4,6); ctx.lineTo(0,6+f*0.6); ctx.lineTo(4,6); ctx.closePath(); ctx.fill();
-    /* Cuerpo (triángulo metálico) */
-    const grad=ctx.createLinearGradient(-22,0,22,0); grad.addColorStop(0,'#1e40af'); grad.addColorStop(0.5,'#60a5fa'); grad.addColorStop(1,'#1e40af');
-    ctx.fillStyle=grad; ctx.beginPath(); ctx.moveTo(0,-30); ctx.lineTo(-22,12); ctx.lineTo(0,4); ctx.lineTo(22,12); ctx.closePath(); ctx.fill();
-    /* Cabina */
-    ctx.fillStyle='#67e8f9'; ctx.beginPath(); ctx.ellipse(0,-12,6,10,0,0,Math.PI*2); ctx.fill();
-    /* Alas */
-    ctx.fillStyle='#dc2626'; ctx.beginPath(); ctx.moveTo(-22,12); ctx.lineTo(-30,18); ctx.lineTo(-14,8); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(22,12); ctx.lineTo(30,18); ctx.lineTo(14,8); ctx.closePath(); ctx.fill();
-    ctx.restore();
-  }
-
   function keyHandler(e){ if(e.key==='ArrowLeft'||e.key==='a')keys.left=true; if(e.key==='ArrowRight'||e.key==='d')keys.right=true; if(e.key===' '){shoot();e.preventDefault();} }
   function keyUp(e){ if(e.key==='ArrowLeft'||e.key==='a')keys.left=false; if(e.key==='ArrowRight'||e.key==='d')keys.right=false; }
   document.addEventListener('keydown',keyHandler); document.addEventListener('keyup',keyUp);
   window.activeKeyHandlers.push(keyHandler,keyUp);
   window.dfReset=reset;
-
+  // Controles: izquierda/derecha + botón disparar
   const pad=document.createElement('div'); pad.className='touch-controls'; pad.style.flexDirection='row'; pad.style.justifyContent='center'; pad.style.gap='10px';
   pad.innerHTML=`<button class="tbtn" data-a="left">◀</button><button class="tbtn" data-a="shoot" style="background:linear-gradient(135deg,#FFD600,#FF6B00);box-shadow:0 4px 0 #B34700;font-size:1.4rem">🔫</button><button class="tbtn" data-a="right">▶</button>`;
   pad.querySelectorAll('button').forEach(btn=>{
@@ -9095,310 +8723,114 @@ function buildMultitud(container) {
 //  🏃 CORRE SIN FIN (runner estilo Subway)
 // ══════════════════════════════════════════════════════════
 function buildRunner(container) {
-  /* ══ CORRE SIN FIN 3D — Endless runner con perspectiva real ══
-     Tres carriles que convergen al horizonte (estilo Subway Surfers).
-     Obstáculos y monedas con profundidad, corredor animado, salto.
-  ══════════════════════════════════════════════════════════════ */
-  const W = Math.min(window.innerWidth - 20, 480);
-  const H = Math.min(520, maxGameHeight(), Math.round(W * 1.25));
+  const W = Math.min(360, window.innerWidth-40), H = 460;
   container.innerHTML = `
-    <div class="game-container" style="background:#0a0a14;position:relative;overflow:hidden;width:100%">
-      <canvas id="runCanvas" width="${W}" height="${H}" style="display:block;width:100%;height:auto"></canvas>
-      <div style="position:absolute;top:0;left:0;right:0;pointer-events:none;display:flex;justify-content:space-between;align-items:center;padding:9px 14px;background:linear-gradient(180deg,rgba(0,0,0,0.6),rgba(0,0,0,0))">
-        <span style="color:#fff;font-weight:800;font-size:0.9rem">🏆 <span id="runScore">0</span></span>
-        <span style="color:#FFD600;font-weight:800;font-size:0.9rem">🪙 <span id="runCoins">0</span></span>
+    <div class="game-container" style="background:#0a0a14;padding:10px;min-height:500px">
+      <div style="text-align:center;color:#fff;margin-bottom:6px">
+        <span style="font-family:'Fredoka One',cursive">🏆 <span id="runScore">0</span></span>
+        <span style="margin-left:14px;color:#FFD600">🪙 <span id="runCoins">0</span></span>
       </div>
+      <canvas id="runCanvas" width="${W}" height="${H}" style="background:linear-gradient(180deg,#312e81,#1e1b4b);border-radius:14px;display:block;margin:0 auto;touch-action:none;max-width:100%"></canvas>
     </div>
-    <div class="game-instructions">🏃 Toca izquierda/derecha para cambiar de carril · Toca arriba o ↑ para saltar · ¡Esquiva y junta monedas!</div>`;
+    <div class="game-instructions">🏃 Toca izquierda/derecha de la pantalla (o flechas) para cambiar de carril y esquivar. ¡Recoge monedas y llega lejos!</div>`;
   const cv = document.getElementById('runCanvas');
   const ctx = cv.getContext('2d');
+  const carriles = [W*0.25, W*0.5, W*0.75];
+  let carril = 1, score = 0, coins = 0, vel = 4, jugando = true;
+  let obstaculos = [], monedas = [], spawnT = 0;
+  let gameover_called = false;
+  let jugadorEmoji = (typeof miIdentidadOnline==='function' ? miIdentidadOnline().emoji : '🏃');
+  let _runAnimId = null;
 
-  /* Perspectiva */
-  const HORIZON = Math.round(H * 0.30);
-  const VANISH_X = W / 2;
-  const LANE_OFFSET = 0.62;   // separación de carriles en el plano cercano
-
-  let carril = 1;             // 0,1,2
-  let carrilFloat = 1;        // interpolado para deslizamiento suave
-  let score = 0, coins = 0, vel, jugando = true;
-  let obstaculos = [], monedas = [], spawnZ = 0;
-  let jugadorEmoji = (typeof miIdentidadOnline==='function' ? miIdentidadOnline().emoji : '🦊');
-  let _runAnimId = null, lastT = 0;
-  let jumpY = 0, jumpV = 0, jumping = false;
-  let runCycle = 0, worldZ = 0;
-  /* Estado de potenciadores */
-  let escudoActivo = false, imanT = 0, lentoT = 0, dobleT = 0;
-
-  function activarPoder(poder) {
-    if (poder === 'escudo')    escudoActivo = true;
-    else if (poder === 'iman')  imanT = 10;     // 10 s
-    else if (poder === 'lento') lentoT = 8;     // 8 s
-    else if (poder === 'doble') dobleT = 15;    // 15 s
-    else if (poder === 'turbo') vel += 0.6;
-    else if (poder === 'vidaExtra') { /* en runner = escudo extra */ escudoActivo = true; }
+  function mover(dir) {
+    carril = Math.max(0, Math.min(2, carril + dir));
+    SFX.click();
   }
-
-  function reset() {
-    carril = 1; carrilFloat = 1; score = 0; coins = 0; vel = 0.85; jugando = true;
-    obstaculos = []; monedas = []; spawnZ = 0; jumpY = 0; jumpV = 0; jumping = false;
-    worldZ = 0; runCycle = 0;
-    escudoActivo = false; imanT = 0; lentoT = 0; dobleT = 0;
-    setText('runScore','0'); setText('runCoins','0');
-    const old = cv.parentElement.querySelector('.runRestart'); if (old) old.remove();
-    lastT = performance.now();
-    if (_runAnimId) cancelAnimationFrame(_runAnimId);
-    if (typeof HK_POWER !== 'undefined') HK_POWER.iniciar('runner', activarPoder);
-    _runAnimId = registerAnimation(requestAnimationFrame(loop));
-  }
-
-  /* Proyección: convierte (lane -1..1, z 0..1) a coords de pantalla.
-     z=1 lejos (horizonte), z=0 cerca (abajo). */
-  function proj(laneX, z) {
-    const persp = 1 - z;               // 1 cerca, 0 lejos
-    const scale = 0.18 + persp * 0.82; // tamaño según cercanía
-    const y = HORIZON + (H - HORIZON) * persp;
-    const x = VANISH_X + laneX * LANE_OFFSET * (W * 0.5) * scale;
-    return { x, y, scale };
-  }
-
-  function mover(dir) { if (!jugando) return; carril = Math.max(0, Math.min(2, carril + dir)); SFX.click(); }
-  function saltar() { if (!jugando) { reset(); return; } if (!jumping) { jumping = true; jumpV = 9; SFX.jump(); } }
-
+  // tocar la pantalla
   const tap = e => {
     e.preventDefault();
     const r = cv.getBoundingClientRect();
     const t = (e.touches && e.touches[0]) || e;
-    const x = (t.clientX - r.left), y = (t.clientY - r.top);
-    if (y < r.height * 0.35) { saltar(); return; }
+    const x = (t.clientX - r.left);
     if (x < r.width/2) mover(-1); else mover(1);
   };
   cv.addEventListener('touchstart', tap, {passive:false});
   cv.addEventListener('click', tap);
-  const key = e => {
-    if (e.key==='ArrowLeft'||e.key==='a') mover(-1);
-    else if (e.key==='ArrowRight'||e.key==='d') mover(1);
-    else if (e.key==='ArrowUp'||e.key===' '||e.key==='w') { saltar(); e.preventDefault(); }
-  };
+  const key = e => { if (e.key==='ArrowLeft') mover(-1); else if (e.key==='ArrowRight') mover(1); };
   document.addEventListener('keydown', key);
   window.activeKeyHandlers.push(key);
 
-  function loop(ts) {
-    if (!container.isConnected) return;
-    const dt = Math.min((ts - lastT)/1000, 0.05); lastT = ts;
-    if (jugando && !window.HK_PAUSED) update(dt);
-    draw(ts);
-    _runAnimId = registerAnimation(requestAnimationFrame(loop));
-  }
-
-  function update(dt) {
-    /* Temporizadores de poderes */
-    if (imanT > 0) imanT -= dt;
-    if (lentoT > 0) lentoT -= dt;
-    if (dobleT > 0) dobleT -= dt;
-    const factorVel = lentoT > 0 ? 0.45 : 1;   // cámara lenta
-
-    worldZ += vel * dt * factorVel;
-    runCycle += dt * 12 * factorVel;
-    carrilFloat += (carril - carrilFloat) * 0.25;
-
-    /* Salto */
-    if (jumping) {
-      jumpY += jumpV; jumpV -= 0.6;
-      if (jumpY <= 0) { jumpY = 0; jumping = false; jumpV = 0; }
+  function loop() {
+    if (window.HK_PAUSED) {
+      _runAnimId = requestAnimationFrame(loop);
+      return;
     }
-
-    /* Spawn por distancia */
-    spawnZ -= vel * dt * factorVel;
-    if (spawnZ <= 0) {
-      spawnZ = 0.32 + Math.random() * 0.2;
+    if (!container.isConnected || !jugando) return;
+    ctx.clearRect(0,0,W,H);
+    // líneas de carril
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth=2; ctx.setLineDash([12,12]);
+    [W*0.375, W*0.625].forEach(x => { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); });
+    ctx.setLineDash([]);
+    // generar
+    spawnT++;
+    if (spawnT > Math.max(28, 60-score/10)) {
+      spawnT = 0;
       const c = Math.floor(Math.random()*3);
-      if (Math.random() < 0.68) {
-        obstaculos.push({ c, z: 1.15, tipo: Math.floor(Math.random()*3) });
-      } else {
-        const n = 1 + Math.floor(Math.random()*3);
-        for (let i=0;i<n;i++) monedas.push({ c, z: 1.15 + i*0.05 });
-      }
+      if (Math.random() < 0.7) obstaculos.push({ c, y:-40, emoji:['🚧','🪨','📦','🛢️'][Math.floor(Math.random()*4)] });
+      else monedas.push({ c, y:-40 });
     }
-
-    /* Avanzar objetos hacia la cámara */
-    obstaculos.forEach(o => o.z -= vel * dt * factorVel);
-    monedas.forEach(m => {
-      m.z -= vel * dt * factorVel;
-      /* Imán: atrae monedas al carril del jugador */
-      if (imanT > 0 && m.z < 0.4) m.c = carril;
-    });
-    obstaculos = obstaculos.filter(o => o.z > -0.1);
-    monedas = monedas.filter(m => m.z > -0.1);
-
-    /* Colisiones */
+    // mover y dibujar obstáculos
+    obstaculos.forEach(o => o.y += vel);
+    monedas.forEach(m => m.y += vel);
+    obstaculos = obstaculos.filter(o => o.y < H+40);
+    monedas = monedas.filter(m => m.y < H+40);
+    ctx.font = '30px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    obstaculos.forEach(o => ctx.fillText(o.emoji, carriles[o.c], o.y));
+    monedas.forEach(m => ctx.fillText('🪙', carriles[m.c], m.y));
+    // jugador
+    const py = H-60;
+    ctx.font = '36px sans-serif';
+    ctx.fillText(jugadorEmoji, carriles[carril], py);
+    // colisiones
     obstaculos.forEach(o => {
-      if (o.z < 0.10 && o.z > 0.0 && o.c === carril && jumpY < 28) {
-        if (escudoActivo) {
-          escudoActivo = false;
-          o.z = -1;   // destruir obstáculo
-          try { showToast('🛡️ ¡Escudo te salvó!'); SFX.pick(); } catch(e){}
-        } else {
-          gameOver();
-        }
-      }
+      if (o.c === carril && Math.abs(o.y - py) < 30) { gameOver(); }
     });
     monedas = monedas.filter(m => {
-      if (m.z < 0.10 && m.z > 0.0 && m.c === carril) {
-        const gan = dobleT > 0 ? 2 : 1;
-        coins += gan; score += 5*gan; setText('runCoins', coins); SFX.coin(); return false;
-      }
+      if (m.c === carril && Math.abs(m.y - py) < 30) { coins++; score+=5; setText('runCoins',coins); SFX.coin(); return false; }
       return true;
     });
-
-    score += dt * 30; setText('runScore', Math.floor(score));
-    vel = 0.85 + score/1200;
+    score++; setText('runScore', Math.floor(score/3));
+    vel = 4 + score/300;
+    if (jugando) _runAnimId = registerAnimation(requestAnimationFrame(loop));
   }
-
-  function laneToX(c) { return (c - 1); }  // -1, 0, 1
-
-  function draw(ts) {
-    /* Cielo */
-    const sky = ctx.createLinearGradient(0,0,0,HORIZON);
-    sky.addColorStop(0,'#1a1640'); sky.addColorStop(1,'#3b2f7a');
-    ctx.fillStyle = sky; ctx.fillRect(0,0,W,HORIZON);
-    /* Estrellas */
-    for (let i=0;i<24;i++){ const sx=(i*89)%W, sy=(i*53)%HORIZON; ctx.fillStyle=`rgba(255,255,255,${0.3+Math.sin(ts/600+i)*0.2})`; ctx.fillRect(sx,sy,2,2); }
-    /* Suelo */
-    ctx.fillStyle = '#15122e'; ctx.fillRect(0,HORIZON,W,H-HORIZON);
-
-    /* Carretera con perspectiva (trapecio) */
-    const farL = proj(-1.5,1), farR = proj(1.5,1), nearL = proj(-1.5,0), nearR = proj(1.5,0);
-    ctx.fillStyle = '#241f47';
-    ctx.beginPath();
-    ctx.moveTo(farL.x,farL.y); ctx.lineTo(farR.x,farR.y);
-    ctx.lineTo(nearR.x,nearR.y); ctx.lineTo(nearL.x,nearL.y); ctx.closePath(); ctx.fill();
-
-    /* Líneas de carril que se mueven (sensación de avance) */
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 2;
-    [-0.5, 0.5].forEach(l => {
-      const f = proj(l, 1), n = proj(l, 0);
-      ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.lineTo(n.x,n.y); ctx.stroke();
-    });
-    /* Travesaños animados */
-    for (let i=0;i<12;i++){
-      let z = ((i/12) - (worldZ % (1/12))*12/12) ;
-      z = ((i/12 + (1 - (worldZ*1 % 1))) % 1);
-      const p = proj(0, z);
-      const wHalf = (proj(1.5,z).x - proj(-1.5,z).x)/2;
-      ctx.strokeStyle = `rgba(255,255,255,${0.05 + (1-z)*0.12})`;
-      ctx.lineWidth = 1 + (1-z)*2;
-      ctx.beginPath(); ctx.moveTo(p.x-wHalf,p.y); ctx.lineTo(p.x+wHalf,p.y); ctx.stroke();
-    }
-
-    /* Ordenar objetos por z (lejos primero) */
-    const items = [
-      ...obstaculos.map(o=>({...o, kind:'obs'})),
-      ...monedas.map(m=>({...m, kind:'coin'}))
-    ].sort((a,b)=> b.z - a.z);
-
-    items.forEach(it => {
-      if (it.z < 0 || it.z > 1.15) return;
-      const p = proj(laneToX(it.c), Math.max(0,Math.min(1,it.z)));
-      if (it.kind === 'coin') {
-        const r = 13 * p.scale;
-        const bob = Math.sin(ts/200 + it.c)*3*p.scale;
-        ctx.fillStyle = '#FFD600';
-        ctx.beginPath(); ctx.ellipse(p.x, p.y - 18*p.scale + bob, r*0.7, r, 0,0,Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#c89000';
-        ctx.font = `bold ${Math.round(r)}px Nunito,sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText('$', p.x, p.y - 18*p.scale + bob);
-      } else {
-        /* Obstáculo 3D (caja / barrera / roca) */
-        const s = 40 * p.scale;
-        drawObstaculo3D(p.x, p.y, s, it.tipo);
-      }
-    });
-
-    /* Jugador (corredor animado) */
-    const pp = proj(laneToX(carrilFloat), 0.04);
-    drawCorredor(pp.x, pp.y - jumpY, 1.0, ts);
-
-    if (!jugando) {
-      ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(0,0,W,H);
-      ctx.fillStyle='#fff'; ctx.font=`bold ${Math.round(W/11)}px Fredoka One,cursive`; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('💀 ¡Chocaste!', W/2, H/2-30);
-      ctx.fillStyle='#FFD600'; ctx.font=`bold ${Math.round(W/18)}px Nunito,sans-serif`;
-      ctx.fillText('Puntos: '+Math.floor(score)+' · 🪙'+coins, W/2, H/2+6);
-    }
-  }
-
-  function drawObstaculo3D(x, y, s, tipo) {
-    ctx.save(); ctx.translate(x, y);
-    /* Sombra */
-    ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(0,0,s*0.6,s*0.15,0,0,Math.PI*2); ctx.fill();
-    if (tipo === 0) {
-      /* Caja de madera con cara frontal + tapa (pseudo 3D) */
-      ctx.fillStyle='#a0671f'; ctx.fillRect(-s*0.5,-s,s,s);          // frente
-      ctx.fillStyle='#c8852f'; ctx.beginPath(); ctx.moveTo(-s*0.5,-s); ctx.lineTo(-s*0.32,-s*1.2); ctx.lineTo(s*0.68,-s*1.2); ctx.lineTo(s*0.5,-s); ctx.closePath(); ctx.fill(); // tapa
-      ctx.fillStyle='#7a4d14'; ctx.beginPath(); ctx.moveTo(s*0.5,-s); ctx.lineTo(s*0.68,-s*1.2); ctx.lineTo(s*0.68,-s*0.2); ctx.lineTo(s*0.5,0); ctx.closePath(); ctx.fill(); // lado
-      ctx.strokeStyle='#5a3a10'; ctx.lineWidth=2; ctx.strokeRect(-s*0.5,-s,s,s);
-    } else if (tipo === 1) {
-      /* Barrera de tráfico */
-      ctx.fillStyle='#e23b3b'; ctx.fillRect(-s*0.55,-s*0.8,s*1.1,s*0.35);
-      ctx.fillStyle='#fff';
-      for(let i=0;i<3;i++) ctx.fillRect(-s*0.5+i*s*0.38,-s*0.8,s*0.18,s*0.35);
-      ctx.fillStyle='#555'; ctx.fillRect(-s*0.4,-s*0.45,s*0.1,s*0.45); ctx.fillRect(s*0.3,-s*0.45,s*0.1,s*0.45);
-    } else {
-      /* Roca */
-      ctx.fillStyle='#6b6b6b'; ctx.beginPath();
-      ctx.moveTo(-s*0.5,0); ctx.lineTo(-s*0.4,-s*0.7); ctx.lineTo(0,-s*0.95);
-      ctx.lineTo(s*0.45,-s*0.65); ctx.lineTo(s*0.5,0); ctx.closePath(); ctx.fill();
-      ctx.fillStyle='#888'; ctx.beginPath();
-      ctx.moveTo(-s*0.1,-s*0.5); ctx.lineTo(0,-s*0.95); ctx.lineTo(s*0.45,-s*0.65); ctx.lineTo(s*0.2,-s*0.4); ctx.closePath(); ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  function drawCorredor(x, y, scale, ts) {
-    const run = Math.sin(runCycle) ;
-    ctx.save(); ctx.translate(x, y);
-    /* Sombra */
-    ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0,4,26*scale,7*scale,0,0,Math.PI*2); ctx.fill();
-    const inAir = jumpY > 2;
-    const stride = inAir ? 16 : Math.sin(runCycle)*18;
-    /* Piernas */
-    ctx.strokeStyle='#1a40a0'; ctx.lineWidth=8*scale; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(-3*scale,-22*scale); ctx.lineTo((-3+stride*0.3)*scale,-2*scale); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(3*scale,-22*scale); ctx.lineTo((3-stride*0.3)*scale,-2*scale); ctx.stroke();
-    /* Zapatos */
-    ctx.fillStyle='#fff';
-    ctx.beginPath(); ctx.roundRect((-7+stride*0.3)*scale,-5*scale,11*scale,5*scale,2); ctx.fill();
-    ctx.beginPath(); ctx.roundRect((-1-stride*0.3)*scale,-5*scale,11*scale,5*scale,2); ctx.fill();
-    /* Torso */
-    ctx.fillStyle='#2563EB'; ctx.beginPath(); ctx.roundRect(-12*scale,-46*scale,24*scale,26*scale,7*scale); ctx.fill();
-    /* Brazos */
-    const armSwing = inAir ? -18 : Math.sin(runCycle+Math.PI)*16;
-    ctx.strokeStyle='#2563EB'; ctx.lineWidth=6*scale;
-    ctx.beginPath(); ctx.moveTo(-11*scale,-40*scale); ctx.lineTo((-16)*scale,(-26+armSwing)*scale); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(11*scale,-40*scale); ctx.lineTo((16)*scale,(-26-armSwing)*scale); ctx.stroke();
-    /* Cabeza con emoji del jugador */
-    ctx.font=`${Math.round(30*scale)}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(jugadorEmoji, 0, -56*scale);
-    ctx.restore();
-  }
-
   function gameOver() {
-    if (!jugando) return;
-    jugando = false; SFX.lose();
-    const finalScore = Math.floor(score);
-    if (coins >= 5 && typeof darRecompensa==='function') darRecompensa(coins, finalScore, '🏃 Runner');
-    if (finalScore >= 100 && typeof awardBadge==='function') awardBadge('first_win');
-    saveRecord('runner', finalScore);
+    if (gameover_called) return;  // Prevenir múltiples llamadas
+    gameover_called = true;
+    jugando = false;
+    SFX.lose();
+    const finalScore = Math.floor(score/3);
+    ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff'; ctx.font='bold 28px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('💀 ¡Chocaste!', W/2, H/2-40);
+    ctx.font='20px sans-serif';
+    ctx.fillText('Puntos: '+finalScore+' · 🪙'+coins, W/2, H/2);
+    // recompensa
+    if (coins >= 10 && typeof darRecompensa==='function') darRecompensa(coins, finalScore, 'Runner');
+    if (finalScore >= 50 && typeof awardBadge==='function') awardBadge('first_win');
+    
+    // botón reiniciar - LIMPIAR PRIMERO LOS ANTIGUOS
+    const oldBtns = cv.parentElement.querySelectorAll('button');
+    oldBtns.forEach(b => b.remove());
+    
     const btn = document.createElement('button');
-    btn.className = 'runRestart';
     btn.textContent = '🔁 Jugar de nuevo';
     btn.style.cssText='display:block;margin:10px auto 0;background:#7C3AED;border:none;color:#fff;padding:12px 24px;border-radius:16px;font-family:Nunito,sans-serif;font-weight:800;cursor:pointer';
-    const again = e => { e.preventDefault(); reset(); };
+    const again = e => { e.preventDefault(); score=0;coins=0;vel=4;obstaculos=[];monedas=[];carril=1;jugando=true;gameover_called=false; setText('runScore','0');setText('runCoins','0'); loop(); };
     btn.addEventListener('touchstart', again, {passive:false});
     btn.addEventListener('click', again);
     cv.parentElement.appendChild(btn);
   }
-  reset();
+  loop();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -11371,7 +10803,7 @@ if(_hgOriginalOpenGame){
     if (CFG.cargado) return CFG;
     const c = sb();
     if (!c) {
-      CFG.juegos  = null;   // null = sin restricción, todos permitidos
+      CFG.juegos  = JUEGOS_DEFAULT;
       CFG.online  = true;
       CFG.cargado = true;
       return CFG;
@@ -11382,13 +10814,13 @@ if(_hgOriginalOpenGame){
         .in('clave', ['juegos_invitado','invitados_online']);
       if (data) {
         data.forEach(row => {
-          if (row.clave === 'juegos_invitado') CFG.juegos = Array.isArray(row.valor) ? row.valor : null;
+          if (row.clave === 'juegos_invitado') CFG.juegos = Array.isArray(row.valor) ? row.valor : JUEGOS_DEFAULT;
           if (row.clave === 'invitados_online') CFG.online = row.valor !== false;
         });
       }
     } catch(e) {}
-    // Si el admin nunca configuró restricción, juegos = null = todos permitidos
-    if (CFG.online === null || CFG.online === undefined) CFG.online = true;
+    if (!CFG.juegos) CFG.juegos = JUEGOS_DEFAULT;
+    if (CFG.online === null) CFG.online = true;
     CFG.cargado = true;
     return CFG;
   }
@@ -11443,8 +10875,7 @@ if(_hgOriginalOpenGame){
       return;
     }
     const cfg = await cargarConfig();
-    // Solo bloquear si el admin definió una lista Y este juego no está en ella
-    if (Array.isArray(cfg.juegos) && !cfg.juegos.includes(gameId)) {
+    if (!cfg.juegos.includes(gameId)) {
       mostrarBloqueoPorInvitado(); return;
     }
     if (typeof _openGameOrig === 'function') return _openGameOrig(gameId);
@@ -11452,7 +10883,6 @@ if(_hgOriginalOpenGame){
 
   function mostrarBloqueoPorInvitado() {
     const box = document.createElement('div');
-    box.id = 'hkBloqueoInvitado';
     box.style.cssText = 'position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;padding:20px';
     box.innerHTML = `
       <div style="background:linear-gradient(135deg,#0d1117,#1a0533);border:2px solid rgba(124,58,237,0.5);border-radius:22px;padding:28px 22px;max-width:340px;width:100%;text-align:center;font-family:Nunito,sans-serif">
@@ -11463,25 +10893,13 @@ if(_hgOriginalOpenGame){
           <span style="color:#86efac">¡Crea tu cuenta gratis</span> para desbloquearlo y ganar monedas, trofeos y más.
         </div>
         <div style="display:flex;gap:8px;flex-direction:column">
-          <button id="hkBloqCrear" style="background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:13px;border-radius:14px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;font-size:0.95rem">✨ Crear cuenta gratis</button>
-          <button id="hkBloqCancel" style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:#888;padding:10px;border-radius:14px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Cancelar</button>
+          <button onclick="this.closest('[style*=\"z-index:8000\"]').remove();openCuenta()"
+            style="background:linear-gradient(135deg,#16A34A,#2563EB);border:none;color:#fff;padding:13px;border-radius:14px;font-weight:800;cursor:pointer;font-family:Nunito,sans-serif;font-size:0.95rem">✨ Crear cuenta gratis</button>
+          <button onclick="this.closest('[style*=\"z-index:8000\"]').remove()"
+            style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:#888;padding:10px;border-radius:14px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Cancelar</button>
         </div>
       </div>`;
     document.body.appendChild(box);
-    const cerrar = () => box.remove();
-    const crear = () => {
-      box.remove();
-      // Abrir la pantalla de cuenta/registro con el nombre correcto
-      if (typeof openCuenta === 'function') openCuenta();
-      else if (typeof abrirCuenta === 'function') abrirCuenta();
-      else { const b = document.getElementById('cuentaBtn'); if (b) b.click(); }
-    };
-    const bC = document.getElementById('hkBloqCrear');
-    const bX = document.getElementById('hkBloqCancel');
-    bC.addEventListener('click', crear); bC.addEventListener('touchstart', e=>{e.preventDefault();crear();}, {passive:false});
-    bX.addEventListener('click', cerrar); bX.addEventListener('touchstart', e=>{e.preventDefault();cerrar();}, {passive:false});
-    // Tocar el fondo cierra
-    box.addEventListener('click', e => { if (e.target === box) cerrar(); });
   }
 
   /* ══════════════════════════════════════════
@@ -11491,8 +10909,7 @@ if(_hgOriginalOpenGame){
     cont.innerHTML = `<div style="text-align:center;color:#555;padding:30px">Cargando configuración...</div>`;
     CFG.cargado = false; // forzar recarga fresca desde Supabase
     const cfg = await cargarConfig();
-    // null = todos permitidos: marcar todos por defecto
-    const permitidos = Array.isArray(cfg.juegos) ? new Set(cfg.juegos) : new Set(TODOS_JUEGOS.map(j=>j.id));
+    const permitidos = new Set(cfg.juegos);
 
     cont.innerHTML = `
       <div style="color:#fff;font-family:Nunito,sans-serif">
@@ -11658,9 +11075,8 @@ if(_hgOriginalOpenGame){
     try {
       const { error } = await c.from('config').upsert(
         { clave, valor, actualizado_en: new Date().toISOString() }, { onConflict:'clave' });
-      if (error) { console.error('cfgSet('+clave+'):', error.message); window._hkLastCfgError = error.message; return false; }
-      return true;
-    } catch(e) { console.error('cfgSet excepción:', e); window._hkLastCfgError = String(e); return false; }
+      return !error;
+    } catch(e) { return false; }
   }
 
   /* ════════════════════════════════════════
@@ -12005,18 +11421,9 @@ if(_hgOriginalOpenGame){
       if (!reg.nombre) { toast('⚠️ Falta el nombre'); return; }
       const btn = cont.querySelector('#guardarT'); btn.textContent='Guardando...'; btn.disabled=true;
       try {
-        const { error } = await c.from('torneos').upsert(reg, { onConflict:'id' });
-        if (error) throw error;
+        await c.from('torneos').upsert(reg, { onConflict:'id' });
         toast('✅ Torneo guardado'); renderTorneos(cont);
-      } catch(e) {
-        btn.textContent='💾 Guardar torneo'; btn.disabled=false;
-        const msg = (e && e.message) ? e.message : 'error desconocido';
-        console.error('Guardar torneo:', e);
-        // Mostrar el error real para diagnosticar
-        alert('❌ No se pudo guardar el torneo.\n\nError de Supabase:\n' + msg +
-              '\n\nProbablemente falta la tabla "torneos" o sus columnas/políticas RLS. ' +
-              'Revisa el SQL que te pasó el asistente.');
-      }
+      } catch(e) { toast('❌ Error. ¿Existe la tabla torneos?'); btn.textContent='💾 Guardar torneo'; btn.disabled=false; }
     };
   }
 
@@ -12068,11 +11475,7 @@ if(_hgOriginalOpenGame){
         } catch(e){}
         toast('✅ Precios guardados'); btn.textContent='✅ Guardado';
         setTimeout(()=>{ btn.textContent='💾 Guardar precios'; btn.disabled=false; }, 2000);
-      } else {
-        const err = window._hkLastCfgError || 'desconocido';
-        alert('❌ No se pudieron guardar los precios.\n\nError: ' + err + '\n\nFalta la tabla "config" o sus políticas RLS en Supabase.');
-        btn.textContent='💾 Guardar precios'; btn.disabled=false;
-      }
+      } else { toast('❌ Error al guardar'); btn.textContent='💾 Guardar precios'; btn.disabled=false; }
     };
   }
 
@@ -12158,213 +11561,6 @@ if(_hgOriginalOpenGame){
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init, {once:true});
   } else { init(); }
-
-})();
-</script>
-<script>
-/* ══════════════════════════════════════════════════════════════════
-   CHAT EN TIEMPO REAL ENTRE AMIGOS (Supabase Realtime)
-   • Botón "💬 Chat" en cada amigo de la lista
-   • Mensajes en vivo vía suscripción Realtime de Supabase
-   • Sirve para coordinar qué juego jugar (independiente del chat de juego)
-
-   Tabla requerida (ejecutar en Supabase SQL Editor):
-
-   CREATE TABLE IF NOT EXISTS mensajes_chat (
-     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-     sala        TEXT NOT NULL,
-     de_codigo   TEXT NOT NULL,
-     de_nombre   TEXT,
-     de_avatar   TEXT,
-     texto       TEXT NOT NULL,
-     creado_en   TIMESTAMPTZ DEFAULT NOW()
-   );
-   CREATE INDEX IF NOT EXISTS idx_mensajes_sala ON mensajes_chat(sala, creado_en);
-   ALTER TABLE mensajes_chat ENABLE ROW LEVEL SECURITY;
-   CREATE POLICY "chat_todos" ON mensajes_chat FOR ALL USING (true) WITH CHECK (true);
-   -- Habilitar Realtime: Supabase → Database → Replication → activar mensajes_chat
-══════════════════════════════════════════════════════════════════ */
-(function () {
-  'use strict';
-
-  let salaActual = null;
-  let canalChat = null;
-  let amigoInfo = null;
-
-  function sb() { try { return getSupabase(); } catch(e) { return null; } }
-  function miCodigo() { try { return getUserCode() || getGuestId(); } catch(e) { return 'U?'; } }
-  function miNombre() { try { return (perfilNube && perfilNube.nombre) || getGuestName() || 'Yo'; } catch(e) { return 'Yo'; } }
-  function miAvatar() { try { return (perfilNube && perfilNube.avatar) || '👤'; } catch(e) { return '👤'; } }
-  function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-  /* La sala es el par de códigos ordenado, para que ambos lleguen a la misma:
-     U100 + U200  →  "chat_U100_U200" (siempre en orden alfabético) */
-  function nombreSala(codA, codB) {
-    const a = String(codA).toUpperCase(), b = String(codB).toUpperCase();
-    return 'chat_' + [a, b].sort().join('_');
-  }
-
-  function normalizarCodigoAmigo(num) {
-    let c = String(num).toUpperCase().trim();
-    if (!c.startsWith('U') && !c.startsWith('G')) c = 'U' + c.replace(/[^0-9]/g,'');
-    return c;
-  }
-
-  window.HKChat = {
-    async abrir(amigoNum, amigoNombre, amigoAvatar) {
-      const c = sb();
-      if (!c) { try{ showToast('⚠️ El chat necesita conexión'); }catch(e){} return; }
-      if (typeof soyUsuarioRegistrado === 'function' && !soyUsuarioRegistrado()) {
-        try{ showToast('🔒 Crea tu cuenta para chatear con amigos'); }catch(e){}
-        return;
-      }
-
-      const miCod = miCodigo();
-      const amigoCod = normalizarCodigoAmigo(amigoNum);
-      salaActual = nombreSala(miCod, amigoCod);
-      amigoInfo = { cod: amigoCod, nombre: amigoNombre || ('Amigo #' + amigoNum), avatar: amigoAvatar || '👤' };
-
-      mostrarVentana();
-      await cargarHistorial();
-      suscribir();
-    },
-
-    cerrar() {
-      if (canalChat) { try { sb().removeChannel(canalChat); } catch(e){} canalChat = null; }
-      salaActual = null;
-      const v = document.getElementById('hkChatVentana');
-      if (v) v.remove();
-    }
-  };
-
-  function mostrarVentana() {
-    let v = document.getElementById('hkChatVentana');
-    if (v) v.remove();
-    v = document.createElement('div');
-    v.id = 'hkChatVentana';
-    v.style.cssText = 'position:fixed;inset:0;z-index:9300;background:#0d0f18;display:flex;flex-direction:column;font-family:Nunito,sans-serif';
-    v.innerHTML = `
-      <!-- Header -->
-      <div style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);padding:12px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0">
-        <button id="hkChatBack" style="background:rgba(255,255,255,0.18);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:1.2rem;cursor:pointer">←</button>
-        <span style="font-size:1.6rem">${esc(amigoInfo.avatar)}</span>
-        <div style="flex:1;min-width:0">
-          <div style="color:#fff;font-weight:800;font-size:1rem;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(amigoInfo.nombre)}</div>
-          <div style="color:rgba(255,255,255,0.7);font-size:0.68rem">💬 Chat con tu amigo</div>
-        </div>
-      </div>
-      <!-- Sugerencias rápidas para coordinar juego -->
-      <div style="display:flex;gap:6px;padding:8px 12px;background:#13131f;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch">
-        ${['¿Jugamos? 🎮','Snake 🐍','Carreras 🏎️','Yanken Po ✊','¡Te gané! 😎','Otra vez 🔁'].map(s=>
-          `<button class="hkChatQuick" style="white-space:nowrap;background:#1e2535;border:1px solid #2a3650;color:#c4b5fd;padding:6px 11px;border-radius:14px;font-weight:700;font-size:0.74rem;cursor:pointer;flex-shrink:0">${s}</button>`).join('')}
-      </div>
-      <!-- Mensajes -->
-      <div id="hkChatMsgs" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch">
-        <div style="text-align:center;color:#556;padding:20px;font-size:0.85rem">Cargando mensajes...</div>
-      </div>
-      <!-- Input -->
-      <div style="display:flex;gap:8px;padding:10px 12px;background:#13131f;flex-shrink:0;align-items:center">
-        <input id="hkChatInput" type="text" placeholder="Escribe un mensaje..." autocomplete="off" maxlength="300"
-          style="flex:1;background:#0d0f18;border:1px solid #2a3650;border-radius:20px;padding:11px 16px;color:#fff;font-weight:600;outline:none;font-family:Nunito,sans-serif;font-size:0.9rem">
-        <button id="hkChatSend" style="background:linear-gradient(135deg,#7C3AED,#FF4D9D);border:none;color:#fff;width:44px;height:44px;border-radius:50%;font-size:1.2rem;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">➤</button>
-      </div>`;
-    document.body.appendChild(v);
-
-    v.querySelector('#hkChatBack').onclick = () => window.HKChat.cerrar();
-    const input = v.querySelector('#hkChatInput');
-    const enviar = () => {
-      const t = input.value.trim();
-      if (!t) return;
-      enviarMensaje(t);
-      input.value = '';
-      input.focus();
-    };
-    v.querySelector('#hkChatSend').onclick = enviar;
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') enviar(); });
-    v.querySelectorAll('.hkChatQuick').forEach(b => {
-      b.onclick = () => { input.value = b.textContent; enviar(); };
-    });
-    setTimeout(()=>input.focus(), 300);
-  }
-
-  async function cargarHistorial() {
-    const c = sb(); if (!c || !salaActual) return;
-    const cont = document.getElementById('hkChatMsgs');
-    try {
-      const { data, error } = await c.from('mensajes_chat')
-        .select('*').eq('sala', salaActual)
-        .order('creado_en', { ascending: true }).limit(100);
-      if (error) throw error;
-      if (cont) {
-        cont.innerHTML = '';
-        if (!data || !data.length) {
-          cont.innerHTML = '<div style="text-align:center;color:#556;padding:20px;font-size:0.82rem">👋 ¡Saluda a tu amigo! Aquí pueden coordinar a qué jugar.</div>';
-        } else {
-          data.forEach(pintarMensaje);
-          scrollAbajo();
-        }
-      }
-    } catch(e) {
-      if (cont) cont.innerHTML = '<div style="text-align:center;color:#f87171;padding:20px;font-size:0.8rem">No se pudo cargar el chat.<br>¿Existe la tabla <code>mensajes_chat</code> en Supabase?</div>';
-      console.error('chat historial:', e);
-    }
-  }
-
-  function suscribir() {
-    const c = sb(); if (!c || !salaActual) return;
-    if (canalChat) { try { c.removeChannel(canalChat); } catch(e){} }
-    canalChat = c.channel('rt-' + salaActual)
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'mensajes_chat', filter: 'sala=eq.' + salaActual },
-        payload => {
-          // No re-pintar mi propio mensaje (ya lo pinté al enviar) salvo que venga de otro
-          if (payload.new && payload.new.de_codigo !== miCodigo()) {
-            pintarMensaje(payload.new);
-            scrollAbajo();
-            try { if (SFX && SFX.point) SFX.point(); } catch(e){}
-          }
-        })
-      .subscribe();
-  }
-
-  async function enviarMensaje(texto) {
-    const c = sb(); if (!c || !salaActual) return;
-    const msg = {
-      sala: salaActual,
-      de_codigo: miCodigo(),
-      de_nombre: miNombre(),
-      de_avatar: miAvatar(),
-      texto: texto,
-    };
-    // Pintar de inmediato (optimista)
-    pintarMensaje({ ...msg, creado_en: new Date().toISOString() });
-    scrollAbajo();
-    try {
-      const { error } = await c.from('mensajes_chat').insert(msg);
-      if (error) throw error;
-    } catch(e) {
-      console.error('enviar chat:', e);
-      try{ showToast('⚠️ No se envió. ¿Falta la tabla mensajes_chat?'); }catch(ex){}
-    }
-  }
-
-  function pintarMensaje(m) {
-    const cont = document.getElementById('hkChatMsgs');
-    if (!cont) return;
-    const mio = m.de_codigo === miCodigo();
-    const hora = m.creado_en ? new Date(m.creado_en).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
-    const burbuja = document.createElement('div');
-    burbuja.style.cssText = `display:flex;flex-direction:column;align-items:${mio?'flex-end':'flex-start'};max-width:80%;${mio?'align-self:flex-end':'align-self:flex-start'}`;
-    burbuja.innerHTML = `
-      <div style="background:${mio?'linear-gradient(135deg,#7C3AED,#FF4D9D)':'#1e2535'};color:#fff;padding:9px 13px;border-radius:${mio?'16px 16px 4px 16px':'16px 16px 16px 4px'};font-size:0.88rem;font-weight:600;word-break:break-word">${esc(m.texto)}</div>
-      <div style="color:#556;font-size:0.62rem;margin-top:2px;padding:0 4px">${hora}</div>`;
-    cont.appendChild(burbuja);
-  }
-
-  function scrollAbajo() {
-    const cont = document.getElementById('hkChatMsgs');
-    if (cont) setTimeout(()=>{ cont.scrollTop = cont.scrollHeight; }, 50);
-  }
 
 })();
 </script>
