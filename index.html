@@ -5706,9 +5706,9 @@ function buildJump(container) {
     <canvas id="jumpGame" width="${W}" height="${H}" style="display:block;position:absolute;top:0;left:0;width:100vw;height:100vh"></canvas>
     
     <!-- Controles móvil -->
-    <div id="jumpMobileControls" style="position:fixed;bottom:100px;left:20px;right:20px;display:flex;justify-content:space-around;z-index:20;gap:10px">
-      <button id="jumpLeftBtn" style="flex:1;padding:20px;background:rgba(124,58,237,0.8);color:#fff;border:2px solid #fff;border-radius:10px;cursor:pointer;font-weight:800;font-size:1.5rem">◀ Izquierda</button>
-      <button id="jumpRightBtn" style="flex:1;padding:20px;background:rgba(124,58,237,0.8);color:#fff;border:2px solid #fff;border-radius:10px;cursor:pointer;font-weight:800;font-size:1.5rem">Derecha ▶</button>
+    <div id="jumpMobileControls" style="position:fixed;bottom:80px;left:10px;right:10px;display:flex;justify-content:space-around;z-index:20;gap:8px">
+      <button id="jumpLeftBtn" style="flex:1;padding:12px;background:rgba(124,58,237,0.8);color:#fff;border:2px solid #fff;border-radius:8px;cursor:pointer;font-weight:800;font-size:1.2rem;text-align:center">◀</button>
+      <button id="jumpRightBtn" style="flex:1;padding:12px;background:rgba(124,58,237,0.8);color:#fff;border:2px solid #fff;border-radius:8px;cursor:pointer;font-weight:800;font-size:1.2rem;text-align:center">▶</button>
     </div>
     
     <button onclick="window.jumpReset()" style="position:fixed;bottom:20px;right:20px;padding:8px 16px;background:#7C3AED;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:800;font-size:1rem;z-index:20">🔄 Reiniciar</button>`;
@@ -5724,8 +5724,8 @@ function buildJump(container) {
   let keys = {};
   
   const platformCount = Math.max(15, Math.floor(H / 50));
-  const platformWidth = Math.floor(W * 0.12);
-  const platformHeight = Math.floor(H * 0.015);
+  const platformWidth = Math.floor(W * 0.20);
+  const platformHeight = Math.floor(H * 0.025);
   const platformSpacing = Math.floor(H / (platformCount + 1));
   
   for(let i = 0; i < platformCount; i++) {
@@ -5876,7 +5876,7 @@ function buildJump(container) {
       score += Math.round(dy);
       
       // Subir de nivel
-      const levelGoals = [160, 320, 480, 640, 800];
+      const levelGoals = [1000, 2500, 4000, 6000, 8000];
       if(score >= levelGoals[level-1] && level < 5) {
         level++;
         document.getElementById('jumpLevel').textContent = level;
