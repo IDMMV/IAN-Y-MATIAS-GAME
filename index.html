@@ -5711,7 +5711,8 @@ function buildJump(container) {
       <button id="jumpRightBtn" style="flex:1;padding:12px;background:rgba(124,58,237,0.8);color:#fff;border:2px solid #fff;border-radius:8px;cursor:pointer;font-weight:800;font-size:1.2rem;text-align:center">▶</button>
     </div>
     
-    <button onclick="window.jumpReset()" style="position:fixed;bottom:20px;right:20px;padding:8px 16px;background:#7C3AED;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:800;font-size:1rem;z-index:20">🔄 Reiniciar</button>`;
+    <button onclick="window.jumpReset()" style="position:fixed;bottom:20px;right:20px;padding:8px 16px;background:#7C3AED;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:800;font-size:1rem;z-index:20">🔄 Reiniciar</button>
+    <button onclick="window.jumpClose()" style="position:fixed;top:20px;right:20px;padding:8px 12px;background:#FF4757;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:800;font-size:1.2rem;z-index:20">✕</button>`;
   
   const cv = document.getElementById('jumpGame');
   const ctx = cv.getContext('2d');
@@ -6013,6 +6014,16 @@ function buildJump(container) {
       if(i % 5 === 0) powerups.push({x: platforms[i].x+platformWidth/2, y: platforms[i].y-20, type: ['🛡️','⚡','🐢'][i%3]});
     }
     platforms[0] = {x: W/2-platformWidth/2, y: H-50, w: platformWidth, h: platformHeight};
+  };
+  
+  window.jumpClose = () => {
+    if(animId) cancelAnimationFrame(animId);
+    if(typeof closeModal === 'function') closeModal();
+    else if(typeof closeGame === 'function') closeGame();
+    else {
+      const modal = document.querySelector('[role="dialog"]');
+      if(modal) modal.remove();
+    }
   };
   
   loop();
