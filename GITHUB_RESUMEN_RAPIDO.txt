@@ -1,0 +1,68 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                  🚀 CARGAR A GITHUB - RESUMEN ULTRA RÁPIDO               ║
+║                                                                            ║
+║                   HugoKids v69 - 5 Minutos                               ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+
+⏱️ TIEMPO TOTAL: ~5 MINUTOS
+
+
+PASO 1: Crea cuenta en GitHub (2 minutos)
+═════════════════════════════════════════
+
+1. Ve a https://github.com/signup
+2. Crea tu cuenta GRATIS
+3. Verifica tu email
+4. Listo!
+
+
+PASO 2: Crea nuevo repositorio (1 minuto)
+════════════════════════════════════════════
+
+1. Ve a https://github.com/new
+2. Nombre: hugokids
+3. Descripción: HugoKids - Juegos educativos
+4. Público
+5. ✋ NO marques "Initialize with README"
+6. Click "Create repository"
+7. COPIA la URL que te aparece
+
+
+PASO 3: Carga tu código (2 minutos)
+═════════════════════════════════════
+
+Abre terminal/CMD en tu carpeta /outputs y copia/pega ESTO:
+
+```bash
+git init
+git add .
+git commit -m "v69: HugoKids con Jump separado"
+git branch -M main
+git remote add origin PEGAAQUITULAURLDELGITHUB
+git push -u origin main
+```
+
+Donde PEGAAQUITULAURLDELGITHUB es la URL que copiaste.
+Ejemplo: https://github.com/juanperez/hugokids.git
+
+
+LISTO! ✅
+═════════════════════════════════════════════════════════════════════════════
+
+En 5 minutos ya está en GitHub:
+https://github.com/TU_USUARIO/hugokids
+
+Próximas veces que hagas cambios:
+```bash
+git add .
+git commit -m "v70: Descripción de cambio"
+git push origin main
+```
+
+
+🎉 ¡LISTO!
+
+Lee GITHUB_SETUP.txt para detalles completos.
+
+═════════════════════════════════════════════════════════════════════════════

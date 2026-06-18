@@ -1,0 +1,70 @@
+# ═══════════════════════════════════════════════════════════════════════
+# .gitignore para HugoKids
+# Archivos que NO se deben subir a GitHub
+# ═══════════════════════════════════════════════════════════════════════
+
+# Backup y archivos temporales
+*.backup.js
+*.backup.html
+*.backup.md
+*.backup.txt
+*.tmp
+*.log
+*.bak
+*.~
+
+# Copias de versiones anteriores (los tuyos locales)
+index_v*.html
+index_modular*.html
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDEs y editores
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+.project
+.settings/
+
+# Node.js (si lo usas en el futuro)
+node_modules/
+package-lock.json
+npm-debug.log
+
+# Python (si lo usas)
+__pycache__/
+*.pyc
+venv/
+
+# Archivos de prueba local
+test/
+tests/
+*.test.js
+
+# Secrets y configuración sensible
+.env
+.env.local
+.env.*.local
+secrets.txt
+api-keys.txt
+
+# Logs
+logs/
+*.log
+
+# Cache
+.cache/
+dist/
+
+# Compilados
+*.o
+*.exe
+*.out

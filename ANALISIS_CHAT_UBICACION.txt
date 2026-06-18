@@ -1,0 +1,411 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║              📍 UBICACIÓN DE SISTEMAS DE CHAT - ANÁLISIS COMPLETO         ║
+║                                                                            ║
+║                      ¿Dónde está el chat de cada juego?                   ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+
+🎯 RESPUESTA CORTA:
+═════════════════════════════════════════════════════════════════════════════
+
+El chat GLOBAL (usado por TODOS los juegos online) está en:
+
+  📍 index.html (líneas 2084-2180)
+
+NO está en los archivos de /juegos/
+
+Estructura:
+  index.html
+    ├── Funciones globales de chat (líneas 2084-2180)
+    ├── Filtros de seguridad (líneas 2084-2124)
+    ├── Anti-spam (líneas 2126-2141)
+    └── Envío a Supabase (líneas 2151-2173)
+
+
+═════════════════════════════════════════════════════════════════════════════
+UBICACIÓN EXACTA DEL CHAT
+═════════════════════════════════════════════════════════════════════════════
+
+ARCHIVO: index.html
+LÍNEA:   2084 al 2180 (aproximadamente)
+
+COMPONENTES DEL SISTEMA DE CHAT:
+
+1. FILTROS DE SEGURIDAD
+   Línea: 2084-2124
+   Archivos: PALABRAS_BLOQUEADAS (definida aquí)
+   Función: filtrarMensaje()
+   Qué hace: Bloquea:
+             - Groserías
+             - Enlaces
+             - Números de teléfono
+             - Correos (@)
+             - Mensajes muy largos (>120 caracteres)
+
+2. ANTI-SPAM
+   Línea: 2126-2141
+   Variables globales: _ultimoMsgTiempo, _msgRecientes
+   Función: puedeEnviarChat()
+   Función: registrarEnvioChat()
+   Qué hace: Máximo 1 mensaje cada 1.2 segundos
+             Máximo 5 mensajes en 10 segundos
+
+3. ENVÍO DE CHAT
+   Línea: 2151-2173
+   Función: enviarChatOnline(texto, emoji)
+   Función: enviarChatLibre(inputId)
+   Qué hace: Envía mensaje a Supabase en tiempo real
+             Usa canal de broadcast
+
+4. GESTIÓN DE SALA
+   Línea: 2174-2180
+   Función: salirSalaOnline()
+   Qué hace: Notifica cuando un jugador sale
+             Desconecta del canal
+
+
+═════════════════════════════════════════════════════════════════════════════
+FUNCIONES GLOBALES DE CHAT (Todas en index.html)
+═════════════════════════════════════════════════════════════════════════════
+
+FUNCIÓN                          LÍNEA    PROPÓSITO
+─────────────────────────────────────────────────────────────────────────────
+filtrarMensaje(texto)            2099     Filtra palabras bloqueadas
+puedeEnviarChat()                2129     Valida anti-spam
+registrarEnvioChat()             2138     Registra timestamp para spam
+escaparHTML(str)                 2145     Seguridad (escapa HTML)
+escapeHtml(str)                  2149     Alias de escaparHTML()
+enviarChatOnline(texto,emoji)    2151     Envía a Supabase
+enviarChatLibre(inputId)         2158     Procesa y filtra antes de enviar
+salirSalaOnline()                2174     Desconecta de sala
+
+
+═════════════════════════════════════════════════════════════════════════════
+¿POR QUÉ ESTÁ EN index.html Y NO EN /juegos/?
+═════════════════════════════════════════════════════════════════════════════
+
+Razón: El chat es COMPARTIDO por TODOS los juegos online.
+
+No está repetido en cada archivo porque:
+  ✅ Código reutilizable (DRY - Don't Repeat Yourself)
+  ✅ Mismo sistema para Jump online, TicTacToe online, etc
+  ✅ Filtros centralizados (mismo control en todos)
+  ✅ Supabase usa un canal global
+
+Si estuviera en cada juego:
+  ❌ Código duplicado (x19 copias)
+  ❌ Cambios en seguridad → editar 19 archivos
+  ❌ Inconsistencias posibles
+  ❌ Difícil mantenimiento
+
+
+═════════════════════════════════════════════════════════════════════════════
+LISTA COMPLETA DE PALABRAS BLOQUEADAS
+═════════════════════════════════════════════════════════════════════════════
+
+Ubicación: index.html, línea 2087-2095
+Variable: PALABRAS_BLOQUEADAS
+
+Palabras bloqueadas (73 total):
+  - Groserías: puto, puta, mierda, carajo, etc
+  - Sexualidad: pene, vagina, culo, teta, etc
+  - Identidad: maricon, gay, lesbiana, etc
+  - Drogas: droga, marihuana, cocaina, alcohol, etc
+  - Violencia: matar, muerte, sangre, arma, pistola, etc
+  - Insultos: idiota, imbecil, estupido, tonto, etc
+  - Negatividad: odio, feo, gordo, basura, asco, etc
+
+Cómo funciona: Palabras se censuran con ⭐⭐⭐ (según longitud)
+
+
+═════════════════════════════════════════════════════════════════════════════
+FLUJO DEL CHAT GLOBAL
+═════════════════════════════════════════════════════════════════════════════
+
+Usuario escribe en juego online:
+    ↓
+enviarChatLibre(inputId)
+    ↓
+1. Validar anti-spam: puedeEnviarChat()
+    ↓ Si falla → showToast("Espera un momento")
+    ↓ Si OK → Continuar
+    ↓
+2. Filtrar contenido: filtrarMensaje(texto)
+    ↓ Si tiene URL → showToast("No se permiten enlaces")
+    ↓ Si tiene @ → showToast("No compartas correos")
+    ↓ Si tiene teléfono → showToast("No compartas números")
+    ↓ Si tiene grosería → Censurar con ⭐
+    ↓
+3. Registrar para anti-spam: registrarEnvioChat()
+    ↓
+4. Enviar a Supabase: enviarChatOnline(texto, emoji)
+    ↓
+5. Mostrar en pantalla: mostrarChatMsg(nombre, texto, emoji)
+    ↓
+6. Recibir de Supabase: canalOnline.on('broadcast', 'chat', callback)
+    ↓
+7. Mostrar en chat de otros jugadores
+
+
+═════════════════════════════════════════════════════════════════════════════
+JUEGOS QUE USAN EL CHAT GLOBAL
+═════════════════════════════════════════════════════════════════════════════
+
+Juegos online (multiplayer con Supabase):
+
+✅ TicTacToe Online   (línea 6741: "TRES EN RAYA ONLINE")
+✅ Jump Online        (Si existe versión online)
+✅ Cualquier juego que implemente crearJuegoOnline()
+
+Función común: crearJuegoOnline(cfg)
+Línea: 6759
+
+Todos estos juegos automáticamente:
+  - Usan el mismo chat
+  - Comparten los mismos filtros
+  - Usan el mismo anti-spam
+  - Se conectan al mismo canal de Supabase
+
+
+═════════════════════════════════════════════════════════════════════════════
+DÓNDE ESTÁ LA INTERFAZ DEL CHAT
+═════════════════════════════════════════════════════════════════════════════
+
+El HTML que renderiza el chat está en:
+
+Línea: 6899-6908 (en la función crearJuegoOnline)
+Función: ctrl.chatHTML()
+
+Código de la interfaz:
+```html
+<div id="olChat" style="height:54px;...">
+  <!-- Aquí aparecen los mensajes -->
+</div>
+<div style="display:flex;gap:4px">
+  <input id="olChatInput" type="text" maxlength="120" 
+         placeholder="Escribe un mensaje..." ...>
+  <button id="olChatSend" ...>➤</button>
+</div>
+```
+
+Evento del botón: onclick="window.enviarChatLibre('olChatInput')"
+
+
+═════════════════════════════════════════════════════════════════════════════
+CÓMO EXTRAER EL CHAT A UN ARCHIVO SEPARADO
+═════════════════════════════════════════════════════════════════════════════
+
+Si quieres modularizarlo:
+
+PASO 1: Crear archivo
+  Archivo: /sistema/chat.js (recomendado)
+
+PASO 2: Copiar código de index.html
+  Líneas: 2084-2180 (funciones de chat)
+  Líneas: 6899-6908 (interfaz HTML del chat)
+
+PASO 3: Crear /sistema/chat.js con:
+```javascript
+// FILTROS DE CHAT ABIERTO (seguridad infantil)
+const PALABRAS_BLOQUEADAS = [
+  'idiota','imbecil', ... // COPIAR líneas 2087-2095
+];
+
+function filtrarMensaje(texto) { ... }
+function puedeEnviarChat() { ... }
+function registrarEnvioChat() { ... }
+function escaparHTML(str) { ... }
+function enviarChatOnline(texto, emoji) { ... }
+function enviarChatLibre(inputId) { ... }
+function salirSalaOnline() { ... }
+```
+
+PASO 4: En index.html
+  Elimina líneas 2084-2180
+  Agrega al final: <script src="sistema/chat.js"></script>
+
+PASO 5: Ventajas
+  ✅ Chat centralizado pero separado
+  ✅ Fácil de mantener
+  ✅ Fácil de actualizar filtros
+  ✅ Menos contaminación de index.html
+
+
+═════════════════════════════════════════════════════════════════════════════
+VARIABLES GLOBALES DEL CHAT (También en index.html)
+═════════════════════════════════════════════════════════════════════════════
+
+Variable                  Línea    Propósito
+─────────────────────────────────────────────────────────────────────────────
+PALABRAS_BLOQUEADAS       2087     Lista de palabras censuradas
+_ultimoMsgTiempo          2127     Timestamp del último mensaje
+_msgRecientes             2128     Array de timestamps (anti-spam)
+canalOnline               (línea ~1700) Canal Supabase para chat
+
+
+═════════════════════════════════════════════════════════════════════════════
+SUPABASE Y EL CHAT
+═════════════════════════════════════════════════════════════════════════════
+
+Conexión Supabase para chat:
+
+1. Crear canal:
+   canalOnline = getSupabase().channel(sala_id);
+   (Línea aproximada 2040)
+
+2. Escuchar mensajes:
+   canalOnline.on('broadcast', { event: 'chat' }, ({ payload }) => {
+     mostrarChatMsg(payload.nombre, payload.texto, payload.emoji);
+   });
+   (Línea 2045-2046)
+
+3. Enviar mensajes:
+   canalOnline.send({ type: 'broadcast', event: 'chat', 
+                      payload: { nombre, texto, emoji } });
+   (Línea 2154)
+
+4. Desconectar:
+   getSupabase().removeChannel(ch);
+   (Línea 2182)
+
+
+═════════════════════════════════════════════════════════════════════════════
+CÓDIGO EXACTO: SISTEMA COMPLETO DE CHAT
+═════════════════════════════════════════════════════════════════════════════
+
+Línea 2084 - 2180 en index.html:
+
+```javascript
+// FILTROS DE CHAT ABIERTO (seguridad infantil)
+const PALABRAS_BLOQUEADAS = [
+  'idiota','imbecil','imbécil','estupido','estúpido','tonto','tarado','baboso','menso',
+  'puto','puta','mierda','carajo','cabron','cabrón','pendejo','pendeja','culero','chinga',
+  'verga','pija','pene','vagina','culo','teta','sexo','sexi','sexy','desnudo','desnuda',
+  'maricon','maricón','marica','joto','gay','lesbiana','zorra','perra','golfa',
+  'maldito','maldita','demonio','satanas','satán','infierno',
+  'droga','marihuana','cocaina','cocaína','alcohol','cerveza','borracho','fumar','cigarro',
+  'matar','muerte','morir','suicidio','sangre','arma','pistola','cuchillo','violencia',
+  'odio','feo','fea','gordo','gorda','estupida','estúpida','basura','asco','asqueroso'
+];
+
+function filtrarMensaje(texto) {
+  if (!texto) return { ok:false, motivo:'vacío' };
+  let t = texto.trim();
+  if (t.length > 120) { return { ok:false, motivo:'⚠️ Mensaje muy largo' }; }
+  if (/(https?:\/\/|www\.|\.com|\.net|\.org|\.io|\.me|t\.me|wa\.me)/i.test(t)) {
+    return { ok:false, motivo:'🔗 No se permiten enlaces' };
+  }
+  const soloNumeros = t.replace(/[\s\-().]/g,'');
+  if (/\d{6,}/.test(soloNumeros)) {
+    return { ok:false, motivo:'📵 No compartas números de teléfono' };
+  }
+  if (/@/.test(t)) { return { ok:false, motivo:'🚫 No compartas correos ni usuarios' }; }
+  let censurado = false;
+  const palabras = t.split(/(\s+)/);
+  const limpio = palabras.map(p => {
+    const base = p.toLowerCase().replace(/[^a-záéíóúñü]/g,'');
+    if (base && PALABRAS_BLOQUEADAS.includes(base)) { censurado = true; return '⭐'.repeat(Math.max(2,p.length)); }
+    return p;
+  }).join('');
+  return { ok:true, texto:limpio, censurado };
+}
+
+let _ultimoMsgTiempo = 0;
+let _msgRecientes = [];
+
+function puedeEnviarChat() {
+  const ahora = Date.now();
+  if (ahora - _ultimoMsgTiempo < 1200) { 
+    return { ok:false, motivo:'⏳ Espera un momento antes de escribir otra vez' }; 
+  }
+  _msgRecientes = _msgRecientes.filter(t => ahora - t < 10000);
+  if (_msgRecientes.length >= 5) { 
+    return { ok:false, motivo:'🛑 Estás escribiendo muy rápido. Espera unos segundos.' }; 
+  }
+  return { ok:true };
+}
+
+function registrarEnvioChat() {
+  const ahora = Date.now();
+  _ultimoMsgTiempo = ahora;
+  _msgRecientes.push(ahora);
+}
+
+function escaparHTML(str) {
+  if (str == null) return '';
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function enviarChatOnline(texto, emoji) {
+  if (!canalOnline) return;
+  const yo = miIdentidadOnline();
+  canalOnline.send({ type: 'broadcast', event: 'chat', 
+                     payload: { nombre: yo.name, texto, emoji: yo.emoji } });
+  mostrarChatMsg(yo.name, texto, yo.emoji);
+}
+
+function enviarChatLibre(inputId) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  const original = inp.value;
+  if (!original.trim()) return;
+  const spam = puedeEnviarChat();
+  if (!spam.ok) { showToast(spam.motivo); return; }
+  const res = filtrarMensaje(original);
+  if (!res.ok) { showToast(res.motivo); return; }
+  registrarEnvioChat();
+  inp.value = '';
+  if (res.censurado) showToast('⚠️ Se ocultaron palabras no permitidas');
+  enviarChatOnline(res.texto);
+}
+
+function salirSalaOnline() {
+  if (canalOnline) {
+    try {
+      const ch = canalOnline;
+      const yo = miIdentidadOnline();
+      ch.send({ type: 'broadcast', event: 'salida', 
+                payload: { nombre: yo.name, emoji: yo.emoji } });
+      setTimeout(() => { try { getSupabase().removeChannel(ch); } catch (e) {} }, 250);
+    } catch (e) {}
+    canalOnline = null;
+  }
+}
+```
+
+
+═════════════════════════════════════════════════════════════════════════════
+CONCLUSIÓN: DÓNDE ESTÁ EL CHAT
+═════════════════════════════════════════════════════════════════════════════
+
+📍 UBICACIÓN: index.html (líneas 2084-2180)
+
+✅ Está en index.html porque:
+   - Es código COMPARTIDO por todos los juegos online
+   - Es GLOBAL, no específico de un juego
+   - Facilita mantenimiento
+   - Filtros centralizados de seguridad
+
+❌ NO está en /juegos/ porque:
+   - No es parte de un juego específico
+   - Se reutiliza en múltiples juegos
+   - Cambios de seguridad afectan a todos
+
+🎯 RECOMENDACIÓN:
+   Si quieres mejor modularidad → Crea /sistema/chat.js
+   Y moverlo allí:
+   - Copiar líneas 2084-2180
+   - Crear /sistema/chat.js
+   - Agregar <script src="sistema/chat.js"> en index.html
+   - Mantener el resto igual
+
+
+═════════════════════════════════════════════════════════════════════════════
+Análisis: 18 de Junio 2026
+Chat Sistema: Global (Compartido)
+Seguridad: 73 palabras bloqueadas + filtros avanzados + anti-spam
+Ubicación: index.html (centralizado)
+Recomendación: Mover a /sistema/chat.js para mejor modularidad
+═════════════════════════════════════════════════════════════════════════════

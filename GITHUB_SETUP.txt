@@ -1,0 +1,478 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    📤 CARGAR A GITHUB - GUÍA COMPLETA                    ║
+║                                                                            ║
+║                  HugoKids v69 - Estructura Modular                        ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+
+🎯 REQUISITOS PREVIOS:
+═════════════════════════════════════════════════════════════════════════════
+
+Antes de empezar necesitas:
+
+1. ✅ Cuenta en GitHub (https://github.com/signup)
+   - Crea una cuenta GRATIS
+   - Verifica tu email
+   - Listo!
+
+2. ✅ Git instalado en tu computadora
+   - Windows: https://git-scm.com/download/win
+   - Mac: https://git-scm.com/download/mac
+   - Linux: sudo apt-get install git
+
+3. ✅ Git configurado globalmente
+   Abre terminal/CMD y ejecuta:
+   
+   git config --global user.name "Tu Nombre"
+   git config --global user.email "tuemail@ejemplo.com"
+
+
+═════════════════════════════════════════════════════════════════════════════
+OPCIÓN A: CREAR REPOSITORIO NUEVO (Recomendado para empezar)
+═════════════════════════════════════════════════════════════════════════════
+
+PASO 1: Crear repositorio en GitHub
+──────────────────────────────────────
+
+1. Ve a https://github.com/new
+2. Rellena:
+   - Repository name: hugokids
+   - Description: HugoKids - Plataforma de juegos educativos
+   - Visibility: PUBLIC (o PRIVATE si quieres)
+3. ✅ NO marques "Initialize with README"
+4. Haz click en "Create repository"
+
+Copiarás una URL que se verá así:
+   https://github.com/TU_USUARIO/hugokids.git
+
+
+PASO 2: Preparar tu carpeta local
+──────────────────────────────────
+
+En tu carpeta /outputs donde están los archivos:
+
+```bash
+# Abre terminal/CMD aquí
+
+# 1. Inicializa Git
+git init
+
+# 2. Agrega todos los archivos
+git add .
+
+# 3. Crea tu primer commit
+git commit -m "v69: Estructura modular implementada - Jump separado"
+
+# 4. Cambia rama a main (si aún es master)
+git branch -M main
+
+# 5. Agrega el repositorio remoto
+git remote add origin https://github.com/TU_USUARIO/hugokids.git
+
+# 6. Sube todo a GitHub
+git push -u origin main
+```
+
+
+PASO 3: Verificar en GitHub
+────────────────────────────
+
+1. Ve a https://github.com/TU_USUARIO/hugokids
+2. Deberías ver:
+   ✅ Todos tus archivos
+   ✅ index.html
+   ✅ /juegos/jump.js
+   ✅ Documentación
+   ✅ Estructura de carpetas
+
+
+═════════════════════════════════════════════════════════════════════════════
+OPCIÓN B: SI YA TIENES UN REPOSITORIO
+═════════════════════════════════════════════════════════════════════════════
+
+Si ya tienes un repo de hugokids:
+
+```bash
+# 1. Entra a tu carpeta local
+cd /ruta/a/tu/carpeta
+
+# 2. Agrega los nuevos archivos
+git add .
+
+# 3. Crea un commit con los cambios
+git commit -m "v69: Estructura modular - Jump separado + documentación"
+
+# 4. Sube a GitHub
+git push origin main
+```
+
+
+═════════════════════════════════════════════════════════════════════════════
+OPCIÓN C: DESDE CERO PASO A PASO (Para principiantes)
+═════════════════════════════════════════════════════════════════════════════
+
+PASO 1: Crea el repositorio en GitHub
+──────────────────────────────────────
+1. Abre https://github.com
+2. Haz login
+3. Haz click en "+" (esquina superior derecha)
+4. Selecciona "New repository"
+5. Llena:
+   - Nombre: hugokids
+   - Descripción: (opcional)
+   - Público
+6. Haz click en "Create repository"
+7. COPIA la URL que aparece (https://github.com/TU_USUARIO/hugokids.git)
+
+
+PASO 2: Descarga los archivos a tu computadora
+───────────────────────────────────────────────
+1. Los archivos de /outputs están listos
+2. Cópia toda la carpeta /outputs a tu computadora
+   Ejemplo en Windows: C:\mis-proyectos\hugokids\
+   Ejemplo en Mac/Linux: ~/Documentos/hugokids/
+
+
+PASO 3: Abre terminal en esa carpeta
+─────────────────────────────────────
+
+Windows (PowerShell):
+  1. Abre la carpeta
+  2. Shift + Click derecho
+  3. "Open PowerShell window here"
+
+Mac/Linux (Terminal):
+  1. Terminal → cd ~/Documentos/hugokids/
+  2. O arrastra la carpeta a Terminal
+
+Una vez en la terminal, deberías ver:
+  C:\mis-proyectos\hugokids> (Windows)
+  ~/Documentos/hugokids $ (Mac/Linux)
+
+
+PASO 4: Ejecuta estos comandos en orden
+────────────────────────────────────────
+
+```bash
+# 1. Inicializa Git en esta carpeta
+git init
+
+# 2. Configura user (si no lo hiciste antes)
+git config user.name "Tu Nombre Aquí"
+git config user.email "tuemail@gmail.com"
+
+# 3. Agrega todos los archivos
+git add .
+
+# 4. Crea el primer "commit" (snapshot del código)
+git commit -m "Inicial v69: HugoKids con Jump separado"
+
+# 5. Cambia el nombre de rama a main (estándar nuevo)
+git branch -M main
+
+# 6. Conecta con tu repositorio remoto (PEGA LA URL que copiaste)
+git remote add origin https://github.com/TU_USUARIO/hugokids.git
+
+# 7. Sube todo a GitHub
+git push -u origin main
+```
+
+
+PASO 5: Verifica que funcionó
+──────────────────────────────
+1. Ve a https://github.com/TU_USUARIO/hugokids
+2. Deberías ver:
+   - Todos tus archivos
+   - La documentación
+   - La carpeta /juegos/jump.js
+   - El historial de commits
+
+
+═════════════════════════════════════════════════════════════════════════════
+SUBIR CAMBIOS FUTUROS (después del PUSH inicial)
+═════════════════════════════════════════════════════════════════════════════
+
+Cada vez que hagas cambios en /juegos/jump.js o en otros archivos:
+
+```bash
+# 1. Ver estado de cambios
+git status
+
+# 2. Agregar cambios
+git add .
+
+# 3. Crear commit con mensaje descriptivo
+git commit -m "v70: Aumentadas las vidas a 10"
+
+# 4. Subir a GitHub
+git push origin main
+```
+
+
+═════════════════════════════════════════════════════════════════════════════
+COMANDOS ÚTILES DIARIOS
+═════════════════════════════════════════════════════════════════════════════
+
+Mostrar estado:
+  git status
+
+Ver historial de cambios:
+  git log
+
+Ver cambios antes de commitear:
+  git diff
+
+Crear una nueva rama (para experimentar sin afectar main):
+  git checkout -b nueva-rama
+
+Cambiar entre ramas:
+  git checkout nombre-rama
+
+Ver todas las ramas:
+  git branch -a
+
+
+═════════════════════════════════════════════════════════════════════════════
+FLUJO RECOMENDADO DE TRABAJO CON GIT
+═════════════════════════════════════════════════════════════════════════════
+
+CADA DÍA:
+
+1. Editas /juegos/jump.js
+   
+2. Pruebas los cambios en index.html
+   
+3. Si funciona, guarda los cambios en Git:
+   ```bash
+   git add .
+   git commit -m "v70: Descripción de qué cambió"
+   git push origin main
+   ```
+
+4. Si NO funciona, reviertes:
+   ```bash
+   git checkout juegos/jump.js
+   ```
+
+
+VERSIONAMIENTO RECOMENDADO:
+
+Mensajes de commit claros:
+   ✅ "v70: Aumentadas vidas a 10"
+   ✅ "v71: Potenciadores más frecuentes"
+   ✅ "Bugfix: Panel desaparece al recargar"
+   ❌ "cambios" (muy vago)
+   ❌ "sdfgsdfg" (no dice nada)
+
+
+═════════════════════════════════════════════════════════════════════════════
+CREAR ETIQUETAS DE VERSIÓN (Tags)
+═════════════════════════════════════════════════════════════════════════════
+
+Para marcar versiones importantes:
+
+```bash
+# Crear tag
+git tag v70-production
+
+# Subir tags a GitHub
+git push origin --tags
+
+# Ver todos los tags
+git tag -l
+```
+
+En GitHub verás una sección de "Releases" con tus versiones.
+
+
+═════════════════════════════════════════════════════════════════════════════
+ESTRUCTURA EN GITHUB VERÁS ASÍ:
+═════════════════════════════════════════════════════════════════════════════
+
+hugokids/
+├── index.html
+├── README.txt
+├── RESUMEN_CAMBIOS.txt
+├── ESTRUCTURA_MODULAR.md
+├── DIAGRAMA_ESTRUCTURA.txt
+├── EJEMPLOS_EDICION.txt
+├── VERIFICACION.txt
+├── INDICE_DOCUMENTACION.txt
+├── GITHUB_SETUP.txt
+├── INICIO_RAPIDO.txt
+├── .gitignore (opcional)
+├── /juegos/
+│   └── jump.js
+├── /sistema/
+└── .git/ (carpeta oculta)
+
+
+═════════════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING - PROBLEMAS COMUNES
+═════════════════════════════════════════════════════════════════════════════
+
+PROBLEMA: "fatal: not a git repository"
+SOLUCIÓN: 
+  git init
+  (asegúrate de estar en la carpeta correcta)
+
+
+PROBLEMA: "Permission denied (publickey)"
+SOLUCIÓN:
+  1. Generar SSH key:
+     ssh-keygen -t ed25519 -C "tuemail@gmail.com"
+  2. Agregar a GitHub:
+     https://github.com/settings/ssh/new
+  3. Copiar la clave pública
+
+
+PROBLEMA: "error: The current branch main has no upstream branch"
+SOLUCIÓN:
+  git push -u origin main
+
+
+PROBLEMA: "Cambié algo accidentalmente"
+SOLUCIÓN:
+  git restore archivo.txt (revertir archivo)
+  o
+  cp juegos/jump.v69.backup.js juegos/jump.js (tu backup local)
+
+
+═════════════════════════════════════════════════════════════════════════════
+CREAR UN .gitignore (Opcional pero recomendado)
+═════════════════════════════════════════════════════════════════════════════
+
+Crea archivo ".gitignore" en la raíz de tu proyecto con:
+
+```
+# Archivos temporales
+*.tmp
+*.log
+*.bak
+
+# Backup de versionamiento
+*.backup.js
+*.backup.html
+
+# Carpetas del sistema
+.DS_Store
+Thumbs.db
+
+# Dependencias (si usas Node.js después)
+node_modules/
+package-lock.json
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+```
+
+Esto evita que suba archivos innecesarios a GitHub.
+
+
+═════════════════════════════════════════════════════════════════════════════
+DEPLOY EN GITHUB PAGES (Para que sea accesible en línea)
+═════════════════════════════════════════════════════════════════════════════
+
+OPCIÓN 1: Automático con GitHub Pages
+
+1. Ve a Settings de tu repositorio
+2. Busca "Pages" en el menú de la izquierda
+3. En "Source", selecciona "Deploy from a branch"
+4. Selecciona "main" branch
+5. Click Save
+
+En pocos minutos, tu sitio estará en:
+https://TU_USUARIO.github.io/hugokids/
+
+¡Sin necesidad de servidor! Totalmente GRATIS.
+
+
+OPCIÓN 2: Si quieres un dominio propio
+
+1. Compra dominio en Namecheap, GoDaddy, etc
+2. En Settings → Pages → Custom domain
+3. Agrega tu dominio
+4. Configura DNS según las instrucciones
+
+
+═════════════════════════════════════════════════════════════════════════════
+COLABORACIÓN (Si quieres que otros mejoren Jump)
+═════════════════════════════════════════════════════════════════════════════
+
+OPCIÓN 1: Agregar colaboradores
+  1. Settings → Collaborators
+  2. Invita por email
+  3. Ellos pueden hacer push directo
+
+OPCIÓN 2: Permitir Pull Requests (más seguro)
+  1. Otros hacen "Fork"
+  2. Hacen cambios
+  3. Envían "Pull Request"
+  4. Tú revisan y aceptas
+
+
+═════════════════════════════════════════════════════════════════════════════
+RESUMEN SUPER RÁPIDO (Para impacientes)
+═════════════════════════════════════════════════════════════════════════════
+
+1. Crea cuenta en https://github.com
+
+2. Crea repositorio en https://github.com/new
+   - Nombre: hugokids
+   - Copia la URL
+
+3. En terminal/CMD:
+   ```bash
+   cd /ruta/a/tu/carpeta
+   git init
+   git add .
+   git commit -m "v69: Estructura modular"
+   git branch -M main
+   git remote add origin TU_URL_AQUI
+   git push -u origin main
+   ```
+
+4. Listo! Abre https://github.com/TU_USUARIO/hugokids
+
+5. (Opcional) Activa GitHub Pages en Settings para verlo en línea
+
+
+═════════════════════════════════════════════════════════════════════════════
+RECURSOS ÚTILES
+═════════════════════════════════════════════════════════════════════════════
+
+Documentación oficial:
+  https://docs.github.com/es
+
+Git learning game (divertido):
+  https://learngitbranching.js.org/
+
+Visualizador de Git:
+  https://git-graph.github.io/
+
+Referencia rápida:
+  https://git-scm.com/book/es/v2
+
+
+═════════════════════════════════════════════════════════════════════════════
+
+💡 CONSEJO FINAL
+
+Usa Git para:
+  ✅ Guardar versiones de tu código
+  ✅ Ver el historial de cambios
+  ✅ Colaborar con otros
+  ✅ Acceder desde cualquier computadora
+  ✅ Backup automático en la nube
+
+Es como un "Google Drive" pero para código.
+
+¡A guardar tu proyecto! 🚀
+
+═════════════════════════════════════════════════════════════════════════════
+Creado: 18 de Junio 2026
+Versión: v69
+Guía: Completa para principiantes
+═════════════════════════════════════════════════════════════════════════════
