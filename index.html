@@ -5704,6 +5704,13 @@ function buildJump(container) {
       <span style="color:#FFD700;font-weight:800">🏆 <span id="jumpScore">0</span></span>
     </div>
     <canvas id="jumpGame" width="${W}" height="${H}" style="display:block;position:absolute;top:0;left:0;width:100vw;height:100vh"></canvas>
+    
+    <!-- Controles móvil -->
+    <div id="jumpMobileControls" style="position:fixed;bottom:100px;left:20px;right:20px;display:flex;justify-content:space-around;z-index:20;gap:10px">
+      <button id="jumpLeftBtn" style="flex:1;padding:20px;background:rgba(124,58,237,0.8);color:#fff;border:2px solid #fff;border-radius:10px;cursor:pointer;font-weight:800;font-size:1.5rem">◀ Izquierda</button>
+      <button id="jumpRightBtn" style="flex:1;padding:20px;background:rgba(124,58,237,0.8);color:#fff;border:2px solid #fff;border-radius:10px;cursor:pointer;font-weight:800;font-size:1.5rem">Derecha ▶</button>
+    </div>
+    
     <button onclick="window.jumpReset()" style="position:fixed;bottom:20px;right:20px;padding:8px 16px;background:#7C3AED;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:800;font-size:1rem;z-index:20">🔄 Reiniciar</button>`;
   
   const cv = document.getElementById('jumpGame');
@@ -5729,8 +5736,8 @@ function buildJump(container) {
       h: platformHeight
     });
     
-    // Agregar obstáculos garantizados
-    if(i % 3 === 0) {
+    // Agregar obstáculos garantizados (pero no en las primeras plataformas)
+    if(i % 3 === 0 && i > 4) {
       obstacles.push({
         x: platforms[i].x + 30,
         y: platforms[i].y - 30,
@@ -5752,12 +5759,71 @@ function buildJump(container) {
   platforms[0] = {x: W/2-30, y: H-60, w: 60, h: 10};
   
   document.addEventListener('keydown', e => {
+    if(!document.getElementById('jumpGame')) return;
     keys[e.key] = true;
   });
   document.addEventListener('keyup', e => {
+    if(!document.getElementById('jumpGame')) return;
     keys[e.key] = false;
   });
-  window.activeKeyHandlers.push(e => {keys[e.key] = true}, e => {keys[e.key] = false});
+  
+  // Controles táctiles para móvil/tablet
+  let touchStartX = 0;
+  cv.addEventListener('touchstart', e => {
+    if(!document.getElementById('jumpGame')) return;
+    touchStartX = e.touches[0].clientX;
+  }, false);
+  
+  cv.addEventListener('touchmove', e => {
+    if(!document.getElementById('jumpGame')) return;
+    e.preventDefault();
+    const touchCurrentX = e.touches[0].clientX;
+    const diff = touchCurrentX - touchStartX;
+    
+    // Si está tocando el lado izquierdo del canvas
+    if(diff < -10) {
+      keys['ArrowLeft'] = true;
+      keys['ArrowRight'] = false;
+    }
+    // Si está tocando el lado derecho del canvas
+    else if(diff > 10) {
+      keys['ArrowRight'] = true;
+      keys['ArrowLeft'] = false;
+    }
+    // Neutral
+    else {
+      keys['ArrowLeft'] = false;
+      keys['ArrowRight'] = false;
+    }
+  }, false);
+  
+  cv.addEventListener('touchend', e => {
+    if(!document.getElementById('jumpGame')) return;
+    keys['ArrowLeft'] = false;
+    keys['ArrowRight'] = false;
+  }, false);
+  
+  // Botones móvil
+  const leftBtn = document.getElementById('jumpLeftBtn');
+  const rightBtn = document.getElementById('jumpRightBtn');
+  
+  if(leftBtn && rightBtn) {
+    leftBtn.addEventListener('touchstart', () => {
+      keys['ArrowLeft'] = true;
+      keys['ArrowRight'] = false;
+    }, false);
+    leftBtn.addEventListener('touchend', () => {
+      keys['ArrowLeft'] = false;
+    }, false);
+    
+    rightBtn.addEventListener('touchstart', () => {
+      keys['ArrowRight'] = true;
+      keys['ArrowLeft'] = false;
+    }, false);
+    rightBtn.addEventListener('touchend', () => {
+      keys['ArrowRight'] = false;
+    }, false);
+  }
   
   function update() {
     if(window.HK_PAUSED) return;
@@ -5777,7 +5843,7 @@ function buildJump(container) {
     // Colisión plataformas
     platforms.forEach(p => {
       if(player.vy > 0 && player.x > p.x && player.x < p.x + p.w && player.y + 14 > p.y && player.y + 14 < p.y + 9) {
-        player.vy = -8.5;
+        player.vy = -12;
         SFX.pick();
       }
     });
@@ -5900,7 +5966,7 @@ function buildJump(container) {
     });
     
     // Jugador
-    ctx.font = '28px Arial';
+    ctx.font = '64px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('🦘', player.x, player.y);
@@ -5943,7 +6009,7 @@ function buildJump(container) {
     
     for(let i = 0; i < platformCount; i++) {
       platforms.push({x: Math.random()*(W-platformWidth), y: H-50-i*platformSpacing, w: platformWidth, h: platformHeight});
-      if(i % 3 === 0) obstacles.push({x: platforms[i].x+platformWidth/2, y: platforms[i].y-30, type: ['⚔️','🔥','❄️','💣'][i%4], active: true});
+      if(i % 3 === 0 && i > 4) obstacles.push({x: platforms[i].x+platformWidth/2, y: platforms[i].y-30, type: ['⚔️','🔥','❄️','💣'][i%4], active: true});
       if(i % 5 === 0) powerups.push({x: platforms[i].x+platformWidth/2, y: platforms[i].y-20, type: ['🛡️','⚡','🐢'][i%3]});
     }
     platforms[0] = {x: W/2-platformWidth/2, y: H-50, w: platformWidth, h: platformHeight};
