@@ -5693,36 +5693,35 @@ function buildCatch(container) {
 //  GAME 11: SALTA Y SUBE (JUMP)
 // ═══════════════════════════════════════════
 function buildJump(container) {
-  const W = 300, H = 350;
+  const W = 380, H = 380;
   container.innerHTML = `
-    <div class="game-container" style="background:linear-gradient(180deg,#87CEEB,#E0F6FF);padding:6px;border-radius:8px">
-      <div style="padding:6px;background:rgba(0,0,0,0.2);display:flex;justify-content:space-between;align-items:center;border-radius:6px;margin-bottom:6px;font-size:0.85rem">
+    <div class="game-container" style="background:linear-gradient(180deg,#87CEEB,#E0F6FF);padding:3px;border-radius:5px;width:fit-content;margin:0 auto">
+      <div style="padding:4px 6px;background:rgba(0,0,0,0.2);display:flex;justify-content:space-between;align-items:center;border-radius:4px;margin-bottom:3px;font-size:0.8rem">
         <span style="color:#fff;font-weight:800">🦘 <span id="jumpLevel">1</span>/5</span>
         <span style="color:#FFD700;font-weight:800">🏆 <span id="jumpScore">0</span></span>
       </div>
-      <canvas id="jumpGame" width="${W}" height="${H}" style="display:block;background:linear-gradient(180deg,#87CEEB,#E0F6FF);width:100%;max-width:100%;border-radius:6px;border:2px solid rgba(0,0,0,0.1)"></canvas>
-      <div style="padding:6px;text-align:center;">
-        <button onclick="window.jumpReset()" style="padding:5px 10px;background:#7C3AED;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:800;font-size:0.85rem">🔄 Reiniciar</button>
+      <canvas id="jumpGame" width="${W}" height="${H}" style="display:block;background:linear-gradient(180deg,#87CEEB,#E0F6FF);max-width:380px;max-height:380px;border-radius:4px;border:2px solid rgba(0,0,0,0.1)"></canvas>
+      <div style="padding:3px;text-align:center;">
+        <button onclick="window.jumpReset()" style="padding:3px 10px;background:#7C3AED;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:800;font-size:0.8rem">🔄 Reiniciar</button>
       </div>
     </div>
-    <div class="game-instructions" style="font-size:0.8rem;padding:8px">← → esquiva ⚔️🔥❄️ | agarra 🛡️⚡🐢</div>`;
+    <div class="game-instructions" style="font-size:0.75rem;padding:4px 6px">← → | ⚔️🔥❄️ | 🛡️⚡🐢</div>`;
   
   const cv = document.getElementById('jumpGame');
   const ctx = cv.getContext('2d');
   
-  let player = {x: W/2, y: H-50, vy: 0, vx: 0};
+  let player = {x: W/2, y: H-48, vy: 0, vx: 0};
   let platforms = [];
   let obstacles = [];
   let powerups = [];
   let score = 0, level = 1, running = true, animId = null;
   let keys = {};
   
-  // Crear plataformas (más pequeñas y cercanas)
   for(let i = 0; i < 10; i++) {
     platforms.push({
-      x: Math.random() * (W-45),
-      y: H - 35 - i*40,
-      w: 45,
+      x: Math.random() * (W-55),
+      y: H - 40 - i*42,
+      w: 55,
       h: 7
     });
     
@@ -5773,7 +5772,7 @@ function buildJump(container) {
     
     // Colisión plataformas
     platforms.forEach(p => {
-      if(player.vy > 0 && player.x > p.x && player.x < p.x + p.w && player.y + 15 > p.y && player.y + 15 < p.y + 10) {
+      if(player.vy > 0 && player.x > p.x && player.x < p.x + p.w && player.y + 14 > p.y && player.y + 14 < p.y + 9) {
         player.vy = -8.5;
         SFX.pick();
       }
@@ -5807,7 +5806,7 @@ function buildJump(container) {
       score += Math.round(dy);
       
       // Subir de nivel
-      const levelGoals = [150, 300, 450, 600, 750];
+      const levelGoals = [160, 320, 480, 640, 800];
       if(score >= levelGoals[level-1] && level < 5) {
         level++;
         document.getElementById('jumpLevel').textContent = level;
@@ -5835,15 +5834,14 @@ function buildJump(container) {
     }
     
     // Remover plataformas lejanas
-    platforms = platforms.filter(p => p.y < H + 20);
+    platforms = platforms.filter(p => p.y < H + 16);
     
-    // Generar nuevas plataformas
-    while(platforms.length < 7) {
+    while(platforms.length < 8) {
       const lowestY = Math.min(...platforms.map(p => p.y));
       platforms.push({
-        x: Math.random() * (W - 45),
-        y: lowestY - 40,
-        w: 45,
+        x: Math.random() * (W - 55),
+        y: lowestY - 42,
+        w: 55,
         h: 7
       });
       
@@ -5929,7 +5927,7 @@ function buildJump(container) {
   }
   
   window.jumpReset = () => {
-    player = {x: W/2, y: H-50, vy: 0, vx: 0};
+    player = {x: W/2, y: H-48, vy: 0, vx: 0};
     platforms = [];
     obstacles = [];
     powerups = [];
@@ -5940,11 +5938,11 @@ function buildJump(container) {
     document.getElementById('jumpScore').textContent = '0';
     
     for(let i = 0; i < 10; i++) {
-      platforms.push({x: Math.random()*(W-45), y: H-35-i*40, w: 45, h: 7});
-      if(i % 3 === 0) obstacles.push({x: platforms[i].x+22, y: platforms[i].y-22, type: ['⚔️','🔥','❄️','💣'][i%4], active: true});
-      if(i % 5 === 0) powerups.push({x: platforms[i].x+22, y: platforms[i].y-15, type: ['🛡️','⚡','🐢'][i%3]});
+      platforms.push({x: Math.random()*(W-55), y: H-40-i*42, w: 55, h: 7});
+      if(i % 3 === 0) obstacles.push({x: platforms[i].x+27, y: platforms[i].y-24, type: ['⚔️','🔥','❄️','💣'][i%4], active: true});
+      if(i % 5 === 0) powerups.push({x: platforms[i].x+27, y: platforms[i].y-16, type: ['🛡️','⚡','🐢'][i%3]});
     }
-    platforms[0] = {x: W/2-22, y: H-35, w: 45, h: 7};
+    platforms[0] = {x: W/2-27, y: H-40, w: 55, h: 7};
   };
   
   loop();
