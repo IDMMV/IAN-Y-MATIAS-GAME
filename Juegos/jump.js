@@ -1,935 +1,687 @@
 function buildJump(container) {
-  const W = window.innerWidth;
-  const H = window.innerHeight;
-  
-  // Tema por defecto si no hay seleccionado
-  if(!window.jumpTheme) window.jumpTheme = 'clasico';
-  
-  // DEFINIR POTENCIADORES
-  if(!window.jumpPowerups) {
-    window.jumpPowerups = {
-      escudo: { emoji: '🛡️', nombre: 'Escudo', precio: 50, duracion: 600, descripcion: 'Invulnerabilidad temporal' },
-      velocidad: { emoji: '⚡', nombre: 'Velocidad', precio: 40, duracion: 600, descripcion: 'Movimiento más rápido' },
-      lentitud: { emoji: '🐢', nombre: 'Ralentizar', precio: 35, duracion: 600, descripcion: 'Los obstáculos se ralentizan' },
-      dobleMonedas: { emoji: '💰', nombre: 'Doble Monedas', precio: 60, duracion: 600, descripcion: 'Gana el doble de puntos' },
-      saltoExtra: { emoji: '⬆️', nombre: 'Salto Extra', precio: 45, duracion: 600, descripcion: 'Salta más alto' },
-      magnetismo: { emoji: '🧲', nombre: 'Magnetismo', precio: 55, duracion: 600, descripcion: 'Atrae obstáculos alejados' }
-    };
-  }
-  
-  // DEFINIR INVENTARIO
-  if(!window.jumpInventory) {
-    window.jumpInventory = JSON.parse(localStorage.getItem('jumpInventory')) || {
-      escudo: 0, velocidad: 0, lentitud: 0, dobleMonedas: 0, saltoExtra: 0, magnetismo: 0
-    };
-  }
-  
-  // DEFINIR MONEDAS
-  if(!window.jumpCoins) {
-    window.jumpCoins = parseInt(localStorage.getItem('jumpCoins')) || 500;
-  }
-  
-  const themes = {
-    clasico: { bg: 'linear-gradient(180deg,#87CEEB,#E0F6FF)', platform: '#00cc00', obstacle: 'rgba(255,50,50,0.3)', emoji: '🦘' },
-    espacio: { bg: 'linear-gradient(180deg,#0a0a0a,#1a1a2e)', platform: '#00ff88', obstacle: 'rgba(255,0,255,0.3)', emoji: '🛸' },
-    nieve: { bg: 'linear-gradient(180deg,#e6f3ff,#b3d9ff)', platform: '#ffffff', obstacle: 'rgba(100,149,237,0.3)', emoji: '❄️' },
-    fuego: { bg: 'linear-gradient(180deg,#ff6347,#ff4500)', platform: '#ffff00', obstacle: 'rgba(255,140,0,0.3)', emoji: '🔥' }
+  const toast = (msg) => {
+    if (typeof window.showToast === 'function') window.showToast(msg);
+    else console.log(msg);
   };
-  
-  const theme = themes[window.jumpTheme] || themes.clasico;
-  
-  container.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;margin:0;padding:0;overflow:hidden;background:' + theme.bg;
-  
+  const sfx = (name) => {
+    try {
+      if (window.SFX && typeof window.SFX[name] === 'function') window.SFX[name]();
+    } catch (_) {}
+  };
+
+  window.HK_PAUSED = false;
+  window.jumpTheme = window.jumpTheme || 'sabana';
+  window.jumpSoundEnabled = localStorage.getItem('jumpSound') !== 'false';
+  window.jumpCoins = Number(localStorage.getItem('jumpCoins')) || 500;
+  window.jumpInventory = JSON.parse(localStorage.getItem('jumpInventory') || 'null') || {
+    escudo: 0,
+    velocidad: 0,
+    dobleMonedas: 0,
+    saltoExtra: 0,
+    magnetismo: 0,
+    curacion: 0
+  };
+
+  window.jumpPowerups = {
+    escudo: { emoji: '🛡️', nombre: 'Escudo', precio: 60, duracion: 600, descripcion: 'Bloquea un golpe enemigo.' },
+    velocidad: { emoji: '⚡', nombre: 'Velocidad', precio: 45, duracion: 600, descripcion: 'Aumenta la velocidad durante 10 segundos.' },
+    dobleMonedas: { emoji: '💰', nombre: 'Doble monedas', precio: 70, duracion: 600, descripcion: 'Duplica las monedas recogidas.' },
+    saltoExtra: { emoji: '⬆️', nombre: 'Super salto', precio: 50, duracion: 600, descripcion: 'Salta más alto durante 10 segundos.' },
+    magnetismo: { emoji: '🧲', nombre: 'Imán', precio: 55, duracion: 600, descripcion: 'Atrae monedas cercanas.' },
+    curacion: { emoji: '❤️', nombre: 'Curación', precio: 40, duracion: 1, descripcion: 'Recupera 35 puntos de vida.' }
+  };
+
+  container.style.cssText = `
+    position:fixed; inset:0; width:100vw; height:100dvh; overflow:hidden;
+    background:#111; z-index:9999; touch-action:none; user-select:none;
+    font-family:Nunito,Arial,sans-serif;
+  `;
+
   container.innerHTML = `
-    <div style="position:absolute;top:0;left:0;right:0;padding:8px 12px;background:rgba(0,0,0,0.2);display:flex;justify-content:space-between;align-items:center;z-index:10;font-size:1rem">
-      <span style="color:#fff;font-weight:800">🦘 <span id="jumpLevel">1</span>/5</span>
-      <span style="color:#FF0020;font-weight:800">❤️<span id="jumpLives">5</span></span>
-      <span style="color:#FFD700;font-weight:800">🏆 <span id="jumpScore">0</span></span>
+    <style>
+      #jumpGame{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+      .jk-glass{background:linear-gradient(180deg,rgba(20,20,26,.84),rgba(5,5,8,.72));border:1px solid rgba(255,255,255,.18);box-shadow:0 8px 26px rgba(0,0,0,.35);backdrop-filter:blur(7px)}
+      .jk-btn{border:2px solid rgba(255,255,255,.75);color:#fff;background:rgba(15,18,25,.74);border-radius:50%;display:grid;place-items:center;font-weight:900;box-shadow:0 6px 16px rgba(0,0,0,.38);touch-action:none}
+      .jk-btn:active{transform:scale(.94);filter:brightness(1.2)}
+      #jumpTop{position:absolute;top:max(8px,env(safe-area-inset-top));left:10px;right:10px;z-index:15;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none}
+      #jumpStats{padding:8px 10px;border-radius:14px;color:#fff;min-width:160px;pointer-events:auto}
+      #jumpStats .bar{height:9px;background:rgba(255,255,255,.16);border-radius:99px;overflow:hidden;margin-top:4px}
+      #jumpStats .fill{height:100%;width:100%;border-radius:inherit;transition:width .2s}
+      #jumpHealthFill{background:linear-gradient(90deg,#ff344f,#ff7a68)}
+      #jumpStaminaFill{background:linear-gradient(90deg,#2adca8,#74f0c9)}
+      #jumpCenterHud{padding:8px 12px;border-radius:14px;color:#fff;text-align:center;min-width:120px;pointer-events:auto}
+      #jumpTopBtns{display:flex;gap:8px;pointer-events:auto}
+      #jumpTopBtns button{width:44px;height:44px;font-size:20px;padding:0}
+      #jumpMiniMap{position:absolute;top:82px;right:12px;width:112px;height:112px;border-radius:50%;z-index:15;overflow:hidden;border:3px solid rgba(255,255,255,.78);background:rgba(8,22,17,.72);box-shadow:0 8px 20px rgba(0,0,0,.4)}
+      #jumpMission{position:absolute;left:50%;top:82px;transform:translateX(-50%);z-index:15;color:#fff;padding:8px 13px;border-radius:999px;font-size:13px;font-weight:900;white-space:nowrap}
+      #jumpJoy{position:absolute;left:18px;bottom:max(24px,env(safe-area-inset-bottom));width:126px;height:126px;border-radius:50%;z-index:18;background:rgba(10,10,14,.38);border:3px solid rgba(255,255,255,.45);box-shadow:inset 0 0 30px rgba(0,0,0,.4);touch-action:none}
+      #jumpJoyKnob{position:absolute;left:38px;top:38px;width:50px;height:50px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ff7b35,#b51d10);border:3px solid rgba(255,255,255,.8);box-shadow:0 5px 12px rgba(0,0,0,.45)}
+      #jumpActions{position:absolute;right:16px;bottom:max(25px,env(safe-area-inset-bottom));z-index:18;width:150px;height:145px}
+      #jumpAttackBtn{position:absolute;right:0;bottom:0;width:82px;height:82px;font-size:36px;background:radial-gradient(circle at 35% 30%,#ff7b35,#9d180f)}
+      #jumpJumpBtn{position:absolute;left:0;top:3px;width:62px;height:62px;font-size:28px;background:radial-gradient(circle at 35% 30%,#3f8cff,#17429e)}
+      #jumpDashBtn{position:absolute;right:2px;top:0;width:54px;height:54px;font-size:24px;background:radial-gradient(circle at 35% 30%,#6de8ff,#12718a)}
+      #jumpPowerupsPanel{position:absolute;right:12px;bottom:180px;z-index:18;display:flex;flex-direction:column;gap:7px}
+      #jumpPowerupsPanel button{width:48px;height:48px;border-radius:14px;font-size:22px;color:#fff;border:2px solid rgba(255,255,255,.75);background:rgba(18,20,27,.8);position:relative}
+      #jumpPowerupsPanel small{position:absolute;right:-4px;bottom:-4px;background:#ffd321;color:#111;border-radius:999px;min-width:19px;height:19px;display:grid;place-items:center;font-weight:900;border:1px solid #111}
+      #jumpBanner{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);z-index:40;color:#fff;padding:24px 28px;border-radius:22px;text-align:center;opacity:0;pointer-events:none;transition:.25s}
+      #jumpBanner.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+      #jumpModal{position:absolute;inset:0;z-index:60;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;padding:18px}
+      #jumpModal.show{display:flex}
+      #jumpModalCard{width:min(520px,94vw);max-height:84vh;overflow:auto;border-radius:22px;padding:20px;color:#fff}
+      .jk-shop-row{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.09);padding:10px;border-radius:14px;margin:8px 0}
+      .jk-shop-row .info{flex:1}.jk-shop-row button{border:0;border-radius:11px;padding:10px 12px;background:#ffd321;color:#111;font-weight:900}
+      @media (min-width:900px){#jumpJoy{width:150px;height:150px}#jumpJoyKnob{left:47px;top:47px;width:56px;height:56px}#jumpActions{right:28px;bottom:34px}.jk-btn{cursor:pointer}}
+    </style>
+    <canvas id="jumpGame"></canvas>
+    <div id="jumpTop">
+      <div id="jumpStats" class="jk-glass">
+        <div style="display:flex;justify-content:space-between;font-weight:900"><span>🦘 HUGO KANGAROO</span><span id="jumpLevel">Nv. 1</span></div>
+        <div class="bar"><div id="jumpHealthFill" class="fill"></div></div>
+        <div class="bar"><div id="jumpStaminaFill" class="fill"></div></div>
+      </div>
+      <div id="jumpCenterHud" class="jk-glass">
+        <div style="font-size:12px;opacity:.8">PUNTOS</div>
+        <div id="jumpScore" style="font-size:20px;font-weight:1000">0</div>
+        <div style="font-size:12px">🪙 <span id="jumpCoins">${window.jumpCoins}</span></div>
+      </div>
+      <div id="jumpTopBtns">
+        <button id="jumpSoundBtn" class="jk-btn">${window.jumpSoundEnabled ? '🔊' : '🔇'}</button>
+        <button id="jumpPauseBtn" class="jk-btn">⏸️</button>
+        <button id="jumpCloseBtn" class="jk-btn" style="background:rgba(180,25,30,.82)">✕</button>
+      </div>
     </div>
-    <canvas id="jumpGame" width="${W}" height="${H}" style="display:block;position:absolute;top:0;left:0;width:100vw;height:100vh;z-index:1"></canvas>
-    
-    <!-- Controles móvil -->
-    <div id="jumpMobileControls" style="position:fixed;bottom:80px;left:10px;right:10px;display:flex;justify-content:space-around;z-index:20;gap:8px">
-      <button id="jumpLeftBtn" style="flex:1;padding:12px;background:rgba(124,58,237,0.8);color:#fff;border:2px solid #fff;border-radius:8px;cursor:pointer;font-weight:800;font-size:1.2rem;text-align:center">◀</button>
-      <button id="jumpRightBtn" style="flex:1;padding:12px;background:rgba(124,58,237,0.8);color:#fff;border:2px solid #fff;border-radius:8px;cursor:pointer;font-weight:800;font-size:1.2rem;text-align:center">▶</button>
+    <canvas id="jumpMiniMap" width="112" height="112"></canvas>
+    <div id="jumpMission" class="jk-glass">🎯 Derrota 5 rivales y recoge 10 monedas</div>
+    <div id="jumpJoy"><div id="jumpJoyKnob"></div></div>
+    <div id="jumpActions">
+      <button id="jumpJumpBtn" class="jk-btn" aria-label="Saltar">⬆️</button>
+      <button id="jumpDashBtn" class="jk-btn" aria-label="Correr">⚡</button>
+      <button id="jumpAttackBtn" class="jk-btn" aria-label="Atacar">🦘</button>
     </div>
-    
-    <!-- Panel de Potenciadores Activos (EN LA PARTE SUPERIOR DERECHA) -->
-    <div id="jumpPowerupsPanel" style="position:fixed;top:20px;right:160px;left:auto;display:none;justify-content:flex-end;z-index:100;gap:6px;flex-wrap:wrap;background:rgba(0,0,0,0.85);padding:8px 12px;border-radius:8px;border:2px solid #FFD700;max-width:200px;min-height:40px;align-items:center;font-size:0.85rem;max-height:60px;overflow-y:auto">
-    </div>
-    
-    <button id="jumpSoundBtn" onclick="window.jumpToggleSound()" style="position:fixed;top:20px;right:160px;padding:12px 20px;background:#FFD700;color:#000;border:3px solid #000;border-radius:10px;cursor:pointer;font-weight:900;font-size:1.3rem;z-index:20;transition:all 0.2s" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">🔊</button>
-    
-    <button onclick="window.jumpReset()" style="position:fixed;bottom:20px;right:20px;padding:8px 16px;background:#7C3AED;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:800;font-size:1rem;z-index:20">🔄 Reiniciar</button>
-    
-    <button onclick="window.jumpOpenShop()" style="position:fixed;bottom:20px;left:20px;padding:8px 16px;background:#FFD700;color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:800;font-size:1rem;z-index:20">🛒 Tienda</button>
-    
-    <button id="jumpPauseBtn" onclick="window.HK_PAUSED=!window.HK_PAUSED" style="position:fixed;top:20px;right:80px;padding:12px 20px;background:#7C3AED;color:#fff;border:3px solid #fff;border-radius:10px;cursor:pointer;font-weight:900;font-size:1.3rem;z-index:20;transition:all 0.2s" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">⏸️</button>
-    
-    <button onclick="window.jumpClose()" style="position:fixed;top:20px;right:20px;padding:12px 20px;background:#FF4757;color:#fff;border:3px solid #fff;border-radius:10px;cursor:pointer;font-weight:900;font-size:1.3rem;z-index:20;transition:all 0.2s" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">✕</button>`;
-  
-  const cv = document.getElementById('jumpGame');
+    <div id="jumpPowerupsPanel"></div>
+    <div id="jumpBanner" class="jk-glass"></div>
+    <div id="jumpModal"><div id="jumpModalCard" class="jk-glass"></div></div>
+  `;
+
+  const cv = container.querySelector('#jumpGame');
   const ctx = cv.getContext('2d');
-  
-  let player = {x: W/2, y: H-80, vy: 0, vx: 0};
-  let platforms = [];
-  let obstacles = [];
-  let powerups = [];
-  let activePowerups = {}; // Potenciadores activos durante el juego
-  let score = 0, level = 1, running = true, animId = null;
-  let lives = 5; // 5 vidas
-  let lastDeathY = 0; // Flag para evitar multiple trigger
-  let keys = {};
-  
-  const platformCount = Math.max(15, Math.floor(H / 50));
-  const platformWidth = Math.floor(W * 0.20);
-  const platformHeight = Math.floor(H * 0.025);
-  const platformSpacing = Math.floor(H / (platformCount + 1));
-  
-  for(let i = 0; i < platformCount; i++) {
-    platforms.push({
-      x: Math.random() * (W - platformWidth),
-      y: H - 50 - i * platformSpacing,
-      w: platformWidth,
-      h: platformHeight
-    });
-    
-    // Agregar obstáculos garantizados (pero no en las primeras plataformas)
-    if(i % 3 === 0 && i > 4) {
-      obstacles.push({
-        x: platforms[i].x + 30,
-        y: platforms[i].y - 30,
-        type: ['⚔️', '🔥', '❄️', '💣'][i % 4],
-        active: true
-      });
-    }
-    
-    // Potenciadores - Generar cada 3 plataformas
-    if(i % 3 === 0 && i > 1) {
-      const powerupKeys = Object.keys(window.jumpPowerups);
-      powerups.push({
-        x: platforms[i].x + Math.random() * 40 - 20,
-        y: platforms[i].y - 30,
-        type: powerupKeys[i % powerupKeys.length],
-        isPowerupFromGame: true
-      });
-    }
+  const mm = container.querySelector('#jumpMiniMap');
+  const mctx = mm.getContext('2d');
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  let W = 0, H = 0;
+
+  function resize() {
+    W = container.clientWidth;
+    H = container.clientHeight;
+    cv.width = Math.max(1, Math.floor(W * DPR));
+    cv.height = Math.max(1, Math.floor(H * DPR));
+    cv.style.width = W + 'px';
+    cv.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
-  
-  platforms[0] = {x: W/2-30, y: H-60, w: 60, h: 10};
-  
-  document.addEventListener('keydown', e => {
-    if(!document.getElementById('jumpGame')) return;
-    keys[e.key] = true;
-  });
-  document.addEventListener('keyup', e => {
-    if(!document.getElementById('jumpGame')) return;
-    keys[e.key] = false;
-  });
-  
-  // Controles táctiles para móvil/tablet
-  let touchStartX = 0;
-  cv.addEventListener('touchstart', e => {
-    if(!document.getElementById('jumpGame')) return;
-    touchStartX = e.touches[0].clientX;
-  }, false);
-  
-  cv.addEventListener('touchmove', e => {
-    if(!document.getElementById('jumpGame')) return;
-    e.preventDefault();
-    const touchCurrentX = e.touches[0].clientX;
-    const diff = touchCurrentX - touchStartX;
-    
-    // Si está tocando el lado izquierdo del canvas
-    if(diff < -10) {
-      keys['ArrowLeft'] = true;
-      keys['ArrowRight'] = false;
-    }
-    // Si está tocando el lado derecho del canvas
-    else if(diff > 10) {
-      keys['ArrowRight'] = true;
-      keys['ArrowLeft'] = false;
-    }
-    // Neutral
-    else {
-      keys['ArrowLeft'] = false;
-      keys['ArrowRight'] = false;
-    }
-  }, false);
-  
-  cv.addEventListener('touchend', e => {
-    if(!document.getElementById('jumpGame')) return;
-    keys['ArrowLeft'] = false;
-    keys['ArrowRight'] = false;
-  }, false);
-  
-  // Botones móvil
-  const leftBtn = document.getElementById('jumpLeftBtn');
-  const rightBtn = document.getElementById('jumpRightBtn');
-  
-  if(leftBtn && rightBtn) {
-    leftBtn.addEventListener('touchstart', () => {
-      keys['ArrowLeft'] = true;
-      keys['ArrowRight'] = false;
-    }, false);
-    leftBtn.addEventListener('touchend', () => {
-      keys['ArrowLeft'] = false;
-    }, false);
-    
-    rightBtn.addEventListener('touchstart', () => {
-      keys['ArrowRight'] = true;
-      keys['ArrowLeft'] = false;
-    }, false);
-    rightBtn.addEventListener('touchend', () => {
-      keys['ArrowRight'] = false;
-    }, false);
-  }
-  
-  function update() {
-    if(window.HK_PAUSED) return;
-    
-    // Actualizar duración de potenciadores activos
-    for(let key in activePowerups) {
-      activePowerups[key]--;
-      if(activePowerups[key] <= 0) {
-        delete activePowerups[key];
-        window.jumpUpdatePowerupsUI();
-      }
-    }
-    
-    // Aplicar efectos de potenciadores activos
-    let speedMultiplier = 1;
-    let gravityMultiplier = 1;
-    let jumpBoost = 0;
-    
-    if(activePowerups.velocidad) {
-      speedMultiplier = 1.5; // 50% más rápido
-    }
-    if(activePowerups.lentitud) {
-      gravityMultiplier = 0.5; // Gravedad a la mitad
-    }
-    if(activePowerups.saltoExtra) {
-      jumpBoost = 3; // Salto extra
-    }
-    
-    // Movimiento
-    if(keys['ArrowLeft'] || keys['a']) player.vx = -4 * speedMultiplier;
-    else if(keys['ArrowRight'] || keys['d']) player.vx = 4 * speedMultiplier;
-    else player.vx *= 0.9;
-    
-    player.x += player.vx;
-    if(player.x < 10) player.x = W - 10;
-    if(player.x > W - 10) player.x = 10;
-    
-    player.vy += 0.35 * gravityMultiplier; // gravedad con multiplicador
-    player.y += player.vy;
-    
-    // Colisión plataformas
-    platforms.forEach(p => {
-      if(player.vy > 0 && player.x > p.x && player.x < p.x + p.w && player.y + 14 > p.y && player.y + 14 < p.y + 9) {
-        player.vy = -(12 + jumpBoost); // Salto con boost
-        SFX.pick();
-        window.jumpSounds.platformHit();
-      }
-    });
-    
-    // Colisión obstáculos
-    obstacles.forEach((obs, i) => {
-      if(obs.active && Math.hypot(player.x - obs.x, player.y - obs.y) < 20) {
-        obs.active = false; // Desactivar inmediatamente para evitar múltiples triggers
-        // Verificar si hay escudo activo
-        if(activePowerups.escudo) {
-          showToast('🛡️ ¡El escudo te protegió!');
-          window.jumpSounds.powerupGrab();
-          activePowerups.escudo = 0;
-          delete activePowerups.escudo;
-          window.jumpUpdatePowerupsUI();
-        } else {
-          lives--;
-          document.getElementById('jumpLives').textContent = lives;
-          if(lives <= 0) {
-            running = false;
-            SFX.lose();
-            showToast('💀 ¡GAME OVER!');
-          } else {
-            window.jumpSounds.obstacleHit();
-            showToast(`❤️ Vidas: ${lives}`);
-            player = {x: W/2, y: H-80, vy: 0, vx: 0};
-          }
-        }
-      }
-    });
-    
-    // Colisión potenciadores (con magnetismo si está activo)
-    let pickupRange = 15;
-    if(activePowerups.magnetismo) {
-      pickupRange = 60; // Rango aumentado 4x con magnetismo
-    }
-    
-    powerups.forEach((pu, i) => {
-      if(Math.hypot(player.x - pu.x, player.y - pu.y) < pickupRange) {
-        powerups.splice(i, 1);
-        
-        // Si es un potenciador del juego, agregarlo al inventario
-        if(pu.isPowerupFromGame) {
-          // Leer inventario actual
-          let currentInventory = JSON.parse(localStorage.getItem('jumpInventory')) || {
-            escudo: 0, velocidad: 0, lentitud: 0, dobleMonedas: 0, saltoExtra: 0, magnetismo: 0
-          };
-          
-          // Agregar potenciador
-          currentInventory[pu.type] = (currentInventory[pu.type] || 0) + 1;
-          localStorage.setItem('jumpInventory', JSON.stringify(currentInventory));
-          window.jumpInventory = currentInventory;
-          
-          showToast(`📦 +${window.jumpPowerups[pu.type].emoji} ${window.jumpPowerups[pu.type].nombre}`);
-          window.jumpSounds.powerupGrab();
-          window.jumpUpdatePowerupsUI(); // Actualizar UI inmediatamente
-        } else {
-          // Potenciador antiguo
-          showToast(`⭐ ${pu.type}`);
-          SFX.pop();
-        }
-      }
-    });
-    
-    // Cámara
-    if(player.y < H/2) {
-      const dy = H/2 - player.y;
-      player.y = H/2;
-      platforms.forEach(p => p.y += dy);
-      obstacles.forEach(o => o.y += dy);
-      powerups.forEach(pu => pu.y += dy);
-      score += Math.round(dy);
-      
-      // Subir de nivel y cambiar de mundo
-      const levelGoals = [1000, 2500, 4000, 6000, 8000];
-      const worlds = ['clasico', 'espacio', 'nieve', 'fuego', 'clasico'];
-      
-      if(score >= levelGoals[level-1] && level < 5) {
-        level++;
-        window.jumpSounds.levelUp();
-        
-        // PAUSAR el juego mientras se muestra el modal
-        window.HK_PAUSED = true;
-        
-        // Reiniciar la música de fondo para que toque la nueva canción
-        window.jumpStopBackgroundMusic();
-        setTimeout(() => {
-          if(window.jumpStartBackgroundMusic) window.jumpStartBackgroundMusic();
-        }, 500);
-        
-        document.getElementById('jumpLevel').textContent = level;
-        
-        // Cambiar de mundo
-        const newWorld = worlds[level-1];
-        window.jumpTheme = newWorld;
-        
-        // Modal de nivel con mundo
-        const worldEmojis = {clasico: '🌤️', espacio: '🚀', nieve: '❄️', fuego: '🔥'};
-        const worldNames = {clasico: 'Clásico', espacio: 'Espacio', nieve: 'Nieve', fuego: 'Fuego'};
-        const modal = document.createElement('div');
-        modal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;font-family:Nunito';
-        modal.innerHTML = `<div style="background:#7C3AED;color:#fff;padding:30px;border-radius:15px;text-align:center;border:3px solid #FFD600">
-          <div style="font-size:2.5rem;margin-bottom:10px">⭐</div>
-          <div style="font-size:1.8rem;font-weight:900">¡NIVEL ${level}!</div>
-          <div style="font-size:1.5rem;margin:15px 0">${worldEmojis[newWorld]} Mundo ${worldNames[newWorld]}</div>
-          <div style="font-size:0.9rem;margin-top:15px">Meta: ${levelGoals[level-1]}m</div>
-        </div>`;
-        document.body.appendChild(modal);
-        
-        // Mantener el modal por 4 segundos y LUEGO reanudar el juego
-        setTimeout(() => {
-          modal.remove();
-          window.HK_PAUSED = false; // REANUDAR el juego
-        }, 4000);
-        
-        // Limpiar y reiniciar con el nuevo mundo
-        platforms = [];
-        obstacles = [];
-        powerups = [];
-        player = {x: W/2, y: H-80, vy: 0, vx: 0};
-        
-        // Recrear plataformas para el nuevo mundo
-        for(let i = 0; i < platformCount; i++) {
-          platforms.push({x: Math.random()*(W-platformWidth), y: H-50-i*platformSpacing, w: platformWidth, h: platformHeight});
-          // Obstáculos específicos por nivel
-          const obstaclesByLevel = {
-            1: ['⚔️', '🔥'],
-            2: ['🔥', '❄️', '⚔️'],
-            3: ['💣', '🔥', '❄️', '⚔️'],
-            4: ['💣', '👻', '⚔️'],
-            5: ['👾', '💣', '🔥', '❄️', '⚔️']
-          };
-          const levelObstacles = obstaclesByLevel[level] || ['⚔️', '🔥'];
-          
-          if(i % 3 === 0 && i > 4) obstacles.push({
-            x: platforms[i].x+platformWidth/2, 
-            y: platforms[i].y-30, 
-            type: levelObstacles[i % levelObstacles.length], 
-            active: true
-          });
-          if(i % 5 === 0) powerups.push({x: platforms[i].x+platformWidth/2, y: platforms[i].y-20, type: ['🛡️','⚡','🐢'][i%3]});
-        }
-        platforms[0] = {x: W/2-platformWidth/2, y: H-50, w: platformWidth, h: platformHeight};
-      }
-      
-      if(score >= levelGoals[4] && level === 5) {
-        running = false;
-        window.jumpSounds.victoryComplete();
-        SFX.point();
-        showToast('🎉 ¡COMPLETASTE LA AVENTURA!');
-        document.getElementById('jumpScore').textContent = score;
-        
-        // Modal de fin
-        const finalModal = document.createElement('div');
-        finalModal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;font-family:Nunito';
-        finalModal.innerHTML = `<div style="background:linear-gradient(135deg,#7C3AED,#FF6B9D);color:#fff;padding:40px;border-radius:20px;text-align:center;border:3px solid #FFD600;max-width:400px">
-          <div style="font-size:3rem;margin-bottom:10px">🏆</div>
-          <div style="font-size:2rem;font-weight:900;margin-bottom:10px">¡LO HICISTE!</div>
-          <div style="font-size:1.2rem;margin-bottom:20px">Completaste todos los mundos</div>
-          <div style="font-size:1.5rem;font-weight:800;color:#FFD700">Puntuación: ${score}</div>
-          <div style="margin-top:20px;font-size:0.9rem">🌤️ Clásico → 🚀 Espacio → ❄️ Nieve → 🔥 Fuego → 🌤️ Clásico</div>
-        </div>`;
-        document.body.appendChild(finalModal);
-      }
-    }
-    
-    // Caída
-    if(player.y > H) {
-      if(lastDeathY === 0 || player.y - lastDeathY > 100) {
-        lastDeathY = player.y;
-        lives--;
-        document.getElementById('jumpLives').textContent = lives;
-        if(lives <= 0) {
-          running = false;
-          SFX.lose();
-          showToast('💀 ¡GAME OVER!');
-        } else {
-          showToast(`❤️ Vidas: ${lives}`);
-          player = {x: W/2, y: H-80, vy: 0, vx: 0};
-        }
-      }
-    }
-    
-    // Remover plataformas lejanas
-    platforms = platforms.filter(p => p.y < H + 16);
-    
-    while(platforms.length < platformCount - 2) {
-      const lowestY = Math.min(...platforms.map(p => p.y));
-      platforms.push({
-        x: Math.random() * (W - platformWidth),
-        y: lowestY - platformSpacing,
-        w: platformWidth,
-        h: platformHeight
-      });
-      
-      // Agregar obstáculos
-      if(Math.random() < 0.5) {
-        obstacles.push({
-          x: platforms[platforms.length-1].x + 30,
-          y: platforms[platforms.length-1].y - 30,
-          type: ['⚔️', '🔥', '❄️', '💣'][Math.floor(Math.random()*4)],
-          active: true
-        });
-      }
-    }
-  }
-  
-  function draw() {
-    // Fondo con colores del tema
-    const backgrounds = {
-      clasico: ['#87CEEB', '#E0F6FF'],
-      espacio: ['#0a0a0a', '#1a1a2e'],
-      nieve: ['#e6f3ff', '#b3d9ff'],
-      fuego: ['#ff6347', '#ff4500']
+  resize();
+
+  const world = { size: 3600, horizon: 0.36, time: 0 };
+  const player = {
+    x: 0, z: 0, y: 0, angle: 0, vx: 0, vz: 0, vy: 0,
+    health: 100, stamina: 100, attackTimer: 0, hurtTimer: 0,
+    dashTimer: 0, invulnerable: 0, level: 1, xp: 0
+  };
+  let score = 0;
+  let kills = 0;
+  let collected = 0;
+  let running = true;
+  let animId = 0;
+  let last = performance.now();
+  let shake = 0;
+  let activePowerups = {};
+  let missionComplete = false;
+  const keys = Object.create(null);
+  const input = { x: 0, y: 0, attack: false, jump: false, dash: false };
+
+  const trees = Array.from({ length: 70 }, (_, i) => ({
+    x: (Math.random() - .5) * world.size,
+    z: (Math.random() - .5) * world.size,
+    size: 35 + Math.random() * 55,
+    hue: i % 3
+  }));
+  const rocks = Array.from({ length: 42 }, () => ({
+    x: (Math.random() - .5) * world.size,
+    z: (Math.random() - .5) * world.size,
+    size: 18 + Math.random() * 32
+  }));
+  const enemies = Array.from({ length: 10 }, (_, i) => spawnEnemy(i));
+  const coins = Array.from({ length: 28 }, () => spawnCoin());
+  const particles = [];
+
+  function spawnEnemy(i = 0) {
+    const a = Math.random() * Math.PI * 2;
+    const d = 450 + Math.random() * 1150;
+    return {
+      x: Math.cos(a) * d,
+      z: Math.sin(a) * d,
+      angle: Math.random() * Math.PI * 2,
+      health: 35 + i * 2,
+      hit: 0,
+      attackCooldown: Math.random() * 2,
+      alive: true,
+      respawn: 0,
+      speed: 42 + Math.random() * 18
     };
-    
-    const bgColors = backgrounds[window.jumpTheme] || backgrounds.clasico;
-    const grad = ctx.createLinearGradient(0,0,0,H);
-    grad.addColorStop(0, bgColors[0]);
-    grad.addColorStop(1, bgColors[1]);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0,0,W,H);
-    
-    // Efecto especial para espacio (estrellas)
-    if(window.jumpTheme === 'espacio') {
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      for(let i = 0; i < 50; i++) {
-        const x = Math.sin(i * 12.9898 + score * 0.01) * W;
-        const y = Math.cos(i * 78.233 + score * 0.01) * H;
-        ctx.fillRect(x, y, 2, 2);
-      }
-    }
-    
-    // Efecto para nieve (copos cayendo)
-    if(window.jumpTheme === 'nieve') {
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      for(let i = 0; i < 30; i++) {
-        const x = Math.sin(i * 12.9898) * W;
-        const y = (score * 2 + i * 100) % H;
-        ctx.fillRect(x, y, 4, 4);
-      }
-    }
-    
-    // Efecto para fuego (llamas)
-    if(window.jumpTheme === 'fuego') {
-      ctx.fillStyle = 'rgba(255,200,0,0.3)';
-      for(let i = 0; i < 20; i++) {
-        const x = Math.sin(i * 12.9898) * W;
-        const y = (score * 3 + i * 50) % H;
-        ctx.fillRect(x, y, 8, 8);
-      }
-    }
-    
-    // Plataformas
-    ctx.fillStyle = theme.platform;
-    platforms.forEach(p => {
-      ctx.fillRect(p.x, p.y, p.w, p.h);
-      ctx.strokeStyle = theme.platform;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(p.x, p.y, p.w, p.h);
-    });
-    
-    // Obstáculos
-    obstacles.forEach(obs => {
-      if(!obs.active) return;
-      ctx.fillStyle = theme.obstacle;
+  }
+  function spawnCoin() {
+    const a = Math.random() * Math.PI * 2;
+    const d = 180 + Math.random() * 1500;
+    return { x: Math.cos(a) * d, z: Math.sin(a) * d, bob: Math.random() * 8, alive: true, respawn: 0 };
+  }
+
+  function project(x, y, z) {
+    const dx = x - player.x;
+    const dz = z - player.z;
+    const ca = Math.cos(player.angle), sa = Math.sin(player.angle);
+    const rx = dx * ca - dz * sa;
+    const rz = dx * sa + dz * ca;
+    if (rz < 30) return null;
+    const horizon = H * world.horizon;
+    const focal = Math.min(W, H) * 1.04;
+    const scale = focal / rz;
+    return { x: W / 2 + rx * scale, y: horizon + (85 - y) * scale, scale, depth: rz };
+  }
+
+  function drawSky() {
+    const horizon = H * world.horizon;
+    const sky = ctx.createLinearGradient(0, 0, 0, horizon + 100);
+    sky.addColorStop(0, '#55b9ec');
+    sky.addColorStop(.7, '#d5f1ff');
+    sky.addColorStop(1, '#ffe8ad');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, horizon + 120);
+
+    ctx.fillStyle = 'rgba(255,245,196,.95)';
+    ctx.beginPath();
+    ctx.arc(W * .77, H * .15, Math.max(28, W * .035), 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,.44)';
+    for (let i = 0; i < 7; i++) {
+      const x = ((i * 211 + world.time * 3) % (W + 280)) - 140;
+      const y = 55 + (i % 3) * 44;
       ctx.beginPath();
-      ctx.arc(obs.x, obs.y, 18, 0, Math.PI*2);
+      ctx.ellipse(x, y, 55, 18, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + 42, y + 3, 42, 15, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.font = '20px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(obs.type, obs.x, obs.y);
-    });
-    
-    // Potenciadores
-    powerups.forEach(pu => {
-      ctx.font = '16px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(pu.type, pu.x, pu.y);
-    });
-    
-    // Jugador
-    ctx.font = '64px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(theme.emoji, player.x, player.y);
-    
-    // HUD
-    ctx.fillStyle = '#000';
-    ctx.font = 'bold 14px Arial';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(`Nivel: ${level}`, 10, 10);
-    ctx.fillText(`Puntos: ${score}`, 10, 30);
-    
-    // Indicador de potenciadores activos
-    ctx.font = 'bold 14px Arial';
-    ctx.fillStyle = '#FFD700';
-    ctx.textAlign = 'left';
-    let activePowerupList = Object.keys(activePowerups);
-    activePowerupList.forEach((key, index) => {
-      const powerup = window.jumpPowerups[key];
-      const duration = activePowerups[key];
-      ctx.fillText(`${powerup.emoji} ${Math.ceil(duration/60)}s`, 10, 40 + (index * 25));
-    });
-    
-    if(!running) {
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(0,0,W,H);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 24px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('GAME OVER', W/2, H/2);
+    }
+
+    ctx.fillStyle = '#d5a83a';
+    ctx.fillRect(0, horizon, W, H - horizon);
+    const ground = ctx.createLinearGradient(0, horizon, 0, H);
+    ground.addColorStop(0, '#d9b64d');
+    ground.addColorStop(1, '#786121');
+    ctx.fillStyle = ground;
+    ctx.fillRect(0, horizon, W, H - horizon);
+
+    ctx.strokeStyle = 'rgba(255,240,150,.24)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 24; i++) {
+      const y = horizon + ((i / 24) ** 2) * (H - horizon);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
     }
   }
-  
-  function loop() {
-    if(!document.getElementById('jumpGame')) return;
-    if(running) update();
+
+  function drawTree(t) {
+    const p = project(t.x, 0, t.z);
+    if (!p || p.x < -100 || p.x > W + 100 || p.y < 0 || p.y > H + 120) return;
+    const s = Math.max(.15, p.scale * t.size);
+    ctx.fillStyle = '#65411f';
+    ctx.fillRect(p.x - s * .09, p.y - s * .95, s * .18, s * .95);
+    ctx.fillStyle = ['#bf8a22', '#d59b2f', '#9e741d'][t.hue];
+    for (let i = 0; i < 5; i++) {
+      const ox = (i - 2) * s * .18;
+      const oy = Math.abs(i - 2) * s * .05;
+      ctx.beginPath();
+      ctx.ellipse(p.x + ox, p.y - s * .97 - oy, s * .32, s * .22, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawRock(r) {
+    const p = project(r.x, 0, r.z);
+    if (!p || p.x < -80 || p.x > W + 80 || p.y < 0 || p.y > H + 80) return;
+    const s = Math.max(.12, p.scale * r.size);
+    ctx.fillStyle = '#75694f';
+    ctx.beginPath();
+    ctx.moveTo(p.x - s * .55, p.y);
+    ctx.lineTo(p.x - s * .35, p.y - s * .55);
+    ctx.lineTo(p.x + s * .25, p.y - s * .72);
+    ctx.lineTo(p.x + s * .65, p.y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawCoin(c) {
+    const p = project(c.x, 30 + Math.sin(world.time * 5 + c.bob) * 8, c.z);
+    if (!p) return;
+    const s = Math.max(5, 14 * p.scale);
+    ctx.save();
+    ctx.translate(p.x, p.y - s);
+    ctx.scale(.35 + Math.abs(Math.sin(world.time * 5 + c.bob)) * .65, 1);
+    ctx.fillStyle = '#ffd523';
+    ctx.strokeStyle = '#7f5600';
+    ctx.lineWidth = Math.max(1, s * .12);
+    ctx.beginPath(); ctx.arc(0, 0, s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff1a3';
+    ctx.beginPath(); ctx.arc(-s * .25, -s * .25, s * .2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawKangaroo(x, y, z, angle, enemy = false, hit = 0) {
+    const p = project(x, y, z);
+    if (!p) return;
+    const s = Math.max(.18, p.scale * 68);
+    const flip = Math.cos(angle - player.angle) >= 0 ? 1 : -1;
+    ctx.save();
+    ctx.translate(p.x, p.y - s * .38);
+    ctx.scale(flip, 1);
+    if (hit > 0) ctx.globalAlpha = .55 + Math.sin(hit * 25) * .35;
+
+    ctx.fillStyle = 'rgba(0,0,0,.25)';
+    ctx.beginPath(); ctx.ellipse(0, s * .46, s * .42, s * .12, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = enemy ? '#6f5b53' : '#ae7650';
+    ctx.beginPath(); ctx.ellipse(0, 0, s * .26, s * .38, -.15, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-s * .06, -s * .38, s * .16, s * .18, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(s * .08, -s * .53, s * .055, s * .24, -.16, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-s * .09, -s * .55, s * .055, s * .24, .12, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-s * .1, s * .34, s * .12, s * .32, .12, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(s * .12, s * .34, s * .12, s * .32, -.12, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = s * .13; ctx.lineCap = 'round'; ctx.strokeStyle = enemy ? '#5c4a43' : '#91603f';
+    ctx.beginPath(); ctx.moveTo(s * .08, s * .12); ctx.lineTo(s * .6, s * .32); ctx.stroke();
+
+    ctx.fillStyle = '#211';
+    ctx.beginPath(); ctx.arc(-s * .055, -s * .42, s * .018, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(s * .045, -s * .42, s * .018, 0, Math.PI * 2); ctx.fill();
+
+    if (!enemy && player.attackTimer > 0) {
+      ctx.strokeStyle = 'rgba(255,160,45,.78)'; ctx.lineWidth = Math.max(2, s * .04);
+      ctx.beginPath(); ctx.arc(s * .4, 0, s * .48, -1.25, 1.1); ctx.stroke();
+    }
+    if (!enemy && activePowerups.escudo) {
+      ctx.strokeStyle = 'rgba(80,210,255,.75)'; ctx.lineWidth = Math.max(2, s * .035);
+      ctx.beginPath(); ctx.arc(0, 0, s * .63, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function addParticles(x, z, kind = 'hit') {
+    for (let i = 0; i < 10; i++) particles.push({
+      x, z, y: 35, vx: (Math.random() - .5) * 100, vz: (Math.random() - .5) * 100,
+      vy: 45 + Math.random() * 100, life: .45 + Math.random() * .4, kind
+    });
+  }
+
+  function attack() {
+    if (player.attackTimer > 0 || player.stamina < 12 || !running) return;
+    player.attackTimer = .42;
+    player.stamina -= 12;
+    shake = 3;
+    sfx('pick');
+    enemies.forEach(e => {
+      if (!e.alive) return;
+      const dx = e.x - player.x, dz = e.z - player.z;
+      const d = Math.hypot(dx, dz);
+      const facing = Math.atan2(dx, dz);
+      const diff = Math.atan2(Math.sin(facing - player.angle), Math.cos(facing - player.angle));
+      if (d < 145 && Math.abs(diff) < 1.3) {
+        e.health -= 22 + player.level * 3;
+        e.hit = .3;
+        addParticles(e.x, e.z, 'hit');
+        if (e.health <= 0) {
+          e.alive = false; e.respawn = 7; kills++; score += 250; player.xp += 25;
+          window.jumpCoins += 3; saveCoins();
+          toast('🥊 ¡Rival derrotado! +250');
+          sfx('point');
+        }
+      }
+    });
+  }
+
+  function jump() {
+    if (player.y <= .5 && player.stamina >= 8) {
+      player.vy = activePowerups.saltoExtra ? 260 : 205;
+      player.stamina -= 8;
+      sfx('pop');
+    }
+  }
+
+  function dash() {
+    if (player.stamina >= 25 && player.dashTimer <= 0) {
+      player.dashTimer = .55;
+      player.stamina -= 25;
+      addParticles(player.x, player.z, 'dust');
+    }
+  }
+
+  function takeDamage(amount) {
+    if (player.invulnerable > 0 || !running) return;
+    if (activePowerups.escudo) {
+      delete activePowerups.escudo;
+      renderPowerups();
+      toast('🛡️ El escudo bloqueó el golpe');
+      return;
+    }
+    player.health -= amount;
+    player.hurtTimer = .5;
+    player.invulnerable = 1;
+    shake = 12;
+    sfx('lose');
+    if (navigator.vibrate) navigator.vibrate(70);
+    if (player.health <= 0) gameOver();
+  }
+
+  function gameOver() {
+    running = false;
+    showBanner('💀 FIN DE LA PARTIDA', `Puntuación: ${score}<br>Rivales derrotados: ${kills}`, true);
+  }
+
+  function showBanner(title, text = '', stay = false) {
+    const el = container.querySelector('#jumpBanner');
+    el.innerHTML = `<div style="font-size:2rem;font-weight:1000">${title}</div><div style="margin-top:8px;font-weight:800">${text}</div>${stay ? '<button id="jumpRestartBanner" style="margin-top:16px;border:0;border-radius:12px;padding:12px 18px;background:#ffd321;font-weight:1000">JUGAR OTRA VEZ</button>' : ''}`;
+    el.classList.add('show');
+    if (stay) {
+      setTimeout(() => {
+        const b = container.querySelector('#jumpRestartBanner');
+        if (b) b.onclick = reset;
+      }, 0);
+    } else setTimeout(() => el.classList.remove('show'), 1400);
+  }
+
+  function saveCoins() {
+    localStorage.setItem('jumpCoins', String(window.jumpCoins));
+    container.querySelector('#jumpCoins').textContent = window.jumpCoins;
+  }
+
+  function update(dt) {
+    if (window.HK_PAUSED || !running) return;
+    world.time += dt;
+    shake *= Math.pow(.015, dt);
+
+    Object.keys(activePowerups).forEach(k => {
+      if (activePowerups[k] !== Infinity) {
+        activePowerups[k] -= dt * 60;
+        if (activePowerups[k] <= 0) delete activePowerups[k];
+      }
+    });
+
+    const left = keys.ArrowLeft || keys.a;
+    const right = keys.ArrowRight || keys.d;
+    const up = keys.ArrowUp || keys.w;
+    const down = keys.ArrowDown || keys.s;
+    let turn = (right ? 1 : 0) - (left ? 1 : 0) + input.x;
+    let forward = (up ? 1 : 0) - (down ? 1 : 0) - input.y;
+    turn = Math.max(-1, Math.min(1, turn));
+    forward = Math.max(-1, Math.min(1, forward));
+
+    player.angle += turn * dt * 2.3;
+    let speed = 125;
+    if (activePowerups.velocidad) speed *= 1.5;
+    if (player.dashTimer > 0) { speed *= 2.25; player.dashTimer -= dt; }
+    const targetVX = Math.sin(player.angle) * forward * speed;
+    const targetVZ = Math.cos(player.angle) * forward * speed;
+    player.vx += (targetVX - player.vx) * Math.min(1, dt * 7);
+    player.vz += (targetVZ - player.vz) * Math.min(1, dt * 7);
+    player.x += player.vx * dt;
+    player.z += player.vz * dt;
+    const half = world.size / 2;
+    player.x = Math.max(-half, Math.min(half, player.x));
+    player.z = Math.max(-half, Math.min(half, player.z));
+
+    player.vy -= 470 * dt;
+    player.y += player.vy * dt;
+    if (player.y < 0) { player.y = 0; player.vy = 0; }
+    player.attackTimer = Math.max(0, player.attackTimer - dt);
+    player.hurtTimer = Math.max(0, player.hurtTimer - dt);
+    player.invulnerable = Math.max(0, player.invulnerable - dt);
+    player.stamina = Math.min(100, player.stamina + dt * (Math.abs(forward) > .2 ? 7 : 15));
+
+    enemies.forEach((e, idx) => {
+      if (!e.alive) {
+        e.respawn -= dt;
+        if (e.respawn <= 0) Object.assign(e, spawnEnemy(idx));
+        return;
+      }
+      e.hit = Math.max(0, e.hit - dt);
+      e.attackCooldown -= dt;
+      const dx = player.x - e.x, dz = player.z - e.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 520) {
+        e.angle = Math.atan2(dx, dz);
+        if (d > 92) {
+          e.x += Math.sin(e.angle) * e.speed * dt;
+          e.z += Math.cos(e.angle) * e.speed * dt;
+        } else if (e.attackCooldown <= 0) {
+          e.attackCooldown = 1.4 + Math.random() * .6;
+          takeDamage(12);
+          addParticles(player.x, player.z, 'hurt');
+        }
+      } else e.angle += Math.sin(world.time + idx) * dt * .35;
+    });
+
+    coins.forEach(c => {
+      if (!c.alive) {
+        c.respawn -= dt;
+        if (c.respawn <= 0) Object.assign(c, spawnCoin());
+        return;
+      }
+      let dx = player.x - c.x, dz = player.z - c.z;
+      let d = Math.hypot(dx, dz);
+      if (activePowerups.magnetismo && d < 260) {
+        c.x += dx / Math.max(1, d) * 210 * dt;
+        c.z += dz / Math.max(1, d) * 210 * dt;
+        d = Math.hypot(player.x - c.x, player.z - c.z);
+      }
+      if (d < 45) {
+        c.alive = false; c.respawn = 5; collected++;
+        const gain = activePowerups.dobleMonedas ? 2 : 1;
+        window.jumpCoins += gain; score += 35 * gain; saveCoins();
+        sfx('pick');
+      }
+    });
+
+    particles.forEach(p => {
+      p.life -= dt; p.x += p.vx * dt; p.z += p.vz * dt; p.y += p.vy * dt; p.vy -= 260 * dt;
+    });
+    for (let i = particles.length - 1; i >= 0; i--) if (particles[i].life <= 0) particles.splice(i, 1);
+
+    if (!missionComplete && kills >= 5 && collected >= 10) {
+      missionComplete = true; score += 1500; window.jumpCoins += 25; saveCoins();
+      showBanner('🏆 MISIÓN COMPLETADA', '+1500 puntos · +25 monedas');
+      sfx('win');
+    }
+    if (player.xp >= player.level * 80) {
+      player.xp = 0; player.level++; player.health = 100;
+      showBanner(`⭐ NIVEL ${player.level}`, 'Vida restaurada y más fuerza');
+    }
+
+    container.querySelector('#jumpHealthFill').style.width = Math.max(0, player.health) + '%';
+    container.querySelector('#jumpStaminaFill').style.width = player.stamina + '%';
+    container.querySelector('#jumpLevel').textContent = 'Nv. ' + player.level;
+    container.querySelector('#jumpScore').textContent = score;
+    container.querySelector('#jumpMission').textContent = missionComplete
+      ? '✅ Misión completada'
+      : `🎯 Rivales ${kills}/5 · Monedas ${collected}/10`;
+  }
+
+  function draw() {
+    ctx.save();
+    if (shake > .2) ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+    drawSky();
+
+    const drawables = [];
+    trees.forEach(o => { const p = project(o.x, 0, o.z); if (p) drawables.push({ d:p.depth, fn:()=>drawTree(o) }); });
+    rocks.forEach(o => { const p = project(o.x, 0, o.z); if (p) drawables.push({ d:p.depth, fn:()=>drawRock(o) }); });
+    coins.forEach(o => { if (!o.alive) return; const p = project(o.x, 20, o.z); if (p) drawables.push({ d:p.depth, fn:()=>drawCoin(o) }); });
+    enemies.forEach(o => { if (!o.alive) return; const p = project(o.x, 0, o.z); if (p) drawables.push({ d:p.depth, fn:()=>drawKangaroo(o.x,0,o.z,o.angle,true,o.hit) }); });
+    particles.forEach(o => { const p = project(o.x,o.y,o.z); if (p) drawables.push({ d:p.depth, fn:()=>{
+      const s=Math.max(2,p.scale*8);ctx.fillStyle=o.kind==='hurt'?'#ff3146':o.kind==='dust'?'#d9b56c':'#ffd52c';ctx.beginPath();ctx.arc(p.x,p.y,s,0,Math.PI*2);ctx.fill();
+    }}); });
+    const pp = project(player.x, player.y, player.z + 125);
+    if (pp) drawables.push({ d:pp.depth, fn:()=>drawKangaroo(player.x,player.y,player.z+125,player.angle,false,player.hurtTimer) });
+    drawables.sort((a,b)=>b.d-a.d).forEach(o=>o.fn());
+
+    if (player.dashTimer > 0) {
+      ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=3;
+      for(let i=0;i<12;i++){const x=Math.random()*W,y=H*.45+Math.random()*H*.5;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+(x-W/2)*.12,y+18);ctx.stroke();}
+    }
+    ctx.restore();
+    drawMiniMap();
+  }
+
+  function drawMiniMap() {
+    const R = 56;
+    mctx.clearRect(0,0,112,112);
+    mctx.save(); mctx.beginPath(); mctx.arc(R,R,R,0,Math.PI*2); mctx.clip();
+    mctx.fillStyle='#23472a';mctx.fillRect(0,0,112,112);
+    mctx.strokeStyle='rgba(255,255,255,.12)';
+    for(let i=1;i<4;i++){mctx.beginPath();mctx.arc(R,R,i*14,0,Math.PI*2);mctx.stroke();}
+    const range=700;
+    enemies.forEach(e=>{if(!e.alive)return;const x=R+(e.x-player.x)/range*R,y=R+(e.z-player.z)/range*R;if((x-R)**2+(y-R)**2<R*R){mctx.fillStyle='#ff394c';mctx.beginPath();mctx.arc(x,y,3,0,Math.PI*2);mctx.fill();}});
+    coins.forEach(c=>{if(!c.alive)return;const x=R+(c.x-player.x)/range*R,y=R+(c.z-player.z)/range*R;if((x-R)**2+(y-R)**2<R*R){mctx.fillStyle='#ffd321';mctx.beginPath();mctx.arc(x,y,2,0,Math.PI*2);mctx.fill();}});
+    mctx.translate(R,R);mctx.rotate(-player.angle);mctx.fillStyle='#fff';mctx.beginPath();mctx.moveTo(0,-8);mctx.lineTo(5,6);mctx.lineTo(-5,6);mctx.closePath();mctx.fill();
+    mctx.restore();
+  }
+
+  function loop(now) {
+    const dt = Math.min(.033, (now - last) / 1000 || .016);
+    last = now;
+    update(dt);
     draw();
     animId = requestAnimationFrame(loop);
   }
-  
-  // Iniciar el loop del juego
-  loop();
-  
-  // Iniciar música de fondo después del loop
-  setTimeout(() => {
-    if(window.jumpStartBackgroundMusic) window.jumpStartBackgroundMusic();
-  }, 100);
-  
-  window.jumpReset = () => {
-    player = {x: W/2, y: H-80, vy: 0, vx: 0};
-    platforms = [];
-    obstacles = [];
-    powerups = [];
-    score = 0;
-    level = 1;
-    running = true;
-    document.getElementById('jumpLevel').textContent = '1';
-    document.getElementById('jumpScore').textContent = '0';
-    
-    for(let i = 0; i < platformCount; i++) {
-      platforms.push({x: Math.random()*(W-platformWidth), y: H-50-i*platformSpacing, w: platformWidth, h: platformHeight});
-      
-      // Obstáculos específicos por nivel
-      const obstaclesByLevel = {
-        1: ['⚔️', '🔥'],
-        2: ['🔥', '❄️', '⚔️'],
-        3: ['💣', '🔥', '❄️', '⚔️'],
-        4: ['💣', '👻', '⚔️'],
-        5: ['👾', '💣', '🔥', '❄️', '⚔️']
+
+  function renderPowerups() {
+    const panel = container.querySelector('#jumpPowerupsPanel');
+    panel.innerHTML = '';
+    Object.entries(window.jumpPowerups).forEach(([key,p]) => {
+      const n = window.jumpInventory[key] || 0;
+      if (!n) return;
+      const b = document.createElement('button');
+      b.innerHTML = `${p.emoji}<small>${n}</small>`;
+      b.title = p.descripcion;
+      b.onclick = () => usePowerup(key);
+      panel.appendChild(b);
+    });
+  }
+
+  function usePowerup(key) {
+    if (!window.jumpInventory[key]) return toast('No tienes ese potenciador');
+    window.jumpInventory[key]--;
+    localStorage.setItem('jumpInventory', JSON.stringify(window.jumpInventory));
+    const p = window.jumpPowerups[key];
+    if (key === 'curacion') player.health = Math.min(100, player.health + 35);
+    else if (key === 'escudo') activePowerups[key] = Infinity;
+    else activePowerups[key] = p.duracion;
+    toast(`${p.emoji} ${p.nombre} activado`);
+    renderPowerups();
+  }
+
+  function openShop() {
+    window.HK_PAUSED = true;
+    const modal = container.querySelector('#jumpModal');
+    const card = container.querySelector('#jumpModalCard');
+    card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:28px;font-weight:1000">🛒 Tienda</div><div>Monedas: <b id="jumpShopCoins">${window.jumpCoins}</b></div></div><button id="jumpShopClose" class="jk-btn" style="width:44px;height:44px">✕</button></div><div id="jumpShopList"></div>`;
+    const list = card.querySelector('#jumpShopList');
+    Object.entries(window.jumpPowerups).forEach(([key,p]) => {
+      const row=document.createElement('div');row.className='jk-shop-row';
+      row.innerHTML=`<div style="font-size:30px">${p.emoji}</div><div class="info"><b>${p.nombre}</b><div style="font-size:12px;opacity:.78">${p.descripcion}</div><div style="font-size:12px">Inventario: ${window.jumpInventory[key]||0}</div></div><button>🪙 ${p.precio}</button>`;
+      row.querySelector('button').onclick=()=>{
+        if(window.jumpCoins<p.precio)return toast('❌ No tienes suficientes monedas');
+        window.jumpCoins-=p.precio;window.jumpInventory[key]=(window.jumpInventory[key]||0)+1;
+        localStorage.setItem('jumpInventory',JSON.stringify(window.jumpInventory));saveCoins();renderPowerups();openShop();toast(`✅ Compraste ${p.nombre}`);
       };
-      const levelObstacles = obstaclesByLevel[level] || ['⚔️', '🔥'];
-      
-      if(i % 3 === 0 && i > 4) obstacles.push({
-        x: platforms[i].x+platformWidth/2, 
-        y: platforms[i].y-30, 
-        type: levelObstacles[i % levelObstacles.length], 
-        active: true
-      });
-      if(i % 5 === 0) powerups.push({x: platforms[i].x+platformWidth/2, y: platforms[i].y-20, type: ['🛡️','⚡','🐢'][i%3]});
-    }
-    platforms[0] = {x: W/2-platformWidth/2, y: H-50, w: platformWidth, h: platformHeight};
+      list.appendChild(row);
+    });
+    modal.classList.add('show');
+    card.querySelector('#jumpShopClose').onclick=()=>{modal.classList.remove('show');window.HK_PAUSED=false;};
+  }
+
+  function reset() {
+    running = true; missionComplete = false; score = 0; kills = 0; collected = 0;
+    Object.assign(player,{x:0,z:0,y:0,angle:0,vx:0,vz:0,vy:0,health:100,stamina:100,attackTimer:0,hurtTimer:0,dashTimer:0,invulnerable:0,level:1,xp:0});
+    enemies.forEach((e,i)=>Object.assign(e,spawnEnemy(i)));
+    coins.forEach(c=>Object.assign(c,spawnCoin()));
+    container.querySelector('#jumpBanner').classList.remove('show');
+    window.HK_PAUSED=false;
+  }
+
+  // Teclado
+  const onKeyDown = e => {
+    if (!container.isConnected) return;
+    keys[e.key] = true;
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+    if (e.key === ' ') jump();
+    if (e.key.toLowerCase() === 'f') attack();
+    if (e.key.toLowerCase() === 'shift') dash();
+    if (e.key.toLowerCase() === 'e') openShop();
   };
-  
-  window.jumpClose = () => {
-    console.log('Closing Jump game...');
-    if(animId) cancelAnimationFrame(animId);
-    // Detener la música de fondo
-    if(typeof window.jumpStopBackgroundMusic === 'function') {
-      window.jumpStopBackgroundMusic();
-    }
-    // Intentar cerrar mediante la función closeGame o closeModal del sistema
-    if(typeof closeGame === 'function') {
-      closeGame();
-    } else if(typeof closeModal === 'function') {
-      closeModal();
-    } else {
-      // Si no existen, remover el contenedor manualmente
-      const container = document.querySelector('div[style*="position:fixed"][style*="width:100vw"]');
-      if(container) container.remove();
-    }
+  const onKeyUp = e => { keys[e.key] = false; };
+  document.addEventListener('keydown', onKeyDown, { passive:false });
+  document.addEventListener('keyup', onKeyUp);
+
+  // Joystick táctil
+  const joy = container.querySelector('#jumpJoy');
+  const knob = container.querySelector('#jumpJoyKnob');
+  let joyId = null;
+  function moveJoy(e) {
+    const r=joy.getBoundingClientRect();const cx=r.left+r.width/2,cy=r.top+r.height/2;
+    let dx=e.clientX-cx,dy=e.clientY-cy;const max=r.width*.31;const d=Math.hypot(dx,dy)||1;
+    if(d>max){dx=dx/d*max;dy=dy/d*max;}
+    input.x=dx/max;input.y=dy/max;knob.style.transform=`translate(${dx}px,${dy}px)`;
+  }
+  joy.addEventListener('pointerdown',e=>{joyId=e.pointerId;joy.setPointerCapture(e.pointerId);moveJoy(e);});
+  joy.addEventListener('pointermove',e=>{if(e.pointerId===joyId)moveJoy(e);});
+  const endJoy=e=>{if(e.pointerId!==joyId)return;joyId=null;input.x=0;input.y=0;knob.style.transform='translate(0,0)';};
+  joy.addEventListener('pointerup',endJoy);joy.addEventListener('pointercancel',endJoy);
+
+  container.querySelector('#jumpAttackBtn').addEventListener('pointerdown',attack);
+  container.querySelector('#jumpJumpBtn').addEventListener('pointerdown',jump);
+  container.querySelector('#jumpDashBtn').addEventListener('pointerdown',dash);
+  container.querySelector('#jumpPauseBtn').onclick=()=>{
+    window.HK_PAUSED=!window.HK_PAUSED;
+    container.querySelector('#jumpPauseBtn').textContent=window.HK_PAUSED?'▶️':'⏸️';
   };
-  
-  window.jumpOpenShop = () => {
-    try {
-      // Asegurar que las variables existan
-      if(!window.jumpPowerups) {
-        console.error('jumpPowerups no está definido');
-        showToast('❌ Error: Potenciadores no cargados');
-        return;
-      }
-      
-      if(!window.jumpInventory) {
-        window.jumpInventory = JSON.parse(localStorage.getItem('jumpInventory')) || {
-          escudo: 0, velocidad: 0, lentitud: 0, dobleMonedas: 0, saltoExtra: 0, magnetismo: 0
-        };
-      }
-      
-      if(!window.jumpCoins) {
-        window.jumpCoins = parseInt(localStorage.getItem('jumpCoins')) || 500;
-      }
-      
-      const shopModal = document.createElement('div');
-      shopModal.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
-      
-      let shopHTML = `
-        <div style="background:linear-gradient(135deg,#7C3AED,#FF6B9D);color:#fff;padding:25px;border-radius:20px;max-width:550px;width:100%;margin-bottom:20px;border:3px solid #FFD700">
-          <div style="text-align:center;margin-bottom:20px">
-            <div style="font-size:3rem;margin-bottom:10px">🛒</div>
-            <div style="font-size:2rem;font-weight:900">TIENDA</div>
-            <div style="font-size:1.3rem;font-weight:800;margin-top:10px;background:rgba(0,0,0,0.3);padding:10px;border-radius:10px">💰 Monedas: ${window.jumpCoins}</div>
-          </div>
-          
-          <div style="background:rgba(0,0,0,0.4);padding:15px;border-radius:15px;margin-bottom:20px">
-            <div style="font-size:1.1rem;font-weight:900;margin-bottom:12px;border-bottom:2px solid #FFD700;padding-bottom:8px">📦 TU INVENTARIO:</div>`;
-      
-      for(let [key, powerup] of Object.entries(window.jumpPowerups)) {
-        const cantidad = window.jumpInventory[key] || 0;
-        shopHTML += `<div style="margin:8px 0;font-size:1rem;font-weight:700">${powerup.emoji} ${powerup.nombre}: <span style="color:#FFD700;font-size:1.2rem">${cantidad}x</span></div>`;
-      }
-      
-      shopHTML += `</div>
-          
-          <div style="font-size:1.1rem;font-weight:900;margin-bottom:15px;border-bottom:2px solid #FFD700;padding-bottom:8px;width:100%">🛍️ COMPRAR POTENCIADORES:</div>`;
-      
-      for(let [key, powerup] of Object.entries(window.jumpPowerups)) {
-        shopHTML += `
-          <button onclick="window.jumpBuyPowerup('${key}')" style="width:100%;padding:12px;margin:8px 0;background:linear-gradient(135deg,#4CAF50,#45a049);color:#fff;border:2px solid #fff;border-radius:10px;cursor:pointer;font-weight:900;font-size:1rem;transition:all 0.2s" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-            ${powerup.emoji} ${powerup.nombre} - 💰${powerup.precio}
-          </button>`;
-      }
-      
-      shopHTML += `
-        </div>
-        
-        <button onclick="this.parentElement.remove()" style="width:100%;max-width:550px;padding:15px;margin-top:20px;background:linear-gradient(135deg,#FF4757,#FF6348);color:#fff;border:3px solid #fff;border-radius:10px;cursor:pointer;font-weight:900;font-size:1.1rem;transition:all 0.2s" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-          ✕ CERRAR TIENDA
-        </button>
-      `;
-      
-      shopModal.innerHTML = shopHTML;
-      document.body.appendChild(shopModal);
-    } catch(error) {
-      console.error('Error en jumpOpenShop:', error);
-      showToast('❌ Error al abrir tienda');
-    }
+  container.querySelector('#jumpSoundBtn').onclick=()=>{
+    window.jumpSoundEnabled=!window.jumpSoundEnabled;localStorage.setItem('jumpSound',String(window.jumpSoundEnabled));
+    container.querySelector('#jumpSoundBtn').textContent=window.jumpSoundEnabled?'🔊':'🔇';
   };
-  
-  window.jumpBuyPowerup = (key) => {
-    const powerup = window.jumpPowerups[key];
-    if(window.jumpCoins >= powerup.precio) {
-      window.jumpCoins -= powerup.precio;
-      window.jumpInventory[key]++;
-      localStorage.setItem('jumpCoins', window.jumpCoins);
-      localStorage.setItem('jumpInventory', JSON.stringify(window.jumpInventory));
-      window.jumpSounds.buy();
-      showToast(`✅ Compraste ${powerup.emoji} ${powerup.nombre}`);
-      
-      // Actualizar UI del panel de potenciadores
-      setTimeout(() => {
-        if(document.getElementById('jumpGame')) {
-          window.jumpUpdatePowerupsUI();
-        }
-      }, 500);
-      
-      window.jumpOpenShop(); // Reabrir tienda
-    } else {
-      showToast('❌ No tienes suficientes monedas');
-    }
-  };
-  
-  window.jumpToggleSound = () => {
-    window.jumpSoundEnabled = !window.jumpSoundEnabled;
-    localStorage.setItem('jumpSound', window.jumpSoundEnabled);
-    const btn = document.getElementById('jumpSoundBtn');
-    if(btn) {
-      btn.textContent = window.jumpSoundEnabled ? '🔊' : '🔇';
-      btn.style.background = window.jumpSoundEnabled ? '#FFD700' : '#999';
-    }
-  };
-  
-  // Sistema de activación de potenciadores
-  window.jumpUsePowerup = (key) => {
-    const inventory = JSON.parse(localStorage.getItem('jumpInventory')) || {};
-    
-    if(!inventory[key] || inventory[key] <= 0) {
-      showToast(`❌ No tienes ${window.jumpPowerups[key].nombre}`);
-      return;
-    }
-    
-    // Gastar el potenciador del inventario
-    inventory[key]--;
-    localStorage.setItem('jumpInventory', JSON.stringify(inventory));
-    window.jumpInventory = inventory;
-    
-    const powerup = window.jumpPowerups[key];
-    
-    // Activar el potenciador
-    if(!activePowerups[key]) {
-      activePowerups[key] = 0;
-    }
-    activePowerups[key] += powerup.duracion;
-    
-    showToast(`✨ ¡Activaste ${powerup.emoji} ${powerup.nombre}!`);
-    window.jumpSounds.powerupGrab();
-    
-    // Actualizar UI
-    window.jumpUpdatePowerupsUI();
-  };
-  
-  window.jumpUpdatePowerupsUI = () => {
-    const panel = document.getElementById('jumpPowerupsPanel');
-    if(!panel) return;
-    
-    // Leer directamente del localStorage para asegurar data fresca
-    const inventory = JSON.parse(localStorage.getItem('jumpInventory')) || {
-      escudo: 0,
-      velocidad: 0,
-      lentitud: 0,
-      dobleMonedas: 0,
-      saltoExtra: 0,
-      magnetismo: 0
-    };
-    
-    let html = '';
-    let hasAnyPowerup = false;
-    
-    for(let [key, powerup] of Object.entries(window.jumpPowerups)) {
-      const count = inventory[key] || 0;
-      if(count > 0) {
-        hasAnyPowerup = true;
-        html += `<button onclick="window.jumpUsePowerup('${key}')" title="${powerup.descripcion}" style="padding:10px 14px;background:linear-gradient(135deg,#FFD700,#FFA500);color:#000;border:3px solid #fff;border-radius:10px;cursor:pointer;font-weight:900;font-size:1rem;white-space:nowrap;transition:all 0.2s;box-shadow:0 4px 8px rgba(0,0,0,0.3)" onmouseover="this.style.transform='scale(1.08)';this.style.boxShadow='0 6px 12px rgba(0,0,0,0.5)'" onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 4px 8px rgba(0,0,0,0.3)'">${powerup.emoji} ${count}x</button>`;
-      }
-    }
-    
-    if(hasAnyPowerup) {
-      panel.style.display = 'flex';
-      panel.innerHTML = html;
-    } else {
-      panel.style.display = 'none';
-    }
-  };
-  
-  // Actualizar UI de potenciadores al iniciar
-  setTimeout(() => {
-    window.jumpUpdatePowerupsUI();
-  }, 100);
-  
-  // Sistema de Sonido para Jump
-  window.jumpSoundEnabled = localStorage.getItem('jumpSound') !== 'false';
-  
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  
-  window.jumpPlaySound = (frequency, duration, type = 'sine') => {
-    if(!window.jumpSoundEnabled) return;
-    try {
-      const now = audioContext.currentTime;
-      const osc = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-      
-      osc.connect(gain);
-      gain.connect(audioContext.destination);
-      
-      osc.type = type;
-      osc.frequency.value = frequency;
-      
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-      
-      osc.start(now);
-      osc.stop(now + duration);
-    } catch(e) {
-      console.log('Audio error:', e);
-    }
-  };
-  
-  // Sonidos para cada evento
-  window.jumpSounds = {
-    jump: () => window.jumpPlaySound(400, 0.1),
-    platformHit: () => {
-      window.jumpPlaySound(600, 0.08);
-      setTimeout(() => window.jumpPlaySound(800, 0.06), 40);
-    },
-    levelUp: () => {
-      window.jumpPlaySound(800, 0.1);
-      setTimeout(() => window.jumpPlaySound(1000, 0.1), 100);
-      setTimeout(() => window.jumpPlaySound(1200, 0.15), 200);
-    },
-    obstacleHit: () => {
-      window.jumpPlaySound(200, 0.15);
-      setTimeout(() => window.jumpPlaySound(150, 0.15), 100);
-      setTimeout(() => window.jumpPlaySound(100, 0.2), 200);
-      setTimeout(() => window.jumpPlaySound(150, 0.15), 350);
-    },
-    powerupGrab: () => {
-      window.jumpPlaySound(1000, 0.05);
-      setTimeout(() => window.jumpPlaySound(1200, 0.05), 50);
-      setTimeout(() => window.jumpPlaySound(1400, 0.08), 100);
-    },
-    buy: () => {
-      window.jumpPlaySound(700, 0.08);
-      setTimeout(() => window.jumpPlaySound(900, 0.08), 80);
-    },
-    victoryComplete: () => {
-      window.jumpPlaySound(1000, 0.12);
-      setTimeout(() => window.jumpPlaySound(1200, 0.12), 120);
-      setTimeout(() => window.jumpPlaySound(1400, 0.15), 240);
-    },
-    // 4 Canciones de fondo diferentes
-    backgroundMusic1: () => { // Canción clásica alegre
-      const notes = [
-        {freq: 262, duration: 0.5}, // Do
-        {freq: 330, duration: 0.5}, // Mi
-        {freq: 392, duration: 0.5}, // Sol
-        {freq: 330, duration: 0.5}, // Mi
-      ];
-      notes.forEach((note, i) => {
-        setTimeout(() => {
-          if(window.jumpMusicPlaying) window.jumpPlaySound(note.freq, note.duration, 'sine');
-        }, i * 500);
-      });
-    },
-    backgroundMusic2: () => { // Canción de espacio futurista
-      const notes = [
-        {freq: 440, duration: 0.4},
-        {freq: 550, duration: 0.4},
-        {freq: 660, duration: 0.4},
-        {freq: 550, duration: 0.4},
-      ];
-      notes.forEach((note, i) => {
-        setTimeout(() => {
-          if(window.jumpMusicPlaying) window.jumpPlaySound(note.freq, note.duration, 'sine');
-        }, i * 400);
-      });
-    },
-    backgroundMusic3: () => { // Canción suave y mágica
-      const notes = [
-        {freq: 293, duration: 0.6},
-        {freq: 349, duration: 0.6},
-        {freq: 294, duration: 0.6},
-        {freq: 349, duration: 0.6},
-      ];
-      notes.forEach((note, i) => {
-        setTimeout(() => {
-          if(window.jumpMusicPlaying) window.jumpPlaySound(note.freq, note.duration, 'sine');
-        }, i * 600);
-      });
-    },
-    backgroundMusic4: () => { // Canción épica y energética
-      const notes = [
-        {freq: 330, duration: 0.35},
-        {freq: 392, duration: 0.35},
-        {freq: 494, duration: 0.35},
-        {freq: 392, duration: 0.35},
-      ];
-      notes.forEach((note, i) => {
-        setTimeout(() => {
-          if(window.jumpMusicPlaying) window.jumpPlaySound(note.freq, note.duration, 'sine');
-        }, i * 350);
-      });
-    }
-  };
-  
-  // Sistema de música de fondo
-  window.jumpMusicPlaying = localStorage.getItem('jumpMusic') !== 'false';
-  window.jumpMusicInterval = null;
-  window.jumpCurrentSong = 1;
-  
-  window.jumpStartBackgroundMusic = () => {
-    if(window.jumpMusicInterval) clearInterval(window.jumpMusicInterval);
-    window.jumpMusicInterval = setInterval(() => {
-      if(window.jumpMusicPlaying && window.jumpSoundEnabled) {
-        // Seleccionar canción según el nivel actual
-        const songFunctions = [
-          'backgroundMusic1',
-          'backgroundMusic2',
-          'backgroundMusic3',
-          'backgroundMusic4'
-        ];
-        
-        // Usar la canción correspondiente al nivel (0-3 para 4 canciones)
-        const songIndex = Math.min(level - 1, 3);
-        const songFunction = songFunctions[songIndex];
-        
-        if(window.jumpSounds[songFunction]) {
-          window.jumpSounds[songFunction]();
-        }
-      }
-    }, 2400); // Intervalo ajustado para las nuevas duraciones
-  };
-  
-  window.jumpStopBackgroundMusic = () => {
-    if(window.jumpMusicInterval) {
-      clearInterval(window.jumpMusicInterval);
-      window.jumpMusicInterval = null;
-    }
-  };
+  container.querySelector('#jumpCenterHud').onclick=openShop;
+
+  function closeGame() {
+    cancelAnimationFrame(animId);
+    document.removeEventListener('keydown',onKeyDown);
+    document.removeEventListener('keyup',onKeyUp);
+    window.removeEventListener('resize',resize);
+    if (typeof window.closeGame === 'function') window.closeGame();
+    else if (typeof window.closeModal === 'function') window.closeModal();
+    else container.remove();
+  }
+  container.querySelector('#jumpCloseBtn').onclick=closeGame;
+  window.addEventListener('resize',resize);
+
+  window.jumpReset = reset;
+  window.jumpClose = closeGame;
+  window.jumpOpenShop = openShop;
+  window.jumpUsePowerup = usePowerup;
+  window.jumpUpdatePowerupsUI = renderPowerups;
+  window.jumpToggleSound = () => container.querySelector('#jumpSoundBtn').click();
+  window.jumpStartBackgroundMusic = () => {};
+  window.jumpStopBackgroundMusic = () => {};
+
+  renderPowerups();
+  showBanner('🦘 AVENTURA SALVAJE', 'Usa el joystick · salta · ataca');
+  animId = requestAnimationFrame(loop);
 }
 
 // ═══════════════════════════════════════════
