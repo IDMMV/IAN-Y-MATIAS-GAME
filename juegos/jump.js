@@ -932,7 +932,5 @@ function buildJump(container) {
   };
 }
 
-// ═══════════════════════════════════════════
-//  GAME 12: SIMÓN DICE (SIMON)
-// ═══════════════════════════════════════════
 if (typeof buildJump === "function") window.buildJump = buildJump;
+
